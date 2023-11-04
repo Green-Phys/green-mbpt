@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
-find_package(BLAS REQUIRED)
+find_package(BLAS)
 if (BLAS_FOUND)
     if (BLAS_LIBRARIES MATCHES ".*Accelerate")
         message(INFO " Using Apple BLAS")
@@ -37,7 +37,10 @@ add_subdirectory(src)
 add_library(GREEN::MBPT ALIAS mbpt)
 
 add_executable(mbpt.exe main.cpp)
-target_link_libraries(mbpt.exe PUBLIC GREEN::MBPT GREEN::SC BLAS::BLAS)
+target_link_libraries(mbpt.exe PUBLIC GREEN::MBPT GREEN::SC)
+if(BLAS_FOUND)
+    target_link_libraries(mbpt.exe PUBLIC BLAS::BLAS)
+endif(BLAS_FOUND)
 
 option(Build_Tests "Build tests" ON)
 if (Build_Tests)
