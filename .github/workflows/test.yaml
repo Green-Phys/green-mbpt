@@ -20,9 +20,15 @@ jobs:
       - name: Build
         run: |
           module load BuildEnv/gcc-12.2.0.lua;
+          mkdir -p build && cd build;
+          cmake ..; 
+          make -j 8;
           # TODO add build statge for project
 
       - name: Test
+        env:
+          HDF5_USE_FILE_LOCKING: 'FALSE'
         run: |
-          module load BuildEnv/gcc-12.2.0.lua;
-          # TODO: add project specific tests
+            module load BuildEnv/gcc-12.2.0.lua;
+            cd build;
+            ctest -j 1
