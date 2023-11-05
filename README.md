@@ -5,3 +5,7 @@
 
 # green-solvers
 Many-Body Perturbation solvers for Green project
+
+# Acknowledgements
+
+This work is supported by National Science Foundation under the award CSSI-2310582
