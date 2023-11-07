@@ -107,8 +107,7 @@ X = (2.0/np.pi) * np.cbrt(X)
 X2 = 2.0 * np.cbrt(1.0/(mycell.vol*len(kmesh)))
 
 f = h5py.File("AqQ.h5", 'w')
-f["AqQ"] = AqQ.view(np.float64).reshape(AqQ.shape[0], AqQ.shape[1], 2)
-f["AqQ"].attrs["__complex__"] = np.int8(1)
+f["AqQ"] = AqQ
 f["qs"] = q_reduced
 f["qs_scaled"] = q_scaled_reduced
 f["q_abs"] = q_abs
