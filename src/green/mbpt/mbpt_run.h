@@ -57,7 +57,7 @@ namespace green::mbpt {
         break;
       }
       case GW: {
-        gw_solver              gw(p, dyson.ft(), dyson.bz_utils());
+        gw_solver              gw(p, dyson.ft(), dyson.bz_utils(), dyson.S_k());
         sc::composition_solver cs(hf, gw);
         sc.solve(cs, G_tau, Sigma1, Sigma_tau);
         break;

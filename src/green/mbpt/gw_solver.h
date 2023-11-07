@@ -20,6 +20,7 @@
 // #include "transformer_t.h"
 #include "common_defs.h"
 #include "df_integral_t.h"
+#include "mbpt_q0_utils_t.h"
 
 namespace green::mbpt {
   /**
@@ -42,11 +43,12 @@ namespace green::mbpt {
      * @param bz_utils    -- Brillouin zone utilities
      * @param second_only -- Whether do GW or only second-order direct diagram
      */
-    gw_solver(const params::params& p, const grids::transformer_t& ft, const bz_utils_t& bz_utils, bool second_only = false) :
+    gw_solver(const params::params& p, const grids::transformer_t& ft, const bz_utils_t& bz_utils, const ztensor<4>& S_k, bool second_only = false) :
         _beta(p["BETA"]), _nts(ft.sd().repn_fermi().nts()), _nts_b(ft.sd().repn_bose().nts()), _ni(ft.sd().repn_fermi().ni()),
         _ni_b(ft.sd().repn_bose().ni()), _nw(ft.sd().repn_fermi().nw()), _nw_b(ft.sd().repn_bose().nw()), _nk(bz_utils.nk()),
         _ink(bz_utils.ink()), _second_only(second_only), _ft(ft), _bz_utils(bz_utils), _path(p["dfintegral_file"]),
-        _P0_tilde(0, 0, 0, 0), _ntauspin_mpi(p["ntauspinprocs"]), _p_sp(p["P_sp"]), _sigma_sp(p["Sigma_sp"]) {
+        _q0_utils(bz_utils.ink(), 0, S_k, _path, p["q0_treatment"]),
+        _P0_tilde(0, 0, 0, 0), _eps_inv_wq(ft.wsample_bose().size(), bz_utils.ink()), _ntauspin_mpi(p["ntauspinprocs"]), _p_sp(p["P_sp"]), _sigma_sp(p["Sigma_sp"]) {
       h5pp::archive ar(p["input_file"]);
       ar["params/nao"] >> _nao;
       ar["params/nso"] >> _nso;
@@ -55,6 +57,7 @@ namespace green::mbpt {
       ar.close();
       _X2C = _nao != _nso;
       _P0_tilde.resize(_nts, 1, _NQ, _NQ);
+      _q0_utils.resize(_NQ);
     }
 
     /**
@@ -179,8 +182,12 @@ namespace green::mbpt {
     const bz_utils_t&           _bz_utils;
     // Path to integral files
     const std::string           _path;
+    // 
+    mbpt_q0_utils_t _q0_utils;
     // Array for the polarization bubble and for screened interaction
     ztensor<4>                  _P0_tilde;
+    // Dielectric function inverse in the plane-wave basis with G = G' = 0
+    ztensor<2> _eps_inv_wq;
 
     size_t                      _nao;
     size_t                      _nso;

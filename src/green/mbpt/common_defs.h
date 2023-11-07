@@ -109,6 +109,10 @@ namespace green::mbpt {
 
   enum scf_type { HF, GF2, GW };
 
+  enum sigma_q0_treatment_e {
+    ignore_G0, ewald_int, extrapolate
+  };
+
   inline void define_parameters(params::params& p) {
     p.define<std::string>("dfintegral_hf_file", "Path to Hartree-Fock integrals", "df_hf_int");
     p.define<std::string>("dfintegral_file", "Path to integrals for high orfer theories", "df_int");
@@ -118,6 +122,7 @@ namespace green::mbpt {
     p.define<bool>("P_sp", "Compute polarization in single precision", false);
     p.define<bool>("Sigma_sp", "Compute self-energy in single precision", false);
     p.define<int>("ntauspinprocs", "Number MPI cores to run loop over time+spin.", 1);
+    p.define<sigma_q0_treatment_e>("q0_treatment", "GW q=0 divergence treatment", ignore_G0);
   }
 }  // namespace green::mbpt
 #endif  // MBPT_COMMON_DEFS_H

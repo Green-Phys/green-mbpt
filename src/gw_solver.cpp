@@ -58,6 +58,11 @@ namespace green::mbpt {
     }
     sigma_tau.fence();
     statistics.end();
+    if (!_second_only && _q0_utils.q0_treatment() == extrapolate) {
+      MPI_Allreduce(MPI_IN_PLACE, _eps_inv_wq.data(), _eps_inv_wq.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, utils::context.global);
+      _q0_utils.GW_q0_correction(_eps_inv_wq, sigma_fermi, g.object(), _ft, _X2C,
+                                 utils::context.global_rank, utils::context.node_rank, utils::context.node_size, sigma_tau.win());
+    }
     statistics.end();
     statistics.print(utils::context.global);
     if (numk_rest != 0) {
@@ -208,6 +213,11 @@ namespace green::mbpt {
 
     // Transform back from Bosonic Matsubara to Fermionic tau.
     _ft.w_b_to_tau_f(P0_w, _P0_tilde);
+    // for G0W0 correction
+    if (_q0_utils.q0_treatment() == extrapolate and _tauid == 0 and _spinid == 0) {
+      size_t iq = _bz_utils.symmetry().reduced_point(q_ir);
+      _q0_utils.aux_to_PW_00(P0_w, _eps_inv_wq, iq);
+    }
     // Transform back to intermediate Chebyshev representation for P_tilde
     if (_tauid == 0 and _spinid == 0 and q_ir == 0) {
       print_leakage(_ft.check_chebyshev(_P0_tilde), "P");
