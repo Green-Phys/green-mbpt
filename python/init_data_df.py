@@ -1,5 +1,7 @@
 from pyscf.df import addons
 import common_utils as comm
+import numpy as np
+import os
 
 # Default geometry
 a = '''4.0655,    0.0,    0.0
@@ -16,7 +18,7 @@ nk       = args.nk
 # number of k-points in each direction to evaluate Coulomb kernel
 Nk       = args.Nk
 
-mycell = cell(args)
+mycell = comm.cell(args)
 
 # number of orbitals per cell
 nao = mycell.nao_nr()
@@ -28,13 +30,13 @@ last_ao = atoms_info[:,3]
 print("aoslice_by_atom = ", atoms_info)
 print("Last AO index for each atom = ", last_ao)
 
-kmesh, k_ibz, ir_list, conj_list, weight, ind, num_ik = init_k_mesh(args, mycell)
+kmesh, k_ibz, ir_list, conj_list, weight, ind, num_ik = comm.init_k_mesh(args, mycell)
 
 
 '''
 Generate integrals for mean-field calculations
 '''
-mydf   = df.GDF(mycell)
+mydf   = comm.df.GDF(mycell)
 if args.auxbasis is not None:
     mydf.auxbasis = args.auxbasis
 elif args.beta is not None:
@@ -51,7 +53,7 @@ else:
 auxcell = addons.make_auxmol(mycell, mydf.auxbasis)
 NQ = auxcell.nao_nr()
 
-mf = solve_mean_field(args, mydf, mycell)
+mf = comm.solve_mean_field(args, mydf, mycell)
 
 # Get Overlap and Fock matrices
 hf_dm = mf.make_rdm1().astype(dtype=np.complex128)
@@ -73,9 +75,9 @@ X_k = []
 X_inv_k = []
 
 # Orthogonalization matrix
-X_k, X_inv_k, S, F, T, hf_dm = orthogonalize(mydf, args.orth, X_k, X_inv_k, F, T, hf_dm, S)
-save_data(args, mycell, mf, kmesh, ind, weight, num_ik, ir_list, conj_list, Nk, nk, NQ, F, S, T, hf_dm, Zs, last_ao)
+X_k, X_inv_k, S, F, T, hf_dm = comm.orthogonalize(mydf, args.orth, X_k, X_inv_k, F, T, hf_dm, S)
+comm.save_data(args, mycell, mf, kmesh, ind, weight, num_ik, ir_list, conj_list, Nk, nk, NQ, F, S, T, hf_dm, Zs, last_ao)
 
-compute_df_int(args, mycell, kmesh, nao, X_k)
+comm.compute_df_int(args, mycell, kmesh, nao, X_k)
 
 print("Done")
