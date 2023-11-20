@@ -14,7 +14,7 @@ basis = 'sto-3g'
 args = comm.init_pbc_params(a, atoms)
 
 # number of k-points in each direction for Coulomb integrals
-nk       = args.nk
+nk       = args.nk ** 3
 # number of k-points in each direction to evaluate Coulomb kernel
 Nk       = args.Nk
 
