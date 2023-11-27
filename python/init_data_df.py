@@ -1,17 +1,10 @@
-from pyscf.df import addons
-import common_utils as comm
 import numpy as np
 import os
+from pyscf.df import addons
 
-# Default geometry
-a = '''4.0655,    0.0,    0.0
-           0.0,    4.0655,    0.0
-           0.0,    0.0,    4.0655'''
-atoms = '''H -0.25 -0.25 -0.25
-           H  0.25  0.25  0.25'''
-basis = 'sto-3g'
+import common_utils as comm
 
-args = comm.init_pbc_params(a, atoms)
+args = comm.init_pbc_params()
 
 # number of k-points in each direction for Coulomb integrals
 nk       = args.nk ** 3

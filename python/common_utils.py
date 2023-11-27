@@ -1,12 +1,13 @@
-import numpy as np
+import argparse
 import h5py
+import numpy as np
+import os
+import pyscf.lib.chkfile as chk
+from numba import jit
 from pyscf import gto as mgto
 from pyscf.pbc import tools, gto, df, scf, dft
+
 import integral_utils as int_utils
-import pyscf.lib.chkfile as chk
-import argparse
-import os
-from numba import jit
 
 
 def transform(Z, X, X_inv):
@@ -114,8 +115,6 @@ def save_data(args, mycell, mf, kmesh, ind, weight, num_ik, ir_list, conj_list, 
     inp_data["params/nel_cell"] = mycell.nelectron
     inp_data["params/nk"] = kmesh.shape[0]
     inp_data["params/NQ"] = NQ
-    if args.active_space is not None:
-        inp_data["as/indices"] = np.array(args.active_space)
     inp_data.close()
     chk.save(args.output_path, "Cell", mycell.dumps())
     inp_data = h5py.File("dm.h5", "w")
@@ -170,18 +169,16 @@ def orthogonalize(mydf, orth, X_k, X_inv_k, F, T, hf_dm, S):
 
     return X_k, X_inv_k, S, F, T, hf_dm
 
-def add_common_params(parser, a, atoms):
-    parser.add_argument("--a", type=parse_geometry, default=a, help="lattice geometry")
-    parser.add_argument("--atom", type=parse_geometry, default=atoms, help="poistions of atoms")
-    parser.add_argument("--nk", type=int, default=3, help="number of k-points in each direction")
+def add_common_params(parser):
+    parser.add_argument("--a", type=parse_geometry, help="lattice geometry", required=True)
+    parser.add_argument("--atom", type=parse_geometry, help="poistions of atoms", required=True)
+    parser.add_argument("--nk", type=int, help="number of k-points in each direction", required=True)
     parser.add_argument("--symm", type=lambda x: (str(x).lower() in ['true','1', 'yes']), default='true', help="Use inversion symmetry")
     parser.add_argument("--Nk", type=int, default=0, help="number of plane-waves in each direction for integral evaluation")
-    parser.add_argument("--basis", type=str, nargs="*", default=["sto-3g"],
-                        help="basis sets definition. First specify atom then basis for this atom")
+    parser.add_argument("--basis", type=str, nargs="*", help="basis sets definition. First specify atom then basis for this atom", required=True)
     parser.add_argument("--auxbasis", type=str, nargs="*", default=[None], help="auxiliary basis")
     parser.add_argument("--ecp", type=str, nargs="*", default=[None], help="effective core potentials")
     parser.add_argument("--pseudo", type=str, nargs="*", default=[None], help="pseudopotential")
-    parser.add_argument("--type", type=int, default=0, help="storage type")
     parser.add_argument("--shift", type=float, nargs=3, default=[0.0, 0.0, 0.0], help="mesh shift")
     parser.add_argument("--center", type=float, nargs=3, default=[0.0, 0.0, 0.0], help="mesh center")
     parser.add_argument("--xc", type=str, nargs="*", default=[None], help="XC functional")
@@ -219,9 +216,9 @@ def init_dca_params(a, atoms):
     return args
 
 
-def init_pbc_params(a, atoms):
+def init_pbc_params():
     parser = argparse.ArgumentParser(description="GF2 initialization script")
-    add_common_params(parser, a, atoms)
+    add_common_params(parser)
     args = parser.parse_args()
     args.basis = parse_basis(args.basis)
     args.auxbasis = parse_basis(args.auxbasis)

@@ -311,6 +311,9 @@ namespace green::mbpt {
       h5pp::archive ar(result_file, "a");
       ar["iter" + std::to_string(iter) + "/G_tau/mesh"] << _ft.sd().repn_fermi().tsample();
       ar["iter" + std::to_string(iter) + "/Selfenergy/mesh"] << _ft.sd().repn_fermi().tsample();
+      ar["iter" + std::to_string(iter) + "/Energy_1b"] << _E_1b;
+      ar["iter" + std::to_string(iter) + "/Energy_HF"] << _E_hf + _E_nuc;
+      ar["iter" + std::to_string(iter) + "/Energy_2b"] << _E_corr;
       ar.close();
       std::cout << "One-body Energy: " << _E_1b << std::endl;
       std::cout << "HF Energy:: " << _E_hf + _E_nuc << std::endl;
