@@ -4,7 +4,17 @@
 
 ![grids](https://github.com/Green-Phys/green-mbpt/actions/workflows/test.yaml/badge.svg)
 
-# green-solvers
+```
+ █▀▀█ █▀▀█ █▀▀ █▀▀ █▀▀▄
+ █ ▄▄ █▄▄▀ █▀▀ █▀▀ █  █
+ █▄▄█ ▀ ▀▀ ▀▀▀ ▀▀▀ ▀  ▀
+
+ █   █ █▀▀ █▀▀█ █ █     █▀▀█ █▀▀█ █  █ █▀▀█ █    ▀  █▀▀▄ █▀▀▀
+ █ █ █ █▀▀ █▄▄█ █▀▄ ▀▀  █    █  █ █  █ █  █ █   ▀█▀ █  █ █ ▀█
+ █▄▀▄█ ▀▀▀ ▀  ▀ ▀ ▀     █▄▄█ ▀▀▀▀  ▀▀▀ █▀▀▀ ▀▀▀ ▀▀▀ ▀  ▀ ▀▀▀▀
+```
+
+# green-mbpt
 Many-Body Perturbation solvers for Green project
 
 # Acknowledgements
