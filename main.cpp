@@ -14,7 +14,16 @@ auto init_solver(const green::params::params p) {}
 int  main(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   green::utils::context;
-  auto p = green::params::params("DESCR");
+  std::string name = R"(
+ █▀▀█ █▀▀█ █▀▀ █▀▀ █▀▀▄ 
+ █ ▄▄ █▄▄▀ █▀▀ █▀▀ █  █ 
+ █▄▄█ ▀ ▀▀ ▀▀▀ ▀▀▀ ▀  ▀ 
+
+ █   █ █▀▀ █▀▀█ █ █     █▀▀█ █▀▀█ █  █ █▀▀█ █    ▀  █▀▀▄ █▀▀▀ 
+ █ █ █ █▀▀ █▄▄█ █▀▄ ▀▀  █    █  █ █  █ █  █ █   ▀█▀ █  █ █ ▀█ 
+ █▄▀▄█ ▀▀▀ ▀  ▀ ▀ ▀     █▄▄█ ▀▀▀▀  ▀▀▀ █▀▀▀ ▀▀▀ ▀▀▀ ▀  ▀ ▀▀▀▀)";
+
+  auto p = green::params::params(name + "\n\nMichigan Weak-Coupling Many-Body perturbation solver.\n\n=====================================\n");
   green::sc::define_parameters(p);
   green::symmetry::define_parameters(p);
   green::grids::define_parameters(p);
