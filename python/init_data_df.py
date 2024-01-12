@@ -1,3 +1,4 @@
+import h5py
 import numpy as np
 import os
 from pyscf.df import addons
@@ -12,6 +13,20 @@ nk       = args.nk ** 3
 Nk       = args.Nk
 
 mycell = comm.cell(args)
+
+if args.high_symmetry_path is not None:
+    try:
+        comm.check_high_symmetry_path(mycell, args)
+    except RuntimeError as e:
+        print("\n\n\n")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("!!!!!!!!! Cannot compute high-symmetry path !!!!!!!!!")
+        print("!!!!!!! Disable high-symmetry path evaluation !!!!!!!")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print(e)
+        print("\n\n\n")
+        args.high_symmetry_path = None
+        exit(-1)
 
 # number of orbitals per cell
 nao = mycell.nao_nr()
@@ -72,5 +87,12 @@ X_k, X_inv_k, S, F, T, hf_dm = comm.orthogonalize(mydf, args.orth, X_k, X_inv_k,
 comm.save_data(args, mycell, mf, kmesh, ind, weight, num_ik, ir_list, conj_list, Nk, nk, NQ, F, S, T, hf_dm, Zs, last_ao)
 
 comm.compute_df_int(args, mycell, kmesh, nao, X_k)
+
+if args.high_symmetry_path is not None:
+    kmesh_hs, Hk_hs, Sk_hs = comm.high_symmetry_path(mycell, args)
+    inp_data = h5py.File(args.output_path, "a")
+    inp_data["high_symm_path/k_mesh"] = kmesh_hs
+    inp_data["high_symm_path/Hk"] = Hk_hs
+    inp_data["high_symm_path/Sk"] = Sk_hs
 
 print("Done")

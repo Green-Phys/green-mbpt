@@ -10,6 +10,59 @@ from pyscf.pbc import tools, gto, df, scf, dft
 import integral_utils as int_utils
 
 
+def extract_ase_data(a, atoms):
+    symbols = []
+    positions = []
+    lattice_vectors = []
+    for a_i in a.splitlines():
+        lattice_vectors.append([float(x) for x in a_i.split(",")])
+    for atom in atoms.splitlines():
+        atom = atom.strip()
+        symbol = atom.split()[0]
+        position = atom.split(symbol)[1].strip()
+        symbols.append(symbol)
+        position = [float(p) for p in position.split()]
+        positions.append(np.dot(np.linalg.inv(lattice_vectors), position).tolist())
+    return (np.array(lattice_vectors), symbols, positions)
+
+def check_high_symmetry_path(cell, args):
+    if args.high_symmetry_path is None:
+        return
+    import ase.spacegroup
+    lattice_vectors, symbols, positions = extract_ase_data(args.a, args.atom)
+    print("parse:", lattice_vectors, symbols, positions)
+    cc = ase.spacegroup.crystal(symbols, positions, cellpar=ase.geometry.cell_to_cellpar(lattice_vectors))
+    space_group = ase.spacegroup.get_spacegroup(cc)
+    lat = cc.cell.get_bravais_lattice()
+    special_points = lat.get_special_points()
+    path = args.high_symmetry_path
+    for sp in special_points.keys():
+        path = path.replace(sp, "")
+    path = path.replace(",", "")
+    if path != "":
+        raise RuntimeError(("Chosen high symmetry path {} has invalid special points {}. Valid "
+                            "special points are {} ").format(args.high_symmetry_path, path, special_points.keys()))
+
+def high_symmetry_path(cell, args):
+    '''
+    Compute high-symmetry k-path
+
+    :param cell: unit-cell object
+    :param args: simulation parameters
+    :return: Points on the chosen high-symmetry path and corresponding non-interacting Hamiltonian and overlap matrix
+    '''
+    if args.high_symmetry_path is None:
+        return [None, None, None]
+    import ase
+    lattice_vectors, symbols, positions = extract_ase_data(args.a, args.atom)
+    path = args.high_symmetry_path
+    kpath = ase.dft.kpoints.bandpath(args.high_symmetry_path, lattice_vectors, npoints=args.high_symmetry_points)
+    kmesh = cell.get_abs_kpts(kpath.kpts)
+    new_mf    = dft.KUKS(cell,kmesh).density_fit()
+    H0_hs = new_mf.get_hcore()
+    Sk_hs = new_mf.get_ovlp()
+    return [kmesh, H0_hs, Sk_hs]
+
 def transform(Z, X, X_inv):
     '''
     Transform Z into X basis
@@ -192,6 +245,8 @@ def add_common_params(parser):
     parser.add_argument("--active_space", type=int, nargs='+', default=None, help="active space orbitals")
     parser.add_argument("--spin", type=int, default=0, help="Local spin")
     parser.add_argument("--restricted", type=lambda x: (str(x).lower() in ['true','1', 'yes']), default='false', help="Spin restricted calculations.")
+    parser.add_argument("--high_symmetry_path", type=str, default=None, help="High symmetry path")
+    parser.add_argument("--high_symmetry_points", type=int, default=0, help="Number of points for high symmetry path")
 
 def init_dca_params(a, atoms):
     parser = argparse.ArgumentParser(description="GF2 initialization script")
