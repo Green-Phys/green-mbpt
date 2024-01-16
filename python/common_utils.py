@@ -25,6 +25,15 @@ def extract_ase_data(a, atoms):
         positions.append(np.dot(np.linalg.inv(lattice_vectors), position).tolist())
     return (np.array(lattice_vectors), symbols, positions)
 
+def print_high_symmetry_points(cell, args):
+    import ase.spacegroup
+    lattice_vectors, symbols, positions = extract_ase_data(args.a, args.atom)
+    cc = ase.spacegroup.crystal(symbols, positions, cellpar=ase.geometry.cell_to_cellpar(lattice_vectors))
+    space_group = ase.spacegroup.get_spacegroup(cc)
+    lat = cc.cell.get_bravais_lattice()
+    special_points = lat.get_special_points()
+    print("List of special points: {}".format(special_points))
+
 def check_high_symmetry_path(cell, args):
     if args.high_symmetry_path is None:
         return
@@ -245,8 +254,9 @@ def add_common_params(parser):
     parser.add_argument("--active_space", type=int, nargs='+', default=None, help="active space orbitals")
     parser.add_argument("--spin", type=int, default=0, help="Local spin")
     parser.add_argument("--restricted", type=lambda x: (str(x).lower() in ['true','1', 'yes']), default='false', help="Spin restricted calculations.")
+    parser.add_argument("--print_high_symmetry_points", action='store_true', help="Print available high symmetry points for current system and exit.")
     parser.add_argument("--high_symmetry_path", type=str, default=None, help="High symmetry path")
-    parser.add_argument("--high_symmetry_points", type=int, default=0, help="Number of points for high symmetry path")
+    parser.add_argument("--high_symmetry_path_points", type=int, default=0, help="Number of points for high symmetry path")
 
 def init_dca_params(a, atoms):
     parser = argparse.ArgumentParser(description="GF2 initialization script")

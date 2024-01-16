@@ -14,6 +14,10 @@ Nk       = args.Nk
 
 mycell = comm.cell(args)
 
+if args.print_high_symmetry_points is not None:
+    comm.print_high_symmetry_points(mycell, args)
+    exit(0)
+
 if args.high_symmetry_path is not None:
     try:
         comm.check_high_symmetry_path(mycell, args)
@@ -21,11 +25,9 @@ if args.high_symmetry_path is not None:
         print("\n\n\n")
         print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         print("!!!!!!!!! Cannot compute high-symmetry path !!!!!!!!!")
-        print("!!!!!!! Disable high-symmetry path evaluation !!!!!!!")
+        print("!! Correct or Disable high-symmetry path evaluation !")
         print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         print(e)
-        print("\n\n\n")
-        args.high_symmetry_path = None
         exit(-1)
 
 # number of orbitals per cell
