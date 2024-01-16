@@ -14,7 +14,7 @@ Nk       = args.Nk
 
 mycell = comm.cell(args)
 
-if args.print_high_symmetry_points is not None:
+if args.print_high_symmetry_points:
     comm.print_high_symmetry_points(mycell, args)
     exit(0)
 

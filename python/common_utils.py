@@ -254,7 +254,7 @@ def add_common_params(parser):
     parser.add_argument("--active_space", type=int, nargs='+', default=None, help="active space orbitals")
     parser.add_argument("--spin", type=int, default=0, help="Local spin")
     parser.add_argument("--restricted", type=lambda x: (str(x).lower() in ['true','1', 'yes']), default='false', help="Spin restricted calculations.")
-    parser.add_argument("--print_high_symmetry_points", action='store_true', help="Print available high symmetry points for current system and exit.")
+    parser.add_argument("--print_high_symmetry_points", default=False, action='store_true', help="Print available high symmetry points for current system and exit.")
     parser.add_argument("--high_symmetry_path", type=str, default=None, help="High symmetry path")
     parser.add_argument("--high_symmetry_path_points", type=int, default=0, help="Number of points for high symmetry path")
 
