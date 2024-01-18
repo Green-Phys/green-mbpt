@@ -105,9 +105,10 @@ namespace green::mbpt {
     const ztensor<4>&           S_k() const { return _S_k; }
     const ztensor<4>&           H_k() const { return _H_k; }
 
-    size_t                      nao() const { return _nao; }
-    size_t                      nso() const { return _nso; }
-    size_t                      ns() const { return _ns; }
+    [[nodiscard]] size_t        nao() const { return _nao; }
+    [[nodiscard]] size_t        nso() const { return _nso; }
+    [[nodiscard]] size_t        ns() const { return _ns; }
+    [[nodiscard]] double        mu() const { return _mu; }
 
   protected:
     // Imaginary time/frequency transform class

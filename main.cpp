@@ -23,7 +23,8 @@ int  main(int argc, char** argv) {
  █ █ █ █▀▀ █▄▄█ █▀▄ ▀▀  █    █  █ █  █ █  █ █   ▀█▀ █  █ █ ▀█ 
  █▄▀▄█ ▀▀▀ ▀  ▀ ▀ ▀     █▄▄█ ▀▀▀▀  ▀▀▀ █▀▀▀ ▀▀▀ ▀▀▀ ▀  ▀ ▀▀▀▀)";
 
-  auto p = green::params::params(name + "\n\nMichigan Weak-Coupling Many-Body perturbation solver.\n\n=====================================\n");
+  auto        p    = green::params::params(
+      name + "\n\nMichigan Weak-Coupling Many-Body perturbation solver.\n\n=====================================\n");
   green::sc::define_parameters(p);
   green::symmetry::define_parameters(p);
   green::grids::define_parameters(p);
@@ -33,9 +34,8 @@ int  main(int argc, char** argv) {
     if (!green::utils::context.global_rank) p.help();
     MPI_Finalize();
     return -1;
-  } else {
-    if (!green::utils::context.global_rank) p.print();
   }
+  if (!green::utils::context.global_rank) p.print();
 
   try {
     green::sc::sc_loop<green::mbpt::shared_mem_dyson> sc(MPI_COMM_WORLD, p);

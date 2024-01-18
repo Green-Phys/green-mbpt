@@ -65,7 +65,7 @@ def high_symmetry_path(cell, args):
     import ase
     lattice_vectors, symbols, positions = extract_ase_data(args.a, args.atom)
     path = args.high_symmetry_path
-    kpath = ase.dft.kpoints.bandpath(args.high_symmetry_path, lattice_vectors, npoints=args.high_symmetry_points)
+    kpath = ase.dft.kpoints.bandpath(args.high_symmetry_path, lattice_vectors, npoints=args.high_symmetry_path_points)
     kmesh = cell.get_abs_kpts(kpath.kpts)
     new_mf    = dft.KUKS(cell,kmesh).density_fit()
     H0_hs = new_mf.get_hcore()
