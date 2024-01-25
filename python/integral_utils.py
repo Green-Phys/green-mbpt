@@ -221,7 +221,7 @@ def kpair_reduced_lists(kptis, kptjs, kptij_idx, kmesh, a):
 
     return conj_list, trans_list
 
-def compute_integrals(mycell, mydf, kmesh, nao, X_k=None, basename = "df_int", cderi_name="cderi.h5", keep=True, symm=True):
+def compute_integrals(args, mycell, mydf, kmesh, nao, X_k=None, basename = "df_int", cderi_name="cderi.h5", keep=True, symm=True):
 
     a_lattice = mycell.lattice_vectors() / (2*np.pi)
     kptij_lst = [(ki, kmesh[j]) for i, ki in enumerate(kmesh) for j in range(i+1)]
@@ -258,16 +258,20 @@ def compute_integrals(mycell, mydf, kmesh, nao, X_k=None, basename = "df_int", c
 
     def compute_partitioning(tot_size, num_kpair_stored):
         # We have a guess for each fitted density upper bound of 150M
-        ubound = 700 * 1024 * 1024
+        ubound = args.memory * 1024 * 1024
         if tot_size > ubound :
             mult = tot_size // ubound
-            return num_kpair_stored // (mult+1)
+            chunks = num_kpair_stored // (mult+1)
+            if chunks == 0 :
+                print("\n\n\n Chunk size is bigger than upper memory bound per chunk you have \n\n\n")
+                chunks = 1
+            return chunks
         return num_kpair_stored
 
     single_rho_size = nao**2 * NQ * 16
     full_rho_size   = (num_kpair_stored * single_rho_size)
     chunk_size = compute_partitioning(full_rho_size, num_kpair_stored)
-    print("The chunk size: ", chunk_size)
+    print("The chunk size: ", chunk_size, " k-point pair")
 
     # open file to write integrals in
     if os.path.exists(filename) :

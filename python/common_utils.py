@@ -257,6 +257,7 @@ def add_common_params(parser):
     parser.add_argument("--print_high_symmetry_points", default=False, action='store_true', help="Print available high symmetry points for current system and exit.")
     parser.add_argument("--high_symmetry_path", type=str, default=None, help="High symmetry path")
     parser.add_argument("--high_symmetry_path_points", type=int, default=0, help="Number of points for high symmetry path")
+    parser.add_argument("--memory", type=int, default=700, help="Memory bound for integral chunk in MB")
 
 def init_dca_params(a, atoms):
     parser = argparse.ArgumentParser(description="GF2 initialization script")
@@ -516,7 +517,7 @@ def compute_df_int(args, mycell, kmesh, nao, X_k, lattice_kmesh=np.zeros([3,3]))
     weighted_coulG_old = df.GDF.weighted_coulG
     df.GDF.weighted_coulG = int_utils.weighted_coulG_ewald
 
-    kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored = int_utils.compute_integrals(mycell, mydf, kmesh, nao, X_k, "df_int", "cderi_ewald.h5", True)
+    kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored = int_utils.compute_integrals(args, mycell, mydf, kmesh, nao, X_k, "df_int", "cderi_ewald.h5", True)
 
     mydf = None
     # Use gaussian density fitting to get fitted densities
@@ -529,7 +530,7 @@ def compute_df_int(args, mycell, kmesh, nao, X_k, lattice_kmesh=np.zeros([3,3]))
     if args.Nk > 0:
         mydf.mesh = [args.Nk, args.Nk, args.Nk]
     df.GDF.weighted_coulG = weighted_coulG_old
-    int_utils.compute_integrals(mycell, mydf, kmesh, nao, X_k, "df_hf_int", "cderi.h5", True)
+    int_utils.compute_integrals(args, mycell, mydf, kmesh, nao, X_k, "df_hf_int", "cderi.h5", True)
     store_integrals_kpairs(args, kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored)
 
 def compute_df_int_dca(args, mycell, kmesh, lattice_kmesh, nao, X_k):
