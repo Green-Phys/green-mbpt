@@ -111,6 +111,8 @@ namespace green::mbpt {
 
   enum sigma_q0_treatment_e { ignore_G0, ewald_int, extrapolate };
 
+  enum job_type {SC, WINTER, THERMODYNAMICS};
+
   inline void define_parameters(params::params& p) {
     p.define<std::string>("dfintegral_hf_file", "Path to Hartree-Fock integrals", "df_hf_int");
     p.define<std::string>("dfintegral_file", "Path to integrals for high orfer theories", "df_int");
@@ -123,6 +125,7 @@ namespace green::mbpt {
     p.define<std::string>("high_symmetry_output_file", "Name of the file to store Wannier interpolated Green's function.",
                           "output_hs.h5");
     p.define<sigma_q0_treatment_e>("q0_treatment", "GW q=0 divergence treatment", ignore_G0);
+    p.define<std::vector<job_type>>("jobs", "Jobs to run.", std::vector{SC});
   }
 }  // namespace green::mbpt
 #endif  // MBPT_COMMON_DEFS_H

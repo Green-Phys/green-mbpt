@@ -46,7 +46,7 @@ namespace green::mbpt {
     return out;
   }
 
-  void compute_S_sqrt(const ztensor<3>& Sk, ztensor<3>& Sk_12_inv) {
+  inline void compute_S_sqrt(const ztensor<3>& Sk, ztensor<3>& Sk_12_inv) {
     size_t ink     = Sk.shape()[0];
     size_t nso     = Sk.shape()[1];
     using Matrixcd = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>;
@@ -59,7 +59,7 @@ namespace green::mbpt {
     }
   }
 
-  template<typename Dyson>
+  template <typename Dyson>
   void wannier_interpolation(const Dyson& dyson_solver, const ztensor<4>& sigma_1,
                              const utils::shared_object<ztensor<5>>& sigma_tau, const h5pp::archive& input,
                              const std::string& results_file) {
@@ -128,49 +128,39 @@ namespace green::mbpt {
       for (int ik = 0; ik < hs_nk; ++ik) {
         std::complex<double> muomega = dyson_solver.ft().wsample_fermi()(iw) * 1.0i + dyson_solver.mu();
 
-        matrix(G_w) =
-            muomega * MatrixXcd::Identity(nso, nso) - matrix(Hk_hs(ik)) -
-            matrix(Sk_hs_12_inv(ik)) * (matrix(Sigma_1_fbz(ik)) + matrix(Sigma_w_fbz(ik))) * matrix(Sk_hs_12_inv(ik));
+        matrix(G_w)                  = muomega * MatrixXcd::Identity(nso, nso) - matrix(Hk_hs(ik)) -
+                      matrix(Sk_hs_12_inv(ik)) * (matrix(Sigma_1_fbz(ik)) + matrix(Sigma_w_fbz(ik))) * matrix(Sk_hs_12_inv(ik));
         matrix(G_w_hs) = lusolver.compute(matrix(G_w)).inverse().eval();
-        for(size_t i = 0; i < nso; ++i) {
+        for (size_t i = 0; i < nso; ++i) {
           g_omega_hs.object()(iw, is, ik, i) = G_w_hs(i, i);
         }
       }
     }
     g_omega_hs.fence();
-    MPI_Datatype                dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(nso * nso);
-    MPI_Op                      matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
+    MPI_Datatype dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(nso * nso);
+    MPI_Op       matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
     g_omega_hs.fence();
     if (!utils::context.node_rank) {
-      utils::allreduce(MPI_IN_PLACE, g_omega_hs.object().data(), g_omega_hs.object().size() / (nso * nso), dt_matrix, matrix_sum_op,
-                       utils::context.internode_comm);
+      utils::allreduce(MPI_IN_PLACE, g_omega_hs.object().data(), g_omega_hs.object().size() / (nso * nso), dt_matrix,
+                       matrix_sum_op, utils::context.internode_comm);
     }
     g_omega_hs.fence();
     g_tau_hs.fence();
-    if(!utils::context.node_rank)
-      dyson_solver.ft().omega_to_tau(g_omega_hs.object(), g_tau_hs.object(), 1);
+    if (!utils::context.node_rank) dyson_solver.ft().omega_to_tau(g_omega_hs.object(), g_tau_hs.object(), 1);
     g_tau_hs.fence();
     MPI_Type_free(&dt_matrix);
     MPI_Op_free(&matrix_sum_op);
-    if(!utils::context.global_rank) {
+    if (!utils::context.global_rank) {
       h5pp::archive res(results_file, "w");
-      res["G_tau_hs/data"]<<g_tau_hs.object();
-      res["G_tau_hs/mesh"]<<dyson_solver.ft().sd().repn_fermi().tsample();
+      res["G_tau_hs/data"] << g_tau_hs.object();
+      res["G_tau_hs/mesh"] << dyson_solver.ft().sd().repn_fermi().tsample();
       res.close();
     }
     MPI_Barrier(utils::context.global);
   }
 
-  inline void run(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p) {
-    scf_type         type = p["scf_type"];
-    // initialize Dyson solver
-    shared_mem_dyson dyson(p);
-    // Allocate working arrays
-    auto G_tau     = utils::shared_object<ztensor<5>>(dyson.ft().sd().repn_fermi().nts(), dyson.ns(), dyson.bz_utils().ink(),
-                                                  dyson.nso(), dyson.nso());
-    auto Sigma_tau = utils::shared_object<ztensor<5>>(dyson.ft().sd().repn_fermi().nts(), dyson.ns(), dyson.bz_utils().ink(),
-                                                      dyson.nso(), dyson.nso());
-    auto Sigma1    = ztensor<4>(dyson.ns(), dyson.bz_utils().ink(), dyson.nso(), dyson.nso());
+  inline void sc_job(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p, scf_type type, shared_mem_dyson& dyson,
+                     utils::shared_object<ztensor<5>>& G_tau, utils::shared_object<ztensor<5>>& Sigma_tau, ztensor<4>& Sigma1) {
     read_hartree_fock_selfenergy(p, dyson.bz_utils(), Sigma1);
     G_tau.fence();
     if (!utils::context.node_rank) G_tau.object().set_zero();
@@ -201,12 +191,38 @@ namespace green::mbpt {
         break;
       }
     }
+  }
+
+  inline void winter_job(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p, shared_mem_dyson& dyson,
+                         utils::shared_object<ztensor<5>>& g0_tau, utils::shared_object<ztensor<5>>& sigma_tau,
+                         ztensor<4>& sigma1) {
     h5pp::archive input(p["input_file"]);
     if (input.has_group("high_symm_path")) {
-      if(!utils::context.global_rank) std::cout<<"Running Wannier interpolation"<<std::endl;
-      wannier_interpolation(dyson, Sigma1, Sigma_tau, input, p["high_symmetry_output_file"]);
+      if (!utils::context.global_rank) std::cout << "Running Wannier interpolation" << std::endl;
+      sc::read_results(g0_tau, sigma1, sigma_tau, p["results_file"]);
+      wannier_interpolation(dyson, sigma1, sigma_tau, input, p["high_symmetry_output_file"]);
     }
     input.close();
+  }
+
+  inline void run(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p) {
+    const auto       jobs = p["jobs"].as<std::vector<job_type>>();
+    const scf_type   type = p["scf_type"];
+    // initialize Dyson solver
+    shared_mem_dyson dyson(p);
+    // Allocate working arrays
+    auto G_tau     = utils::shared_object<ztensor<5>>(dyson.ft().sd().repn_fermi().nts(), dyson.ns(), dyson.bz_utils().ink(),
+                                                  dyson.nso(), dyson.nso());
+    auto Sigma_tau = utils::shared_object<ztensor<5>>(dyson.ft().sd().repn_fermi().nts(), dyson.ns(), dyson.bz_utils().ink(),
+                                                      dyson.nso(), dyson.nso());
+    auto Sigma1    = ztensor<4>(dyson.ns(), dyson.bz_utils().ink(), dyson.nso(), dyson.nso());
+    for (const auto job : jobs) {
+      if (job == SC) {
+        sc_job(sc, p, type, dyson, G_tau, Sigma_tau, Sigma1);
+      } else if (job == WINTER) {
+        winter_job(sc, p, dyson, G_tau, Sigma_tau, Sigma1);
+      }
+    }
   }
 
 }  // namespace green::mbpt
