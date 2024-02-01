@@ -48,7 +48,7 @@ namespace green::mbpt {
      * @param k2
      * @param type
      */
-    void read_integrals(size_t k1, size_t k2) {
+    void     read_integrals(size_t k1, size_t k2) {
       assert(k1 >= 0);
       assert(k2 >= 0);
       // Find corresponding index for k-pair (k1,k2). Only k-pair with k1 > k2 will be stored.
@@ -147,27 +147,28 @@ namespace green::mbpt {
      * @param k2
      */
     template <typename prec>
-    void symmetrize(tensor<prec, 3>& vij_Q_k1k2, const size_t k1, const size_t k2) {
+    void symmetrize(tensor<prec, 3>& vij_Q_k1k2, size_t k1, size_t k2, size_t NQ_offset = 0, size_t NQ_local = 0) {
       int                                      k1k2_wrap = wrap(k1, k2);
       std::pair<int, integral_symmetry_type_e> vtype     = v_type(k1, k2);
       int                                      NQ        = _NQ;
-      auto&                                    vij_Q     = _vij_Q->object();
+      NQ_local                                           = (NQ_local == 0) ? NQ : NQ_local;
+      auto& vij_Q                                        = _vij_Q->object();
       if (vtype.first < 0) {
-        for (int Q = 0; Q < NQ; ++Q) {
-          matrix(vij_Q_k1k2(Q)) = matrix(vij_Q(k1k2_wrap, Q)).transpose().conjugate().cast<prec>();
+        for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
+          matrix(vij_Q_k1k2(Q_loc)) = matrix(vij_Q(k1k2_wrap, Q)).transpose().conjugate().cast<prec>();
         }
       } else {
-        for (int Q = 0; Q < NQ; ++Q) {
-          matrix(vij_Q_k1k2(Q)) = matrix(vij_Q(k1k2_wrap, Q)).cast<prec>();
+        for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
+          matrix(vij_Q_k1k2(Q_loc)) = matrix(vij_Q(k1k2_wrap, Q)).cast<prec>();
         }
       }
       if (vtype.second == conjugated) {  // conjugate
-        for (int Q = 0; Q < NQ; ++Q) {
-          matrix(vij_Q_k1k2(Q)) = matrix(vij_Q_k1k2(Q)).conjugate();
+        for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
+          matrix(vij_Q_k1k2(Q_loc)) = matrix(vij_Q_k1k2(Q_loc)).conjugate();
         }
       } else if (vtype.second == transposed) {  // transpose
-        for (int Q = 0; Q < NQ; ++Q) {
-          matrix(vij_Q_k1k2(Q)) = matrix(vij_Q_k1k2(Q)).transpose().eval();
+        for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
+          matrix(vij_Q_k1k2(Q_loc)) = matrix(vij_Q_k1k2(Q_loc)).transpose().eval();
         }
       }
     }

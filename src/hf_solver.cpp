@@ -21,62 +21,74 @@ namespace green::mbpt {
   ztensor<4> hf_solver::solve_HF_scalar(const ztensor<4>& dm) {
     ztensor<4> new_Fock(_ns, _ink, _nao, _nao);
     new_Fock.set_zero();
-    if (utils::context.global_rank < _ink * _ns) {
-      int           hf_nprocs = (utils::context.global_size > _ink * _ns) ? _ink * _ns : utils::context.global_size;
+    // if (utils::context.internode_rank < _ink * _ns)
+    {
+      // int           hf_nprocs = (utils::context.global_size > _ink * _ns) ? _ink * _ns : utils::context.global_size;
 
       df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils);
 
+      size_t        NQ_local = _NQ / utils::context.node_size;
+      NQ_local += (_NQ % utils::context.node_size > utils::context.node_rank) ? 1 : 0;
+      size_t NQ_offset = NQ_local * utils::context.node_rank +
+                         ((_NQ % utils::context.node_size > utils::context.node_rank) ? 0 : (_NQ % utils::context.node_size));
+
       // Direct diagram
-      MatrixXcd     X1(_nao, _nao);
-      ztensor<3>    v(_NQ, _nao, _nao);
-      ztensor<2>    upper_Coul(_NQ, 1);
-      MMatrixXcd    X1m(X1.data(), _nao * _nao, 1);
-      MMatrixXcd    vm(v.data(), _NQ, _nao * _nao);
-      for (int ikps = 0; ikps < _ink * _ns; ++ikps) {
+      MatrixXcd  X1(_nao, _nao);
+      ztensor<3> v(NQ_local, _nao, _nao);
+      ztensor<2> upper_Coul(_NQ, 1);
+      MMatrixXcd X1m(X1.data(), _nao * _nao, 1);
+      MMatrixXcd vm(v.data(), NQ_local, _nao * _nao);
+      MMatrixXcd upper_Coul_m(upper_Coul.data() + NQ_offset, NQ_local, 1);
+      for (int ikps = utils::context.internode_rank; ikps < _ink * _ns; ikps += utils::context.internode_size) {
         int is    = ikps % _ns;
         int ikp   = ikps / _ns;
         int kp_ir = _bz_utils.symmetry().full_point(ikp);
 
         coul_int1.read_integrals(kp_ir, kp_ir);
-        coul_int1.symmetrize(v, kp_ir, kp_ir);
+        coul_int1.symmetrize(v, kp_ir, kp_ir, NQ_offset, NQ_local);
 
         X1 = CMMatrixXcd(dm.data() + is * _ink * _nao * _nao + ikp * _nao * _nao, _nao, _nao);
         X1 = X1.transpose().eval();
         // (Q, 1) = (Q, ab) * (ab, 1)
-        matrix(upper_Coul) += _bz_utils.symmetry().weight()[kp_ir] * vm * X1m;
+        upper_Coul_m += _bz_utils.symmetry().weight()[kp_ir] * vm * X1m;
       }
-      upper_Coul /= double(_nk);
+      // if (!utils::context.node_rank) {
+        MPI_Allreduce(MPI_IN_PLACE, upper_Coul.data(), upper_Coul.size(), MPI_CXX_DOUBLE_COMPLEX, MPI_SUM,
+                      utils::context.global);
+      // }
+      // MPI_Bcast(upper_Coul.data(), upper_Coul.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.node_comm);
 
-      for (int ii = utils::context.global_rank; ii < _ink * _ns; ii += hf_nprocs) {
+      upper_Coul /= double(_nk);
+      for (int ii = utils::context.internode_rank; ii < _ink * _ns; ii += utils::context.internode_size) {
         int is   = ii / _ink;
         int ik   = ii % _ink;
         int k_ir = _bz_utils.symmetry().full_point(ik);
 
         coul_int1.read_integrals(k_ir, k_ir);
-        coul_int1.symmetrize(v, k_ir, k_ir);
+        coul_int1.symmetrize(v, k_ir, k_ir, NQ_offset, NQ_local);
 
         MMatrixXcd Fm(new_Fock.data() + is * _ink * _nao * _nao + ik * _nao * _nao, 1, _nao * _nao);
         // (1, ij) = (1, Q) * (Q, ij)
-        Fm += matrix(upper_Coul).transpose() * vm;
+        Fm += upper_Coul_m.transpose() * vm;
       }
 
       // Exchange diagram
-      ztensor<3> Y(_NQ, _nao, _nao);
-      MMatrixXcd Ym(Y.data(), _NQ * _nao, _nao);
-      MMatrixXcd Ymm(Y.data(), _NQ, _nao * _nao);
+      ztensor<3> Y(NQ_local, _nao, _nao);
+      MMatrixXcd Ym(Y.data(), NQ_local * _nao, _nao);
+      MMatrixXcd Ymm(Y.data(), NQ_local, _nao * _nao);
 
-      ztensor<3> Y1(_nao, _nao, _NQ);
-      MMatrixXcd Y1m(Y1.data(), _nao * _nao, _NQ);
-      MMatrixXcd Y1mm(Y1.data(), _nao, _nao * _NQ);
+      ztensor<3> Y1(_nao, _nao, NQ_local);
+      MMatrixXcd Y1m(Y1.data(), _nao * _nao, NQ_local);
+      MMatrixXcd Y1mm(Y1.data(), _nao, _nao * NQ_local);
 
-      MMatrixXcd vmm(v.data(), _NQ * _nao, _nao);
+      MMatrixXcd vmm(v.data(), NQ_local * _nao, _nao);
 
-      ztensor<3> v2(_nao, _NQ, _nao);
-      MMatrixXcd v2m(v2.data(), _nao, _NQ * _nao);
-      MMatrixXcd v2mm(v2.data(), _nao * _NQ, _nao);
+      ztensor<3> v2(_nao, NQ_local, _nao);
+      MMatrixXcd v2m(v2.data(), _nao, NQ_local * _nao);
+      MMatrixXcd v2mm(v2.data(), _nao * NQ_local, _nao);
       double     prefactor = (_ns == 2) ? 1.0 : 0.5;
 
-      for (int ii = utils::context.global_rank; ii < _ink * _ns; ii += hf_nprocs) {
+      for (int ii = utils::context.internode_rank; ii < _ink * _ns; ii += utils::context.internode_size) {
         int        is   = ii / _ink;
         int        ik   = ii % _ink;
         int        k_ir = _bz_utils.symmetry().full_point(ik);
@@ -87,7 +99,7 @@ namespace green::mbpt {
 
           coul_int1.read_integrals(k_ir, ikp);
           // (Q, i, b) or conj(Q, j, a)
-          coul_int1.symmetrize(v, k_ir, ikp);
+          coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
 
           // (Qi, a) = (Qi, b) * (b, a)
           if (_bz_utils.symmetry().conj_list()[ikp] == 0) {
@@ -104,7 +116,7 @@ namespace green::mbpt {
         }
       }
 
-      for (int ii = utils::context.global_rank; ii < _ns * _ink; ii += hf_nprocs) {
+      for (int ii = utils::context.global_rank; ii < _ns * _ink; ii += utils::context.global_size) {
         int         is = ii / _ink;
         int         ik = ii % _ink;
         CMMatrixXcd dmm(dm.data() + is * _ink * _nao * _nao + ik * _nao * _nao, _nao, _nao);
