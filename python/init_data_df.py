@@ -93,8 +93,10 @@ comm.compute_df_int(args, mycell, kmesh, nao, X_k)
 if args.high_symmetry_path is not None:
     kmesh_hs, Hk_hs, Sk_hs = comm.high_symmetry_path(mycell, args)
     inp_data = h5py.File(args.output_path, "a")
-    inp_data["high_symm_path/k_mesh"] = kmesh_hs
-    inp_data["high_symm_path/r_mesh"] = comm.gto.eval_gto.get_lattice_Ls(mycell)
+    print(kmesh_hs)
+    print(mycell.get_scaled_kpts(kmesh_hs))
+    inp_data["high_symm_path/k_mesh"] = mycell.get_scaled_kpts(kmesh_hs)
+    inp_data["high_symm_path/r_mesh"] = np.dot(comm.gto.eval_gto.get_lattice_Ls(mycell), np.linalg.inv(mycell.lattice_vectors()) )
     inp_data["high_symm_path/Hk"] = Hk_hs
     inp_data["high_symm_path/Sk"] = Sk_hs
 

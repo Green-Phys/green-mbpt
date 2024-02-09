@@ -54,8 +54,7 @@ namespace green::mbpt {
     for (size_t ik = 0; ik < ink; ++ik) {
       Matrixcd S = matrix(Sk(ik));
       solver.compute(S);
-      matrix(Sk_12_inv(ik)) =
-          solver.eigenvectors() * (solver.eigenvalues().cwiseSqrt().asDiagonal().inverse()) * solver.eigenvectors().adjoint();
+      matrix(Sk_12_inv(ik)) = solver.eigenvectors() * (solver.eigenvalues().cwiseSqrt().asDiagonal().inverse()) * solver.eigenvectors().adjoint();
     }
   }
 
@@ -98,23 +97,20 @@ namespace green::mbpt {
       for (size_t ik = 0; ik < nk; ++ik) {
         auto   k       = dyson_solver.bz_utils().mesh()(ik);
         double rk      = std::inner_product(r.begin(), r.end(), k.begin(), 0.0);
-        exp_rk(ir, ik) = std::exp(std::complex<double>(0, rk));
+        exp_rk(ir, ik) = std::exp(std::complex<double>(0, 2*rk*M_PI));
       }
     }
-    for (size_t ik_hs = 0; ik_hs < nk; ++ik_hs) {
+    for (size_t ik_hs = 0; ik_hs < hs_nk; ++ik_hs) {
       auto k = kmesh_hs(ik_hs);
       for (size_t ir = 0; ir < rmesh.shape()[0]; ++ir) {
         auto   r          = rmesh(ir);
         double rk         = std::inner_product(r.begin(), r.end(), k.begin(), 0.0);
-        exp_kr(ik_hs, ir) = std::exp(std::complex<double>(0, -rk));
+        exp_kr(ik_hs, ir) = std::exp(std::complex<double>(0, -2*rk*M_PI));
       }
     }
     matrix(transform) = matrix(exp_kr) * matrix(exp_rk) / double(nk);
     // Compute orthogonalization transforamtion matrix
     compute_S_sqrt(Sk_hs, Sk_hs_12_inv);
-    for (size_t ik_hs = 0; ik_hs < nk; ++ik_hs) {
-      matrix(Hk_hs(ik_hs)) = matrix(Sk_hs_12_inv(ik_hs)) * matrix(Hk_hs(ik_hs)) * matrix(Sk_hs_12_inv(ik_hs));
-    }
     Eigen::FullPivLU<MatrixXcd> lusolver(nso, nso);
     // Interpolate G onto a new grid and perform symmetric orthogonalization
     g_omega_hs.fence();
@@ -126,10 +122,11 @@ namespace green::mbpt {
       auto Sigma_1_fbz = transform_to_hs(dyson_solver.bz_utils().ibz_to_full(sigma_1(is)), transform);
       auto Sigma_w_fbz = transform_to_hs(dyson_solver.bz_utils().ibz_to_full(Sigma_w), transform);
       for (int ik = 0; ik < hs_nk; ++ik) {
-        std::complex<double> muomega = dyson_solver.ft().wsample_fermi()(iw) * 1.0i + dyson_solver.mu();
+        auto muomega = dyson_solver.ft().wsample_fermi()(iw) * 1.0i + dyson_solver.mu();
 
-        matrix(G_w)                  = muomega * MatrixXcd::Identity(nso, nso) - matrix(Hk_hs(ik)) -
-                      matrix(Sk_hs_12_inv(ik)) * (matrix(Sigma_1_fbz(ik)) + matrix(Sigma_w_fbz(ik))) * matrix(Sk_hs_12_inv(ik));
+        matrix(G_w)  = matrix(Sk_hs_12_inv(ik)) *
+                      (muomega * matrix(Sk_hs(ik)) - matrix(Hk_hs(ik)) - matrix(Sigma_1_fbz(ik)) - matrix(Sigma_w_fbz(ik))) *
+                      matrix(Sk_hs_12_inv(ik));
         matrix(G_w_hs) = lusolver.compute(matrix(G_w)).inverse().eval();
         for (size_t i = 0; i < nso; ++i) {
           g_omega_hs.object()(iw, is, ik, i) = G_w_hs(i, i);

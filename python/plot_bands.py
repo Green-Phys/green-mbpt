@@ -1,19 +1,18 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import h5py
-from pyscf.pbc import gto
-from ase.dft.kpoints import bandpath
 import argparse
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
+import os
 
 parser = argparse.ArgumentParser("Band-structure plotting")
 
-parser.add_argument("--input_file", type=str, requireed=True, description="Name of the file containing analytically continued data evaluated on high-symmetry path")
-parser.add_argument("--output_dir", type=str, requireed=True, description="Name of the directory to save band-strtructure plots")
+parser.add_argument("--input_file", type=str, required=True, help="Name of the file containing analytically continued data evaluated on high-symmetry path")
+parser.add_argument("--output_dir", type=str, required=True, help="Name of the directory to save band-strtructure plots")
 
 args = parser.parse_args()
 
-with h5py.File(args.output_dir, "r") as fff:
-    if not ("G_tau_hs" is in fff) :
+with h5py.File(args.input_file, "r") as fff:
+    if "G_tau_hs" not in fff :
         raise RuntimeError("Input file does not contain G_tau_hs group. Check your input data!!!")
     DOS = fff["G_tau_hs/data"][()]
     mesh = fff["G_tau_hs/mesh"][()]
@@ -49,5 +48,5 @@ plt.imshow(KDOS.T, aspect='auto', origin='lower', cmap='hot', extent=[path[0], p
 plt.colorbar()
 plt.xlabel('k-path')
 plt.ylabel('Frequency')
-plt.savefig(args.output_dir+"bands.png")
+plt.savefig(args.output_dir+"/bands.png")
 
