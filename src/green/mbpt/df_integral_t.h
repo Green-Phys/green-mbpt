@@ -6,6 +6,8 @@
 #ifndef GREEN_DFINTEGRAL_H
 #define GREEN_DFINTEGRAL_H
 
+#include <green/utils/mpi_shared.h>
+#include <green/utils/mpi_utils.h>
 #include <green/symmetry/symmetry.h>
 
 #include <Eigen/Core>

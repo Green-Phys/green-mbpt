@@ -113,6 +113,12 @@ namespace green::mbpt {
 
   enum job_type {SC, WINTER, THERMODYNAMICS};
 
+#ifdef WITH_CUDA
+  enum kernel_type {CPU, GPU};
+#else
+  enum kernel_type {CPU};
+#endif
+
   inline void define_parameters(params::params& p) {
     p.define<std::string>("dfintegral_hf_file", "Path to Hartree-Fock integrals", "df_hf_int");
     p.define<std::string>("dfintegral_file", "Path to integrals for high orfer theories", "df_int");
@@ -126,6 +132,7 @@ namespace green::mbpt {
                           "output_hs.h5");
     p.define<sigma_q0_treatment_e>("q0_treatment", "GW q=0 divergence treatment", ignore_G0);
     p.define<std::vector<job_type>>("jobs", "Jobs to run.", std::vector{SC});
+    p.define<kernel_type>("kernel", "Type of the computing kernel.", CPU);
   }
 }  // namespace green::mbpt
 #endif  // MBPT_COMMON_DEFS_H
