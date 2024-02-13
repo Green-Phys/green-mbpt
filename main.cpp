@@ -14,6 +14,9 @@ auto init_solver(const green::params::params p) {}
 int  main(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   green::utils::context;
+  std::string hashes = std::string(GIT_HASHES);
+  int         pos;
+  while ((pos = hashes.find("**")) != std::string::npos) hashes.replace(pos, 2, "\n");
   std::string name = R"(
  █▀▀█ █▀▀█ █▀▀ █▀▀ █▀▀▄ 
  █ ▄▄ █▄▄▀ █▀▀ █▀▀ █  █ 
@@ -24,7 +27,8 @@ int  main(int argc, char** argv) {
  █▄▀▄█ ▀▀▀ ▀  ▀ ▀ ▀     █▄▄█ ▀▀▀▀  ▀▀▀ █▀▀▀ ▀▀▀ ▀▀▀ ▀  ▀ ▀▀▀▀)";
 
   auto        p    = green::params::params(
-      name + "\n\nMichigan Weak-Coupling Many-Body perturbation solver.\n\n=====================================\n");
+      name + "\n\nMichigan Weak-Coupling Many-Body perturbation solver.\n\n=====================================\nGit hashes:\n" +
+      hashes + "\n=====================================");
   green::sc::define_parameters(p);
   green::symmetry::define_parameters(p);
   green::grids::define_parameters(p);

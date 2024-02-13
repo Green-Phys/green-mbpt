@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
-project(mbpt)
+project(green-mbpt)
 
 if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
     message(FATAL_ERROR "In-source builds are not allowed")
@@ -15,7 +15,7 @@ execute_process(
         OUTPUT_VARIABLE TMP_HASH
         OUTPUT_STRIP_TRAILING_WHITESPACE
 )
-list(APPEND GIT_HASH ${TMP_HASH})
+set(GIT_HASH "${PROJECT_NAME}:${TMP_HASH}" CACHE INTERNAL "")
 
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
@@ -42,9 +42,6 @@ add_green_dependency(green-sc)
 add_green_dependency(green-symmetry)
 add_green_dependency(green-utils)
 
-list(JOIN GIT_HASH "\n" GIT_HASHES)
-message(INFO "hashes:" ${GIT_HASHES})
-
 add_subdirectory(src)
 add_library(GREEN::MBPT ALIAS mbpt)
 
@@ -53,6 +50,7 @@ target_link_libraries(mbpt.exe PUBLIC GREEN::MBPT GREEN::SC)
 if(BLAS_FOUND)
     target_link_libraries(mbpt.exe PUBLIC BLAS::BLAS)
 endif(BLAS_FOUND)
+target_compile_definitions(mbpt.exe PRIVATE GIT_HASHES="${GIT_HASH}")
 
 option(Build_Tests "Build tests" ON)
 if (Build_Tests)
