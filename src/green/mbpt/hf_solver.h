@@ -14,17 +14,19 @@
 
 #include "common_defs.h"
 #include "df_integral_t.h"
+#include "kernel_factory.h"
 #include "kernels.h"
 
 namespace green::mbpt {
 
   class hf_solver {
     using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using callback_t = std::function<ztensor<4>(const ztensor<4>&)>;
 
   public:
     hf_solver(const params::params& p, const bz_utils_t& bz_utils, const ztensor<4>& S_k) {
-      size_t NQ, nao, nso, ns;
-      double madelung;
+      size_t        NQ, nao, nso, ns;
+      double        madelung;
       h5pp::archive ar(p["input_file"]);
       ar["params/NQ"] >> NQ;
       ar["params/nao"] >> nao;
@@ -32,19 +34,20 @@ namespace green::mbpt {
       ar["params/ns"] >> ns;
       ar["HF/madelung"] >> madelung;
       ar.close();
-      bool X2C = nso != nao;
+      bool X2C        = nso != nao;
       _spin_prefactor = (ns == 2 or X2C) ? -1.0 : -2.0;
       if (ns != 1 and X2C) {
         throw std::logic_error("For GSCF methods, \"ns\" has to be 1.");
       }
-      _kernel = kernels::hf_kernel_factory::get_kernel(X2C, p, nao, nso, ns, NQ, madelung, bz_utils, S_k);
+      std::tie(_kernel,_callback) = kernels::hf_kernel_factory::get_kernel(X2C, p, nao, nso, ns, NQ, madelung, bz_utils, S_k);
     }
     void solve(utils::shared_object<ztensor<5>>& G, ztensor<4>& Sigma1, utils::shared_object<ztensor<5>>& Sigma_tau);
 
   protected:
-    double _spin_prefactor;
+    double                _spin_prefactor;
 
-    std::unique_ptr<kernels::hf_kernel> _kernel;
+    std::shared_ptr<void> _kernel;
+    callback_t            _callback;
   };
 
 }  // namespace green::mbpt

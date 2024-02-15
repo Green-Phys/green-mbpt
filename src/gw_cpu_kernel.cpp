@@ -28,7 +28,7 @@
 
 namespace green::mbpt::kernels {
 
-  void gw_kernel::solve(G_type& g, St_type& sigma_tau) {
+  void gw_cpu_kernel::solve(G_type& g, St_type& sigma_tau) {
     _coul_int1                 = new df_integral_t(_path, _nao, _NQ, _bz_utils);
     _P0_tilde.resize(_nts, 1, _NQ, _NQ);
     MPI_Datatype dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
@@ -95,7 +95,7 @@ namespace green::mbpt::kernels {
     delete _coul_int1;
   }
 
-  void gw_kernel::setup_subcommunicator(size_t& kbatch_size, size_t& num_kbatch) {
+  void gw_cpu_kernel::setup_subcommunicator(size_t& kbatch_size, size_t& num_kbatch) {
     if (!utils::context.global_rank) std::cout << "Number of processes = " << utils::context.global_size << std::endl;
     if (_ntauspin_mpi > 1) {
       int ntauspinprocs;
@@ -124,7 +124,7 @@ namespace green::mbpt::kernels {
     if (!utils::context.global_rank) std::cout << "nspinprocs = " << _nspinprocs << std::endl;
   }
 
-  void gw_kernel::setup_subcommunicator2(int q) {
+  void gw_cpu_kernel::setup_subcommunicator2(int q) {
     MPI_Comm_split(utils::context.global, q, utils::context.global_rank,
                    &_tau_comm2);  // Build subcommunicator over tau only not spin
     MPI_Comm_rank(_tau_comm2, &_tauid);
@@ -134,7 +134,7 @@ namespace green::mbpt::kernels {
     if (!utils::context.global_rank) std::cout << "ntauprocs = " << _ntauprocs << std::endl;
   }
 
-  void gw_kernel::selfenergy_innerloop(size_t q_ir, MPI_Comm subcomm, const G_type& G, St_type& Sigma) {
+  void gw_cpu_kernel::selfenergy_innerloop(size_t q_ir, MPI_Comm subcomm, const G_type& G, St_type& Sigma) {
     _P0_tilde.set_zero();
     for (size_t k1 = 0; k1 < _nk; ++k1) {
       std::array<size_t, 4> k = _bz_utils.momentum_conservation({
@@ -182,14 +182,14 @@ namespace green::mbpt::kernels {
     }
   }
 
-  void gw_kernel::read_next(const std::array<size_t, 4>& k) {
+  void gw_cpu_kernel::read_next(const std::array<size_t, 4>& k) {
     // k = (k1, 0, q, k1+q) or (k1, q, 0, k1-q)
     size_t k1  = k[0];
     size_t k1q = k[3];
     _coul_int1->read_integrals(k1, k1q);
   }
 
-  void gw_kernel::symmetrize_P0() {
+  void gw_cpu_kernel::symmetrize_P0() {
     size_t tau_batch = (_nts / 2) / (_ntauprocs);
     size_t tau_rest  = (_nts / 2) % (_ntauprocs);
     size_t t_start   = (_tauid < tau_rest) ? _tauid * (tau_batch + 1) : _tauid * tau_batch + tau_rest;
@@ -201,14 +201,14 @@ namespace green::mbpt::kernels {
     make_hermitian(_P0_tilde);
   }
 
-  void gw_kernel::eval_P_tilde(const int q_ir) {
+  void gw_cpu_kernel::eval_P_tilde(const int q_ir) {
     // Matsubara P0_tilde_b
     ztensor<4> P0_w(_nw_b, 1, _NQ, _NQ);
 
     eval_P_tilde_w(q_ir, _P0_tilde, P0_w);
   }
 
-  void gw_kernel::eval_P_tilde_w(int q_ir, ztensor<4>& P0_tilde, ztensor<4>& P0_w) {
+  void gw_cpu_kernel::eval_P_tilde_w(int q_ir, ztensor<4>& P0_tilde, ztensor<4>& P0_w) {
     // Transform P0_tilde from Fermionic tau to Bonsonic Matsubara grid
     _ft.tau_f_to_w_b(_P0_tilde, P0_w);
 
@@ -242,7 +242,7 @@ namespace green::mbpt::kernels {
   }
 
   template <typename prec>
-  void gw_kernel::eval_P0_tilde(const std::array<size_t, 4>& k, const G_type& G) {
+  void gw_cpu_kernel::eval_P0_tilde(const std::array<size_t, 4>& k, const G_type& G) {
     // k = (k1, 0, q_ir, k1+q_ir)
     // Link current k-points to the corresponding irreducible one
     // size_t k1 = _bz_utils.index()[k[0]];
@@ -299,7 +299,7 @@ namespace green::mbpt::kernels {
   }
 
   template <typename prec>
-  void gw_kernel::assign_G(size_t k, size_t t, size_t s, const ztensor<5>& G_fermi, MatrixX<prec>& G_k) {
+  void gw_cpu_kernel::assign_G(size_t k, size_t t, size_t s, const ztensor<5>& G_fermi, MatrixX<prec>& G_k) {
     // Symmetry related k
     // Find the position in the irreducible list
     size_t k_pos = _bz_utils.symmetry().reduced_point(k);
@@ -312,7 +312,7 @@ namespace green::mbpt::kernels {
   }
 
   template <typename prec>
-  void gw_kernel::assign_G_nso(size_t k, size_t t, size_t s1, size_t s2, const ztensor<5>& G_fermi, MatrixX<prec>& G_k) {
+  void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t s1, size_t s2, const ztensor<5>& G_fermi, MatrixX<prec>& G_k) {
     // Symmetry related k
     // Find the position in the irreducible list
     size_t k_pos   = _bz_utils.symmetry().reduced_point(k);
@@ -344,7 +344,7 @@ namespace green::mbpt::kernels {
    * @param q - [INPUT] k1 - k2
    */
   template <typename prec>
-  void gw_kernel::P0_contraction(const MatrixX<prec>& Gb_k1, const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm, MMatrixX<prec>& VVm,
+  void gw_cpu_kernel::P0_contraction(const MatrixX<prec>& Gb_k1, const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm, MMatrixX<prec>& VVm,
                                  MMatrixX<prec>& VVmm, MMatrixX<prec>& X1m, MMatrixX<prec>& vmm, MMatrixX<prec>& X2m,
                                  MMatrixX<prec>& X1mm, MMatrixX<prec>& X2mm, MMatrixXcd& P0, double& prefactor) {
     statistics.start("P0_zgemm");
@@ -360,7 +360,7 @@ namespace green::mbpt::kernels {
   }
 
   template <typename prec>
-  void gw_kernel::eval_selfenergy(const std::array<size_t, 4>& k, const G_type& G_fermi, St_type& Sigma_fermi_s) {
+  void gw_cpu_kernel::eval_selfenergy(const std::array<size_t, 4>& k, const G_type& G_fermi, St_type& Sigma_fermi_s) {
     // k = (k1_ir, q_deg, 0, k1_ir-q_deg)
     // Link to corresponding irreducible k-point
     size_t          k1q_pos     = _bz_utils.symmetry().reduced_point(k[3]);
@@ -432,7 +432,7 @@ namespace green::mbpt::kernels {
    * Contraction for evaluating self-energy for given tau and k-point
    */
   template <typename prec>
-  void gw_kernel::selfenergy_contraction(const std::array<size_t, 4>& k, const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm,
+  void gw_cpu_kernel::selfenergy_contraction(const std::array<size_t, 4>& k, const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm,
                                          MMatrixX<prec>& Y1m, MMatrixX<prec>& Y1mm, MMatrixX<prec>& Y2mm, MMatrixX<prec>& X2m,
                                          MMatrixX<prec>& Y2mmm, MMatrixX<prec>& X2mm, MatrixX<prec>& P, MatrixXcd& Sm_ts) {
     statistics.start("Selfenergy_zgemm");
@@ -454,39 +454,39 @@ namespace green::mbpt::kernels {
   }
 
   // Explicit template instantiation
-  template void gw_kernel::eval_P0_tilde<std::complex<float>>(const std::array<size_t, 4>& k, const G_type&);
-  template void gw_kernel::eval_P0_tilde<std::complex<double>>(const std::array<size_t, 4>& k, const G_type&);
-  template void gw_kernel::P0_contraction(const MatrixX<std::complex<float>>& Gb_k1, const MatrixX<std::complex<float>>& G_k1q,
+  template void gw_cpu_kernel::eval_P0_tilde<std::complex<float>>(const std::array<size_t, 4>& k, const G_type&);
+  template void gw_cpu_kernel::eval_P0_tilde<std::complex<double>>(const std::array<size_t, 4>& k, const G_type&);
+  template void gw_cpu_kernel::P0_contraction(const MatrixX<std::complex<float>>& Gb_k1, const MatrixX<std::complex<float>>& G_k1q,
                                           MMatrixX<std::complex<float>>& vm, MMatrixX<std::complex<float>>& VVm,
                                           MMatrixX<std::complex<float>>& VVmm, MMatrixX<std::complex<float>>& X1m,
                                           MMatrixX<std::complex<float>>& vmm, MMatrixX<std::complex<float>>& X2m,
                                           MMatrixX<std::complex<float>>& X1mm, MMatrixX<std::complex<float>>& X2mm,
                                           MMatrixXcd& P0, double& prefactor);
-  template void gw_kernel::P0_contraction(const MatrixX<std::complex<double>>& Gb_k1, const MatrixX<std::complex<double>>& G_k1q,
+  template void gw_cpu_kernel::P0_contraction(const MatrixX<std::complex<double>>& Gb_k1, const MatrixX<std::complex<double>>& G_k1q,
                                           MMatrixX<std::complex<double>>& vm, MMatrixX<std::complex<double>>& VVm,
                                           MMatrixX<std::complex<double>>& VVmm, MMatrixX<std::complex<double>>& X1m,
                                           MMatrixX<std::complex<double>>& vmm, MMatrixX<std::complex<double>>& X2m,
                                           MMatrixX<std::complex<double>>& X1mm, MMatrixX<std::complex<double>>& X2mm,
                                           MMatrixXcd& P0, double& prefactor);
-  template void gw_kernel::eval_selfenergy<std::complex<float>>(const std::array<size_t, 4>& k, const G_type&, St_type&);
-  template void gw_kernel::eval_selfenergy<std::complex<double>>(const std::array<size_t, 4>& k, const G_type&, St_type&);
-  template void gw_kernel::selfenergy_contraction(const std::array<size_t, 4>& k, const MatrixX<std::complex<float>>& G_k1q,
+  template void gw_cpu_kernel::eval_selfenergy<std::complex<float>>(const std::array<size_t, 4>& k, const G_type&, St_type&);
+  template void gw_cpu_kernel::eval_selfenergy<std::complex<double>>(const std::array<size_t, 4>& k, const G_type&, St_type&);
+  template void gw_cpu_kernel::selfenergy_contraction(const std::array<size_t, 4>& k, const MatrixX<std::complex<float>>& G_k1q,
                                                   MMatrixX<std::complex<float>>& vm, MMatrixX<std::complex<float>>& Y1m,
                                                   MMatrixX<std::complex<float>>& Y1mm, MMatrixX<std::complex<float>>& Y2mm,
                                                   MMatrixX<std::complex<float>>& X2m, MMatrixX<std::complex<float>>& Y2mmm,
                                                   MMatrixX<std::complex<float>>& X2mm, MatrixX<std::complex<float>>& P,
                                                   MatrixXcd& Sm_ts);
-  template void gw_kernel::selfenergy_contraction(const std::array<size_t, 4>& k, const MatrixX<std::complex<double>>& G_k1q,
+  template void gw_cpu_kernel::selfenergy_contraction(const std::array<size_t, 4>& k, const MatrixX<std::complex<double>>& G_k1q,
                                                   MMatrixX<std::complex<double>>& vm, MMatrixX<std::complex<double>>& Y1m,
                                                   MMatrixX<std::complex<double>>& Y1mm, MMatrixX<std::complex<double>>& Y2mm,
                                                   MMatrixX<std::complex<double>>& X2m, MMatrixX<std::complex<double>>& Y2mmm,
                                                   MMatrixX<std::complex<double>>& X2mm, MatrixX<std::complex<double>>& P,
                                                   MatrixXcd& Sm_ts);
-  template void gw_kernel::assign_G(size_t k, size_t t, size_t s, const ztensor<5>&, MatrixX<std::complex<double>>& G_k);
-  template void gw_kernel::assign_G(size_t k, size_t t, size_t s, const ztensor<5>&, MatrixX<std::complex<float>>& G_k);
-  template void gw_kernel::assign_G_nso(size_t k, size_t t, size_t s1, size_t s2, const ztensor<5>&,
+  template void gw_cpu_kernel::assign_G(size_t k, size_t t, size_t s, const ztensor<5>&, MatrixX<std::complex<double>>& G_k);
+  template void gw_cpu_kernel::assign_G(size_t k, size_t t, size_t s, const ztensor<5>&, MatrixX<std::complex<float>>& G_k);
+  template void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t s1, size_t s2, const ztensor<5>&,
                                         MatrixX<std::complex<double>>& G_k);
-  template void gw_kernel::assign_G_nso(size_t k, size_t t, size_t s1, size_t s2, const ztensor<5>&,
+  template void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t s1, size_t s2, const ztensor<5>&,
                                         MatrixX<std::complex<float>>& G_k);
 
 }

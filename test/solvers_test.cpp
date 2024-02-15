@@ -110,6 +110,9 @@ TEST_CASE("MBPT Solver") {
     auto G_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nao, nao));
     auto S_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nao, nao));
     auto Sigma1   = green::sc::ztensor<4>(ns, ink, nao, nao);
+    S_shared.fence();
+    if(!green::utils::context.node_rank) S_shared.object().set_zero();
+    S_shared.fence();
     Sigma1(0) << bz.full_to_ibz(tmp(0));
     Sigma1(1) << bz.full_to_ibz(tmp(1));
     sc.solve(noop, G_shared, Sigma1, S_shared);

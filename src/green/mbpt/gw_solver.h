@@ -23,6 +23,7 @@
 #include "mbpt_q0_utils_t.h"
 
 #include "kernels.h"
+#include "kernel_factory.h"
 
 namespace green::mbpt {
   /**
@@ -55,7 +56,7 @@ namespace green::mbpt {
       ar["params/NQ"] >> NQ;
       ar.close();
       X2C = nao != nso;
-      _kernel = kernels::gw_kernel_factory::get_kernel(X2C, p, nao, nso, ns, NQ, ft, bz_utils, S_k);
+      std::tie(_kernel, _callback) = kernels::gw_kernel_factory::get_kernel(X2C, p, nao, nso, ns, NQ, ft, bz_utils, S_k);
     }
 
     /**
@@ -64,7 +65,8 @@ namespace green::mbpt {
     void solve(G_type& g, S1_type&, St_type& sigma_tau);
 
   private:
-    std::unique_ptr<kernels::gw_kernel> _kernel;
+    std::shared_ptr<void> _kernel;
+    std::function<void(G_type& g, St_type& sigma_tau)> _callback;
   };
 
 }  // namespace green::mbpt
