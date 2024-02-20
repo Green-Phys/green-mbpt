@@ -1,7 +1,24 @@
 /*
- * Copyright (c) 2023 University of Michigan
+ * Copyright (c) 2024 University of Michigan
  *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this
+ * software and associated documentation files (the “Software”), to deal in the Software
+ * without restriction, including without limitation the rights to use, copy, modify,
+ * merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+ * PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+ * FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
  */
+
 #ifndef MBPT_COMMON_DEFS_H
 #define MBPT_COMMON_DEFS_H
 
@@ -9,6 +26,10 @@
 #include <green/ndarray/ndarray.h>
 
 #include <Eigen/Dense>
+
+#ifdef GREEN_CUSTOM_KERNEL_HEADER
+#include GREEN_CUSTOM_KERNEL_HEADER
+#endif
 
 namespace green::mbpt {
   // Matrix types
@@ -92,7 +113,7 @@ namespace green::mbpt {
   }
 
   template <typename T, size_t D>
-  inline std::array<size_t, D + 1> operator+(const std::array<size_t, D>& a, T b) {
+  std::array<size_t, D + 1> operator+(const std::array<size_t, D>& a, T b) {
     std::array<size_t, D + 1> result;
     std::copy(a.begin(), a.end(), result.begin());
     result[D] = size_t(b);
@@ -100,7 +121,7 @@ namespace green::mbpt {
   }
 
   template <typename T, size_t D>
-  inline std::array<size_t, D + 1> operator+(T b, const std::array<size_t, D>& a) {
+  std::array<size_t, D + 1> operator+(T b, const std::array<size_t, D>& a) {
     std::array<size_t, D + 1> result;
     std::copy(a.begin(), a.end(), result.begin() + 1);
     result[0] = size_t(b);
@@ -113,11 +134,12 @@ namespace green::mbpt {
 
   enum job_type {SC, WINTER, THERMODYNAMICS};
 
-#ifdef WITH_CUDA
-  enum kernel_type {CPU, GPU};
-#else
-  enum kernel_type {CPU};
+  enum kernel_type {
+    CPU
+#ifdef CUSTOM_KERNEL
+    , GREEN_CUSTOM_KERNEL_ENUM
 #endif
+  };
 
   inline void define_parameters(params::params& p) {
     p.define<std::string>("dfintegral_hf_file", "Path to Hartree-Fock integrals", "df_hf_int");
@@ -133,6 +155,9 @@ namespace green::mbpt {
     p.define<sigma_q0_treatment_e>("q0_treatment", "GW q=0 divergence treatment", ignore_G0);
     p.define<std::vector<job_type>>("jobs", "Jobs to run.", std::vector{SC});
     p.define<kernel_type>("kernel", "Type of the computing kernel.", CPU);
+#ifdef GREEN_CUSTOM_KERNEL_HEADER
+    custom_kernel_parameters(p);
+#endif
   }
 }  // namespace green::mbpt
 #endif  // MBPT_COMMON_DEFS_H

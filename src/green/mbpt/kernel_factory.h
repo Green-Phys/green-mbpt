@@ -24,6 +24,10 @@
 
 #include "kernels.h"
 
+#ifdef GREEN_CUSTOM_KERNEL_HEADER
+#include GREEN_CUSTOM_KERNEL_HEADER
+#endif
+
 namespace green::mbpt::kernels {
   class hf_kernel_factory {
     using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
@@ -41,14 +45,19 @@ namespace green::mbpt::kernels {
           std::function         callback = [&kernel](const x_type& dm) -> x_type {
             return static_cast<hf_x2c_cpu_kernel*>(kernel.get())->solve(dm);
           };
-          return std::tuple(kernel, callback);
+          return std::tuple{kernel, callback};
         }
         std::shared_ptr<void> kernel(new hf_scalar_cpu_kernel(p, nao, nso, ns, NQ, madelung, bz_utils, S_k));
         std::function         callback = [&kernel](const x_type& dm) -> x_type {
           return static_cast<hf_scalar_cpu_kernel*>(kernel.get())->solve(dm);
         };
-        return std::tuple(kernel, callback);
+        return std::tuple{kernel, callback};
       }
+#ifdef GREEN_CUSTOM_KERNEL_HEADER
+      if (p["kernel"].as<kernel_type>() == GREEN_CUSTOM_KERNEL_ENUM ) {
+        return custom_hf_kernel(X2C, p, nao, nso, ns, NQ, madelung, bz_utils, S_k);
+      }
+#endif
       throw mbpt_kernel_error("Cannot determine HF kernel");
     }
   };
@@ -64,8 +73,13 @@ namespace green::mbpt::kernels {
       if (p["kernel"].as<kernel_type>() == CPU) {
         std::shared_ptr<void> kernel(new gw_cpu_kernel(p, nao, nso, ns, NQ, ft, bz_utils, S_k, X2C));
         std::function callback = [&kernel](G_type& g, G_type& s) { static_cast<gw_cpu_kernel*>(kernel.get())->solve(g, s); };
-        return std::tuple(kernel, callback);
+        return std::tuple{kernel, callback};
       }
+#ifdef GREEN_CUSTOM_KERNEL_HEADER
+      if (p["kernel"].as<kernel_type>() == GREEN_CUSTOM_KERNEL_ENUM ) {
+        return custom_gw_kernel(X2C, p, nao, nso, ns, NQ, ft, bz_utils, S_k);
+      }
+#endif
       throw mbpt_kernel_error("Cannot determine GW kernel");
     }
   };
