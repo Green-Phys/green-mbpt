@@ -42,13 +42,13 @@ namespace green::mbpt::kernels {
       if (p["kernel"].as<kernel_type>() == CPU) {
         if (X2C) {
           std::shared_ptr<void> kernel(new hf_x2c_cpu_kernel(p, nao, nso, ns, NQ, madelung, bz_utils, S_k));
-          std::function         callback = [&kernel](const x_type& dm) -> x_type {
+          std::function         callback = [kernel](const x_type& dm) -> x_type {
             return static_cast<hf_x2c_cpu_kernel*>(kernel.get())->solve(dm);
           };
           return std::tuple{kernel, callback};
         }
         std::shared_ptr<void> kernel(new hf_scalar_cpu_kernel(p, nao, nso, ns, NQ, madelung, bz_utils, S_k));
-        std::function         callback = [&kernel](const x_type& dm) -> x_type {
+        std::function         callback = [kernel](const x_type& dm) -> x_type {
           return static_cast<hf_scalar_cpu_kernel*>(kernel.get())->solve(dm);
         };
         return std::tuple{kernel, callback};
@@ -72,7 +72,7 @@ namespace green::mbpt::kernels {
         const bz_utils_t& bz_utils, const ztensor<4>& S_k) {
       if (p["kernel"].as<kernel_type>() == CPU) {
         std::shared_ptr<void> kernel(new gw_cpu_kernel(p, nao, nso, ns, NQ, ft, bz_utils, S_k, X2C));
-        std::function callback = [&kernel](G_type& g, G_type& s) { static_cast<gw_cpu_kernel*>(kernel.get())->solve(g, s); };
+        std::function callback = [kernel](G_type& g, G_type& s) { static_cast<gw_cpu_kernel*>(kernel.get())->solve(g, s); };
         return std::tuple{kernel, callback};
       }
 #ifdef GREEN_CUSTOM_KERNEL_HEADER
