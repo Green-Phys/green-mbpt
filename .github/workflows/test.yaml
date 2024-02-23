@@ -32,3 +32,21 @@ jobs:
             module load BuildEnv/gcc-12.2.0.lua;
             cd build;
             ctest -j 1
+
+      - name: Run coverage
+        run: |
+          module load BuildEnv/gcc-12.2.0.lua;
+          cd build;
+          lcov --capture --directory . --output-file coverage.info;
+          lcov --remove coverage.info '/usr/*' --output-file coverage.info
+          lcov --remove coverage.info '/opt/ohpc/pub/compiler/*' --output-file coverage.info
+          lcov --remove coverage.info '*_deps*' --output-file coverage.info
+          lcov --remove coverage.info '*libs*' --output-file coverage.info
+          lcov --list coverage.info
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          flags: unittests
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
