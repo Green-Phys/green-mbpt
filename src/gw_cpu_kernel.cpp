@@ -30,7 +30,6 @@ namespace green::mbpt::kernels {
 
   void gw_cpu_kernel::solve(G_type& g, St_type& sigma_tau) {
     _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    // _P0_tilde.resize(_nts, 1, _NQ, _NQ);
     utils::shared_object<ztensor<4>> P0_tilde_s(_nts, 1, _NQ, _NQ);
     MPI_Datatype                     dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
     MPI_Op                           matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
@@ -43,12 +42,10 @@ namespace green::mbpt::kernels {
     size_t num_kbatch;
     statistics.start("total");
     statistics.start("kbatches");
-    sigma_tau.fence();
     for (size_t q = utils::context.internode_rank; q < _ink; q += utils::context.internode_size) {
       size_t q_ir = _bz_utils.symmetry().full_point(q);
       selfenergy_innerloop(q_ir, g, sigma_tau, P0_tilde_s);
     }
-    sigma_tau.fence();
     statistics.end();
     statistics.start("selfenergy_reduce");
     sigma_tau.fence();
@@ -68,7 +65,6 @@ namespace green::mbpt::kernels {
     statistics.print(utils::context.global);
     MPI_Type_free(&dt_matrix);
     MPI_Op_free(&matrix_sum_op);
-    // _P0_tilde.resize(0, 0, 0, 0);
     delete _coul_int1;
   }
 
@@ -114,6 +110,7 @@ namespace green::mbpt::kernels {
     // Solve Dyson-like eqn of P(iOmega_{n})
     eval_P_tilde(q_ir, P0_tilde_s);
     statistics.end();
+    MPI_Win_lock_all(MPI_MODE_NOCHECK, Sigma.win());
     for (size_t k1 = 0; k1 < _ink; ++k1) {
       size_t k1_ir = _bz_utils.symmetry().full_point(k1);
       // Loop over the degenerate points of q_ir
@@ -133,6 +130,9 @@ namespace green::mbpt::kernels {
         statistics.end();
       }
     }
+    MPI_Win_sync(Sigma.win());
+    MPI_Barrier(utils::context.node_comm);
+    MPI_Win_unlock_all(Sigma.win());
   }
 
   void gw_cpu_kernel::read_next(const std::array<size_t, 4>& k) {
@@ -327,8 +327,6 @@ namespace green::mbpt::kernels {
     MMatrixX<prec> vm(v.data(), _NQ * _nao, _nao);
 
     // #pragma omp parallel
-    // MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, Sigma_fermi_s.win());
-    MPI_Win_lock_all(MPI_MODE_NOCHECK, Sigma_fermi_s.win());
     {
       MatrixX<prec>   G_k1q(_nao, _nao);
       MatrixXcd       Sigma_ts(_nao, _nao);
@@ -365,22 +363,17 @@ namespace green::mbpt::kernels {
           if (!_X2C) {
             sigma_shift = t * _ns * _ink * _nao * _nao + s * _ink * _nao * _nao + k1_pos * _nao * _nao;
             MMatrixXcd Sm(Sigma_fermi.data() + sigma_shift, _nao, _nao);
-            // MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, Sigma_fermi_s.win());
             Sm.noalias() -= Sigma_ts;
-            // MPI_Win_unlock(0, Sigma_fermi_s.win());
           } else {
             sigma_shift = t * _ns * _ink * _nso * _nso + 0 * _ink * _nso * _nso + k1_pos * _nso * _nso;
             MMatrixXcd Sm_nso(Sigma_fermi.data() + sigma_shift, _nso, _nso);
 
             Sm_nso.block(a * _nao, b * _nao, _nao, _nao) -= Sigma_ts;
-            // MPI_Win_unlock(0, Sigma_fermi_s.win());
           }
         }
       }
     }
-    MPI_Win_sync(Sigma_fermi_s.win());
-    MPI_Barrier(utils::context.node_comm);
-    MPI_Win_unlock_all(Sigma_fermi_s.win());
+
   }
 
   /**
