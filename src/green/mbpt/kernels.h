@@ -45,7 +45,8 @@ namespace green::mbpt::kernels {
         _ni_b(ft.sd().repn_bose().ni()), _nw(ft.sd().repn_fermi().nw()), _nw_b(ft.sd().repn_bose().nw()), _nk(bz_utils.nk()),
         _ink(bz_utils.ink()), _nao(nao), _nso(nso), _ns(ns), _NQ(NQ), _X2C(X2C), _p_sp(p["P_sp"]), _sigma_sp(p["Sigma_sp"]),
         _ft(ft), _bz_utils(bz_utils), _path(p["dfintegral_file"]), _q0_utils(bz_utils.ink(), 0, S_k, _path, p["q0_treatment"]),
-        _P0_tilde(0, 0, 0, 0), _eps_inv_wq(ft.wsample_bose().size(), bz_utils.ink()), _ntauspin_mpi(p["ntauspinprocs"]),
+        // _P0_tilde(0, 0, 0, 0),
+    _eps_inv_wq(ft.wsample_bose().size(), bz_utils.ink()), //_ntauspin_mpi(p["ntauspinprocs"]),
         _coul_int1(nullptr) {
       _q0_utils.resize(_NQ);
     }
@@ -80,44 +81,31 @@ namespace green::mbpt::kernels {
     //
     mbpt_q0_utils_t             _q0_utils;
     // Array for the polarization bubble and for screened interaction
-    ztensor<4>                  _P0_tilde;
+    // ztensor<4>                  _P0_tilde;
     // Dielectric function inverse in the plane-wave basis with G = G' = 0
     ztensor<2>                  _eps_inv_wq;
 
-    // MPI communicators to be used
-    MPI_Comm                    _tauspin_comm;
-    MPI_Comm                    _tau_comm2;
-    // Number of total processors and MPI jobs on tau+spin axes. Both are specified by users.
-    int                         _ntauspin_mpi;
-    // Processors' information
-    int                         _ntauprocs;
-    int                         _nspinprocs;
-    int                         _tauid;
-    int                         _spinid;
+    // // MPI communicators to be used
+    // MPI_Comm                    _tauspin_comm;
+    // MPI_Comm                    _tau_comm2;
+    // // Number of total processors and MPI jobs on tau+spin axes. Both are specified by users.
+    // int                         _ntauspin_mpi;
+    // // Processors' information
+    // int                         _ntauprocs;
+    // int                         _nspinprocs;
+    // int                         _tauid;
+    // int                         _spinid;
     // Pre-computed fitted densities
     // This object reads 3-index tensors into Vij_Q
     df_integral_t*              _coul_int1;
 
+  private:
     /**
      * Evaluate self-energy contribution from P^{q_ir}
      * @param q_ir - [INPUT] momentum index of polarization and screened interaction
-     * @param subcomm - [INPUT] Sub-communicator for tau and spin axis.
      */
-    void selfenergy_innerloop(size_t q_ir, MPI_Comm subcomm, const G_type& G_fermi, St_type& Sigma_fermi_s);
-
-    /**
-     * Divide all (_ink) MPI jobs into batches, only kbatch_size of k-points is processed at a time.
-     * For each k-point, we setup subcommunicator, _tauspin_comm1, to parallel over tau and spin axes.
-     * @param kbatch_size - [OUTPUT] number of k-points to be processed at a time = _nprocs / _ntauspinprocs
-     * @param num_kbatch - [OUTPUT] number of k-batches = _ink / kbatch_size
-     */
-    void setup_subcommunicator(size_t& kbatch_size, size_t& num_kbatch);
-
-    /**
-     * Setup subcommunicator, _tau_comm2, over tau axis for a given k-point q.
-     * @param q - [INPUT] k-point index
-     */
-    void setup_subcommunicator2(int q);
+    void selfenergy_innerloop(size_t q_ir, const G_type& G_fermi, St_type& Sigma_fermi_s,
+                              utils::shared_object<ztensor<4>>& P0_tilde_s);
 
     /**
      * Read next part of Coulomb integrals in terms of 3-index tensors for fixed set of k-points
@@ -130,7 +118,8 @@ namespace green::mbpt::kernels {
      * in desired precision
      */
     template <typename prec>
-    void eval_P0_tilde(const std::array<size_t, 4>& k, const G_type& G);
+    void eval_P0_tilde(const std::array<size_t, 4>& k, const G_type& G, ztensor<4>& P0_tilde_s, size_t local_tau,
+                       size_t tau_offset);
 
     template <typename prec>
     void assign_G(size_t k, size_t t, size_t s, const ztensor<5>& G_fermi, MatrixX<prec>& G_k);
@@ -151,13 +140,13 @@ namespace green::mbpt::kernels {
     /**
      * Symmetrize polarization function by ultilizing P0(t) = P0(beta-t)
      */
-    void symmetrize_P0();
+    void symmetrize_P0(ztensor<4>& P0_tilde, size_t local_tau, size_t tau_offset);
 
     /**
      * Solve Dyson-like equation for screened interaction W using Chebyshev convolution
      * Writes the resulting P_tilde(tau) in_P0_tilde;
      */
-    void eval_P_tilde(int q_ir);
+    void eval_P_tilde(int q_ir, utils::shared_object<ztensor<4>>& P0_tilde_s);
 
     /**
      * Takes P0_tilde(tau) and
@@ -166,13 +155,13 @@ namespace green::mbpt::kernels {
      * Writes the resulting P_tilde(Omega) in the argument P_w.
      * This function is needed separately for two-particle density matrix evaluation.
      */
-    void eval_P_tilde_w(int q_ir, ztensor<4>& P0_tilde, ztensor<4>& P_w);
+    void eval_P_tilde_w(int q_ir, utils::shared_object<ztensor<4>>& P0_tilde, ztensor<4>& P_w);
 
     /**
      * Evaluate self-energy
      */
     template <typename prec>
-    void eval_selfenergy(const std::array<size_t, 4>& k, const G_type& G_fermi, St_type& Sigma_fermi_s);
+    void eval_selfenergy(const std::array<size_t, 4>& k, const G_type& G_fermi, St_type& Sigma_fermi_s, ztensor<4>& P0_tilde);
 
     /**
      * Contraction for evaluating self-energy for given tau and k-point

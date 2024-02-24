@@ -29,11 +29,12 @@
 namespace green::mbpt::kernels {
 
   void gw_cpu_kernel::solve(G_type& g, St_type& sigma_tau) {
-    _coul_int1                 = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    _P0_tilde.resize(_nts, 1, _NQ, _NQ);
-    MPI_Datatype dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
-    MPI_Op       matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
-    auto&        sigma_fermi   = sigma_tau.object();
+    _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils);
+    // _P0_tilde.resize(_nts, 1, _NQ, _NQ);
+    utils::shared_object<ztensor<4>> P0_tilde_s(_nts, 1, _NQ, _NQ);
+    MPI_Datatype                     dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
+    MPI_Op                           matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
+    auto&                            sigma_fermi   = sigma_tau.object();
     sigma_tau.fence();
     if (!utils::context.node_rank) sigma_fermi.set_zero();
     sigma_tau.fence();
@@ -42,28 +43,10 @@ namespace green::mbpt::kernels {
     size_t num_kbatch;
     statistics.start("total");
     statistics.start("kbatches");
-    setup_subcommunicator(kbatch_size, num_kbatch);
     sigma_tau.fence();
-    for (size_t batch_id = 0; batch_id < num_kbatch; ++batch_id) {
-      size_t q    = utils::context.global_rank / _ntauspin_mpi + batch_id * kbatch_size;
+    for (size_t q = utils::context.internode_rank; q < _ink; q += utils::context.internode_size) {
       size_t q_ir = _bz_utils.symmetry().full_point(q);
-      selfenergy_innerloop(q_ir, _tauspin_comm, g, sigma_tau);
-    }
-    sigma_tau.fence();
-    statistics.end();
-    statistics.start("krest");
-    // Process the rest k points: (_ink%kbatch_size) k points
-    size_t numk_rest = _ink % (kbatch_size);
-    sigma_tau.fence();
-    if (numk_rest != 0) {
-      if (!utils::context.global_rank) std::cout << "###############################" << std::endl;
-      if (!utils::context.global_rank) std::cout << "Process the rest k-points" << std::endl;
-      if (!utils::context.global_rank) std::cout << "###############################" << std::endl;
-      size_t q_id = utils::context.global_rank % numk_rest;
-      size_t q    = q_id + num_kbatch * kbatch_size;
-      size_t q_ir = _bz_utils.symmetry().full_point(q);
-      setup_subcommunicator2(q_ir);
-      selfenergy_innerloop(q_ir, _tau_comm2, g, sigma_tau);
+      selfenergy_innerloop(q_ir, g, sigma_tau, P0_tilde_s);
     }
     sigma_tau.fence();
     statistics.end();
@@ -83,59 +66,25 @@ namespace green::mbpt::kernels {
     }
     statistics.end();
     statistics.print(utils::context.global);
-    if (numk_rest != 0) {
-      MPI_Comm_free(&_tau_comm2);
-    }
-    if (_ntauspin_mpi > 1) {
-      MPI_Comm_free(&_tauspin_comm);
-    }
     MPI_Type_free(&dt_matrix);
     MPI_Op_free(&matrix_sum_op);
-    _P0_tilde.resize(0, 0, 0, 0);
+    // _P0_tilde.resize(0, 0, 0, 0);
     delete _coul_int1;
   }
 
-  void gw_cpu_kernel::setup_subcommunicator(size_t& kbatch_size, size_t& num_kbatch) {
-    if (!utils::context.global_rank) std::cout << "Number of processes = " << utils::context.global_size << std::endl;
-    if (_ntauspin_mpi > 1) {
-      int ntauspinprocs;
-      int tauspinid;
-      MPI_Comm_split(utils::context.global, utils::context.global_rank / _ntauspin_mpi, utils::context.global_rank,
-                     &_tauspin_comm);  // Build subcommunicator
-      MPI_Comm_rank(_tauspin_comm, &tauspinid);
-      MPI_Comm_size(_tauspin_comm, &ntauspinprocs);
-      assert(tauspinid == utils::context.global_rank % _ntauspin_mpi);
-      assert(ntauspinprocs == _ntauspin_mpi);
-      _tauid      = tauspinid / _ns;
-      _spinid     = tauspinid % _ns;
-      _nspinprocs = _ns;
-      _ntauprocs  = _ntauspin_mpi / _ns;
-    } else {
-      _tauid      = 0;
-      _spinid     = 0;
-      _nspinprocs = 1;
-      _ntauprocs  = 1;
+  void gw_cpu_kernel::selfenergy_innerloop(size_t q_ir, const G_type& G, St_type& Sigma,
+                                           utils::shared_object<ztensor<4>>& P0_tilde_s) {
+#ifndef NDEBUG
+    if (_nts % 2 != 0) {
+      throw mbpt_wrong_grid("Number of tau points should be even!!!");
     }
-    kbatch_size = utils::context.global_size / _ntauspin_mpi;
-    num_kbatch  = _ink / kbatch_size;
-    if (!utils::context.global_rank) std::cout << "kbatch_size = " << kbatch_size << std::endl;
-    if (!utils::context.global_rank) std::cout << "num_kbatch = " << num_kbatch << std::endl;
-    if (!utils::context.global_rank) std::cout << "ntauprocs = " << _ntauprocs << std::endl;
-    if (!utils::context.global_rank) std::cout << "nspinprocs = " << _nspinprocs << std::endl;
-  }
+#endif
+    P0_tilde_s.fence();
+    if(!utils::context.node_rank) P0_tilde_s.object().set_zero();
+    P0_tilde_s.fence();
 
-  void gw_cpu_kernel::setup_subcommunicator2(int q) {
-    MPI_Comm_split(utils::context.global, q, utils::context.global_rank,
-                   &_tau_comm2);  // Build subcommunicator over tau only not spin
-    MPI_Comm_rank(_tau_comm2, &_tauid);
-    MPI_Comm_size(_tau_comm2, &_ntauprocs);
-    _spinid     = 0;
-    _nspinprocs = 1;
-    if (!utils::context.global_rank) std::cout << "ntauprocs = " << _ntauprocs << std::endl;
-  }
-
-  void gw_cpu_kernel::selfenergy_innerloop(size_t q_ir, MPI_Comm subcomm, const G_type& G, St_type& Sigma) {
-    _P0_tilde.set_zero();
+    auto [local_tau, tau_offset] = compute_local_and_offset_node_comm(_nts / 2);
+    MPI_Win_lock_all(MPI_MODE_NOCHECK, P0_tilde_s.win());
     for (size_t k1 = 0; k1 < _nk; ++k1) {
       std::array<size_t, 4> k = _bz_utils.momentum_conservation({
           {k1, 0, q_ir}
@@ -145,21 +94,25 @@ namespace green::mbpt::kernels {
       statistics.end();
       statistics.start("eval_P0_tilde");
       if (_p_sp) {  // Single-precision run
-        eval_P0_tilde<std::complex<float>>(k, G);
+        eval_P0_tilde<std::complex<float>>(k, G, P0_tilde_s.object(), local_tau, tau_offset);
       } else {  // Double-precision run
-        eval_P0_tilde<std::complex<double>>(k, G);
+        eval_P0_tilde<std::complex<double>>(k, G, P0_tilde_s.object(), local_tau, tau_offset);
       }
       statistics.end();
     }
-    symmetrize_P0();
-    statistics.start("P0_reduce");  // Reduction on tau axis
-    if (_ntauprocs * _nspinprocs > 1)
-      utils::allreduce(MPI_IN_PLACE, _P0_tilde.data(), _P0_tilde.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, subcomm);
-    statistics.end();
-    _P0_tilde /= (_nk);
+    symmetrize_P0(P0_tilde_s.object(), local_tau, tau_offset);
+    MPI_Win_sync(P0_tilde_s.win());
+    MPI_Barrier(utils::context.node_comm);
+    MPI_Win_unlock_all(P0_tilde_s.win());
+
+    // statistics.start("P0_reduce");  // Reduction for different Q-Q'
+    // if (!utils::context.internode_rank)
+    //   utils::allreduce(MPI_IN_PLACE, P0_tilde_s.object().data(), P0_tilde_s.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM,
+    //   utils::context.internode_comm);
+    // statistics.end();
     statistics.start("eval_P_tilde");
-    // Solve Dyson-like eqn of P(iOmega_{n}) through Chebyshev convolution
-    eval_P_tilde(q_ir);
+    // Solve Dyson-like eqn of P(iOmega_{n})
+    eval_P_tilde(q_ir, P0_tilde_s);
     statistics.end();
     for (size_t k1 = 0; k1 < _ink; ++k1) {
       size_t k1_ir = _bz_utils.symmetry().full_point(k1);
@@ -173,9 +126,9 @@ namespace green::mbpt::kernels {
         statistics.end();
         statistics.start("eval_S");
         if (_sigma_sp) {
-          eval_selfenergy<std::complex<float>>(k, G, Sigma);
+          eval_selfenergy<std::complex<float>>(k, G, Sigma, P0_tilde_s.object());
         } else {
-          eval_selfenergy<std::complex<double>>(k, G, Sigma);
+          eval_selfenergy<std::complex<double>>(k, G, Sigma, P0_tilde_s.object());
         }
         statistics.end();
       }
@@ -189,69 +142,13 @@ namespace green::mbpt::kernels {
     _coul_int1->read_integrals(k1, k1q);
   }
 
-  void gw_cpu_kernel::symmetrize_P0() {
-    size_t tau_batch = (_nts / 2) / (_ntauprocs);
-    size_t tau_rest  = (_nts / 2) % (_ntauprocs);
-    size_t t_start   = (_tauid < tau_rest) ? _tauid * (tau_batch + 1) : _tauid * tau_batch + tau_rest;
-    size_t t_end     = (_tauid < tau_rest) ? (_tauid + 1) * (tau_batch + 1) : (_tauid + 1) * tau_batch + tau_rest;
-    for (size_t it = t_start; it < t_end; ++it) {  // Symmetry of tau: P0(t) = P0(beta - t)
-      matrix(_P0_tilde(_nts - it - 1, 0)) = matrix(_P0_tilde(it, 0));
-    }
-    // Hermitization
-    make_hermitian(_P0_tilde);
-  }
-
-  void gw_cpu_kernel::eval_P_tilde(const int q_ir) {
-    // Matsubara P0_tilde_b
-    ztensor<4> P0_w(_nw_b, 1, _NQ, _NQ);
-
-    eval_P_tilde_w(q_ir, _P0_tilde, P0_w);
-  }
-
-  void gw_cpu_kernel::eval_P_tilde_w(int q_ir, ztensor<4>& P0_tilde, ztensor<4>& P0_w) {
-    // Transform P0_tilde from Fermionic tau to Bonsonic Matsubara grid
-    _ft.tau_f_to_w_b(_P0_tilde, P0_w);
-
-    if (_tauid == 0 and _spinid == 0 and q_ir == 0) {
-      print_leakage(_ft.check_chebyshev(_P0_tilde), "P0");
-    }
-
-    // Solve Dyson-like eqn for ncheb frequency points
-    MatrixXcd              identity = MatrixXcd::Identity(_NQ, _NQ);
-    // Eigen::FullPivLU<MatrixXcd> lusolver(_NQ,_NQ);
-    Eigen::LDLT<MatrixXcd> ldltsolver(_NQ);
-    for (size_t n = 0; n < _nw_b; ++n) {
-      MatrixXcd temp     = identity - matrix(P0_w(n, 0));
-      // temp = lusolver.compute(temp).inverse().eval();
-      temp               = ldltsolver.compute(temp).solve(identity).eval();
-      temp               = 0.5 * (temp + temp.conjugate().transpose().eval());
-      matrix(P0_w(n, 0)) = (temp * matrix(P0_w(n, 0))).eval();
-    }
-
-    // Transform back from Bosonic Matsubara to Fermionic tau.
-    _ft.w_b_to_tau_f(P0_w, _P0_tilde);
-    // for G0W0 correction
-    if (_q0_utils.q0_treatment() == extrapolate and _tauid == 0 and _spinid == 0) {
-      size_t iq = _bz_utils.symmetry().reduced_point(q_ir);
-      _q0_utils.aux_to_PW_00(P0_w, _eps_inv_wq, iq);
-    }
-    // Transform back to intermediate Chebyshev representation for P_tilde
-    if (_tauid == 0 and _spinid == 0 and q_ir == 0) {
-      print_leakage(_ft.check_chebyshev(_P0_tilde), "P");
-    }
-  }
-
   template <typename prec>
-  void gw_cpu_kernel::eval_P0_tilde(const std::array<size_t, 4>& k, const G_type& G) {
+  void gw_cpu_kernel::eval_P0_tilde(const std::array<size_t, 4>& k, const G_type& G, ztensor<4>& P0_tilde, size_t local_tau,
+                                    size_t tau_offset) {
     // k = (k1, 0, q_ir, k1+q_ir)
     // Link current k-points to the corresponding irreducible one
     // size_t k1 = _bz_utils.index()[k[0]];
     // size_t k1q = _bz_utils.index()[k[3]];
-
-    size_t          tau_batch = (_nts / 2) / _ntauprocs;
-    size_t          tau_rest  = (_nts / 2) % _ntauprocs;
-    size_t          t_start   = (_tauid < tau_rest) ? _tauid * (tau_batch + 1) : _tauid * tau_batch + tau_rest;
-    size_t          t_end     = (_tauid < tau_rest) ? (_tauid + 1) * (tau_batch + 1) : (_tauid + 1) * tau_batch + tau_rest;
 
     // (Q, p, m) or (Q', t, n)*
     tensor<prec, 3> v(_NQ, _nao, _nao);
@@ -276,10 +173,10 @@ namespace green::mbpt::kernels {
       // #pragma omp for
       size_t          pseudo_ns = (!_X2C) ? _ns : 4;
       size_t          a, b, i_shift, j_shift;
-      for (size_t t = t_start; t < t_end; ++t) {  // Loop over half-tau
-        size_t     tt = _nts - t - 1;             // beta - t
-        MMatrixXcd P0(_P0_tilde.data() + t * _NQ * _NQ, _NQ, _NQ);
-        for (size_t s = _spinid; s < pseudo_ns; s += _nspinprocs) {
+      for (size_t t = tau_offset, it = 0; it < local_tau; ++t, ++it) {  // Loop over half-tau
+        size_t     tt = _nts - t - 1;                                   // beta - t
+        MMatrixXcd P0(P0_tilde.data() + t * _NQ * _NQ, _NQ, _NQ);
+        for (size_t s = 0; s < pseudo_ns; ++s) {
           if (!_X2C) {
             assign_G(k[0], tt, s, G.object(), Gb_k1);
             assign_G(k[3], t, s, G.object(), G_k1q);
@@ -344,9 +241,10 @@ namespace green::mbpt::kernels {
    * @param q - [INPUT] k1 - k2
    */
   template <typename prec>
-  void gw_cpu_kernel::P0_contraction(const MatrixX<prec>& Gb_k1, const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm, MMatrixX<prec>& VVm,
-                                 MMatrixX<prec>& VVmm, MMatrixX<prec>& X1m, MMatrixX<prec>& vmm, MMatrixX<prec>& X2m,
-                                 MMatrixX<prec>& X1mm, MMatrixX<prec>& X2mm, MMatrixXcd& P0, double& prefactor) {
+  void gw_cpu_kernel::P0_contraction(const MatrixX<prec>& Gb_k1, const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm,
+                                     MMatrixX<prec>& VVm, MMatrixX<prec>& VVmm, MMatrixX<prec>& X1m, MMatrixX<prec>& vmm,
+                                     MMatrixX<prec>& X2m, MMatrixX<prec>& X1mm, MMatrixX<prec>& X2mm, MMatrixXcd& P0,
+                                     double& prefactor) {
     statistics.start("P0_zgemm");
     // pm, Q
     VVm           = vm.transpose();
@@ -359,15 +257,67 @@ namespace green::mbpt::kernels {
     statistics.end();
   }
 
+  void gw_cpu_kernel::symmetrize_P0(ztensor<4>& P0_tilde, size_t local_tau, size_t tau_offset) {
+    for (size_t it = tau_offset, t = 0; t < local_tau; ++it, ++t) {  // Symmetry of tau: P0(t) = P0(beta - t)
+      // Hermitization
+      auto P0_t = P0_tilde(it);
+      P0_t /= (_nk);
+      make_hermitian(P0_t);
+      matrix(P0_tilde(_nts - it - 1, 0)) = matrix(P0_tilde(it, 0));
+    }
+  }
+
+  void gw_cpu_kernel::eval_P_tilde(const int q_ir, utils::shared_object<ztensor<4>>& P0_tilde) {
+    // Matsubara P0_tilde_b
+    ztensor<4> P0_w(_nw_b, 1, _NQ, _NQ);
+
+    eval_P_tilde_w(q_ir, P0_tilde, P0_w);
+  }
+
+  void gw_cpu_kernel::eval_P_tilde_w(int q_ir, utils::shared_object<ztensor<4>>& P0_tilde, ztensor<4>& P0_w) {
+    // Transform P0_tilde from Fermionic tau to Bonsonic Matsubara grid
+    auto [nw_local, w_offset] = compute_local_and_offset_node_comm(_nw_b);
+    _ft.tau_f_to_w_b(P0_tilde.object(), P0_w, w_offset, nw_local, true);
+
+    if (utils::context.global_rank == 0 && q_ir == 0) {
+      print_leakage(_ft.check_chebyshev(P0_tilde.object()), "P0");
+    }
+
+    // Solve Dyson-like eqn for ncheb frequency points
+    MatrixXcd              identity = MatrixXcd::Identity(_NQ, _NQ);
+    // Eigen::FullPivLU<MatrixXcd> lusolver(_NQ,_NQ);
+    Eigen::LDLT<MatrixXcd> ldltsolver(_NQ);
+    for (size_t n = w_offset, loc_n = 0; loc_n < nw_local; ++n, ++loc_n) {
+      MatrixXcd temp     = identity - matrix(P0_w(n, 0));
+      // temp = lusolver.compute(temp).inverse().eval();
+      temp               = ldltsolver.compute(temp).solve(identity).eval();
+      temp               = 0.5 * (temp + temp.conjugate().transpose().eval());
+      matrix(P0_w(n, 0)) = (temp * matrix(P0_w(n, 0))).eval();
+    }
+    utils::allreduce(MPI_IN_PLACE, P0_w.data(), P0_w.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, utils::context.node_comm);
+
+    // Transform back from Bosonic Matsubara to Fermionic tau.
+    P0_tilde.fence();
+    if (!utils::context.node_rank) _ft.w_b_to_tau_f(P0_w, P0_tilde.object());
+    P0_tilde.fence();
+    // for G0W0 correction
+    if (_q0_utils.q0_treatment() == extrapolate and utils::context.global_rank == 0) {
+      size_t iq = _bz_utils.symmetry().reduced_point(q_ir);
+      _q0_utils.aux_to_PW_00(P0_w, _eps_inv_wq, iq);
+    }
+    // Transform back to intermediate Chebyshev representation for P_tilde
+    if (utils::context.global_rank == 0 && q_ir == 0) {
+      print_leakage(_ft.check_chebyshev(P0_tilde.object()), "P");
+    }
+  }
+
   template <typename prec>
-  void gw_cpu_kernel::eval_selfenergy(const std::array<size_t, 4>& k, const G_type& G_fermi, St_type& Sigma_fermi_s) {
+  void gw_cpu_kernel::eval_selfenergy(const std::array<size_t, 4>& k, const G_type& G_fermi, St_type& Sigma_fermi_s,
+                                      ztensor<4>& P0_tilde) {
     // k = (k1_ir, q_deg, 0, k1_ir-q_deg)
     // Link to corresponding irreducible k-point
     size_t          k1q_pos     = _bz_utils.symmetry().reduced_point(k[3]);
-    size_t          tau_batch   = (_nts) / _ntauprocs;
-    size_t          tau_rest    = (_nts) % _ntauprocs;
-    size_t          t_start     = (_tauid < tau_rest) ? _tauid * (tau_batch + 1) : _tauid * tau_batch + tau_rest;
-    size_t          t_end       = (_tauid < tau_rest) ? (_tauid + 1) * (tau_batch + 1) : (_tauid + 1) * tau_batch + tau_rest;
+    auto [tau_local, tau_offset] = compute_local_and_offset_node_comm(_nts);
     auto&           Sigma_fermi = Sigma_fermi_s.object();
 
     size_t          k1_pos      = _bz_utils.symmetry().reduced_point(k[0]);
@@ -377,6 +327,8 @@ namespace green::mbpt::kernels {
     MMatrixX<prec> vm(v.data(), _NQ * _nao, _nao);
 
     // #pragma omp parallel
+    // MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, Sigma_fermi_s.win());
+    MPI_Win_lock_all(MPI_MODE_NOCHECK, Sigma_fermi_s.win());
     {
       MatrixX<prec>   G_k1q(_nao, _nao);
       MatrixXcd       Sigma_ts(_nao, _nao);
@@ -394,11 +346,11 @@ namespace green::mbpt::kernels {
       size_t          pseudo_ns = (!_X2C) ? _ns : 4;
       size_t          a, b, i_shift, j_shift;
       size_t          sigma_shift;
-      for (size_t t = t_start; t < t_end; ++t) {
-        MMatrixXcd    P(_P0_tilde.data() + t * _NQ * _NQ, _NQ, _NQ);
+      for (size_t t = tau_offset, it = 0; it < tau_local; ++t, ++it) {
+        MMatrixXcd    P(P0_tilde.data() + t * _NQ * _NQ, _NQ, _NQ);
         MatrixX<prec> P_sp(_NQ, _NQ);
         P_sp = P.cast<prec>();
-        for (size_t s = _spinid; s < pseudo_ns; s += _nspinprocs) {
+        for (size_t s = 0; s < pseudo_ns; ++s) {
           if (!_X2C) {
             assign_G(k[3], t, s, G_fermi.object(), G_k1q);
           } else {
@@ -413,19 +365,22 @@ namespace green::mbpt::kernels {
           if (!_X2C) {
             sigma_shift = t * _ns * _ink * _nao * _nao + s * _ink * _nao * _nao + k1_pos * _nao * _nao;
             MMatrixXcd Sm(Sigma_fermi.data() + sigma_shift, _nao, _nao);
-            MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, Sigma_fermi_s.win());
+            // MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, Sigma_fermi_s.win());
             Sm.noalias() -= Sigma_ts;
-            MPI_Win_unlock(0, Sigma_fermi_s.win());
+            // MPI_Win_unlock(0, Sigma_fermi_s.win());
           } else {
             sigma_shift = t * _ns * _ink * _nso * _nso + 0 * _ink * _nso * _nso + k1_pos * _nso * _nso;
             MMatrixXcd Sm_nso(Sigma_fermi.data() + sigma_shift, _nso, _nso);
-            MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, Sigma_fermi_s.win());
+
             Sm_nso.block(a * _nao, b * _nao, _nao, _nao) -= Sigma_ts;
-            MPI_Win_unlock(0, Sigma_fermi_s.win());
+            // MPI_Win_unlock(0, Sigma_fermi_s.win());
           }
         }
       }
     }
+    MPI_Win_sync(Sigma_fermi_s.win());
+    MPI_Barrier(utils::context.node_comm);
+    MPI_Win_unlock_all(Sigma_fermi_s.win());
   }
 
   /**
@@ -433,8 +388,8 @@ namespace green::mbpt::kernels {
    */
   template <typename prec>
   void gw_cpu_kernel::selfenergy_contraction(const std::array<size_t, 4>& k, const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm,
-                                         MMatrixX<prec>& Y1m, MMatrixX<prec>& Y1mm, MMatrixX<prec>& Y2mm, MMatrixX<prec>& X2m,
-                                         MMatrixX<prec>& Y2mmm, MMatrixX<prec>& X2mm, MatrixX<prec>& P, MatrixXcd& Sm_ts) {
+                                             MMatrixX<prec>& Y1m, MMatrixX<prec>& Y1mm, MMatrixX<prec>& Y2mm, MMatrixX<prec>& X2m,
+                                             MMatrixX<prec>& Y2mmm, MMatrixX<prec>& X2mm, MatrixX<prec>& P, MatrixXcd& Sm_ts) {
     statistics.start("Selfenergy_zgemm");
     // Qi,n = (Qi, m) * (m, n)
     Y1m.noalias() = vm * G_k1q;
@@ -454,39 +409,43 @@ namespace green::mbpt::kernels {
   }
 
   // Explicit template instantiation
-  template void gw_cpu_kernel::eval_P0_tilde<std::complex<float>>(const std::array<size_t, 4>& k, const G_type&);
-  template void gw_cpu_kernel::eval_P0_tilde<std::complex<double>>(const std::array<size_t, 4>& k, const G_type&);
-  template void gw_cpu_kernel::P0_contraction(const MatrixX<std::complex<float>>& Gb_k1, const MatrixX<std::complex<float>>& G_k1q,
-                                          MMatrixX<std::complex<float>>& vm, MMatrixX<std::complex<float>>& VVm,
-                                          MMatrixX<std::complex<float>>& VVmm, MMatrixX<std::complex<float>>& X1m,
-                                          MMatrixX<std::complex<float>>& vmm, MMatrixX<std::complex<float>>& X2m,
-                                          MMatrixX<std::complex<float>>& X1mm, MMatrixX<std::complex<float>>& X2mm,
-                                          MMatrixXcd& P0, double& prefactor);
-  template void gw_cpu_kernel::P0_contraction(const MatrixX<std::complex<double>>& Gb_k1, const MatrixX<std::complex<double>>& G_k1q,
-                                          MMatrixX<std::complex<double>>& vm, MMatrixX<std::complex<double>>& VVm,
-                                          MMatrixX<std::complex<double>>& VVmm, MMatrixX<std::complex<double>>& X1m,
-                                          MMatrixX<std::complex<double>>& vmm, MMatrixX<std::complex<double>>& X2m,
-                                          MMatrixX<std::complex<double>>& X1mm, MMatrixX<std::complex<double>>& X2mm,
-                                          MMatrixXcd& P0, double& prefactor);
-  template void gw_cpu_kernel::eval_selfenergy<std::complex<float>>(const std::array<size_t, 4>& k, const G_type&, St_type&);
-  template void gw_cpu_kernel::eval_selfenergy<std::complex<double>>(const std::array<size_t, 4>& k, const G_type&, St_type&);
+  template void gw_cpu_kernel::eval_P0_tilde<std::complex<float>>(const std::array<size_t, 4>& k, const G_type&, ztensor<4>&,
+                                                                  size_t, size_t);
+  template void gw_cpu_kernel::eval_P0_tilde<std::complex<double>>(const std::array<size_t, 4>& k, const G_type&, ztensor<4>&,
+                                                                   size_t, size_t);
+  template void gw_cpu_kernel::P0_contraction(const MatrixX<std::complex<float>>& Gb_k1,
+                                              const MatrixX<std::complex<float>>& G_k1q, MMatrixX<std::complex<float>>& vm,
+                                              MMatrixX<std::complex<float>>& VVm, MMatrixX<std::complex<float>>& VVmm,
+                                              MMatrixX<std::complex<float>>& X1m, MMatrixX<std::complex<float>>& vmm,
+                                              MMatrixX<std::complex<float>>& X2m, MMatrixX<std::complex<float>>& X1mm,
+                                              MMatrixX<std::complex<float>>& X2mm, MMatrixXcd& P0, double& prefactor);
+  template void gw_cpu_kernel::P0_contraction(const MatrixX<std::complex<double>>& Gb_k1,
+                                              const MatrixX<std::complex<double>>& G_k1q, MMatrixX<std::complex<double>>& vm,
+                                              MMatrixX<std::complex<double>>& VVm, MMatrixX<std::complex<double>>& VVmm,
+                                              MMatrixX<std::complex<double>>& X1m, MMatrixX<std::complex<double>>& vmm,
+                                              MMatrixX<std::complex<double>>& X2m, MMatrixX<std::complex<double>>& X1mm,
+                                              MMatrixX<std::complex<double>>& X2mm, MMatrixXcd& P0, double& prefactor);
+  template void gw_cpu_kernel::eval_selfenergy<std::complex<float>>(const std::array<size_t, 4>& k, const G_type&, St_type&,
+                                                                    ztensor<4>&);
+  template void gw_cpu_kernel::eval_selfenergy<std::complex<double>>(const std::array<size_t, 4>& k, const G_type&, St_type&,
+                                                                     ztensor<4>&);
   template void gw_cpu_kernel::selfenergy_contraction(const std::array<size_t, 4>& k, const MatrixX<std::complex<float>>& G_k1q,
-                                                  MMatrixX<std::complex<float>>& vm, MMatrixX<std::complex<float>>& Y1m,
-                                                  MMatrixX<std::complex<float>>& Y1mm, MMatrixX<std::complex<float>>& Y2mm,
-                                                  MMatrixX<std::complex<float>>& X2m, MMatrixX<std::complex<float>>& Y2mmm,
-                                                  MMatrixX<std::complex<float>>& X2mm, MatrixX<std::complex<float>>& P,
-                                                  MatrixXcd& Sm_ts);
+                                                      MMatrixX<std::complex<float>>& vm, MMatrixX<std::complex<float>>& Y1m,
+                                                      MMatrixX<std::complex<float>>& Y1mm, MMatrixX<std::complex<float>>& Y2mm,
+                                                      MMatrixX<std::complex<float>>& X2m, MMatrixX<std::complex<float>>& Y2mmm,
+                                                      MMatrixX<std::complex<float>>& X2mm, MatrixX<std::complex<float>>& P,
+                                                      MatrixXcd& Sm_ts);
   template void gw_cpu_kernel::selfenergy_contraction(const std::array<size_t, 4>& k, const MatrixX<std::complex<double>>& G_k1q,
-                                                  MMatrixX<std::complex<double>>& vm, MMatrixX<std::complex<double>>& Y1m,
-                                                  MMatrixX<std::complex<double>>& Y1mm, MMatrixX<std::complex<double>>& Y2mm,
-                                                  MMatrixX<std::complex<double>>& X2m, MMatrixX<std::complex<double>>& Y2mmm,
-                                                  MMatrixX<std::complex<double>>& X2mm, MatrixX<std::complex<double>>& P,
-                                                  MatrixXcd& Sm_ts);
+                                                      MMatrixX<std::complex<double>>& vm, MMatrixX<std::complex<double>>& Y1m,
+                                                      MMatrixX<std::complex<double>>& Y1mm, MMatrixX<std::complex<double>>& Y2mm,
+                                                      MMatrixX<std::complex<double>>& X2m, MMatrixX<std::complex<double>>& Y2mmm,
+                                                      MMatrixX<std::complex<double>>& X2mm, MatrixX<std::complex<double>>& P,
+                                                      MatrixXcd& Sm_ts);
   template void gw_cpu_kernel::assign_G(size_t k, size_t t, size_t s, const ztensor<5>&, MatrixX<std::complex<double>>& G_k);
   template void gw_cpu_kernel::assign_G(size_t k, size_t t, size_t s, const ztensor<5>&, MatrixX<std::complex<float>>& G_k);
   template void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t s1, size_t s2, const ztensor<5>&,
-                                        MatrixX<std::complex<double>>& G_k);
+                                            MatrixX<std::complex<double>>& G_k);
   template void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t s1, size_t s2, const ztensor<5>&,
-                                        MatrixX<std::complex<float>>& G_k);
+                                            MatrixX<std::complex<float>>& G_k);
 
 }

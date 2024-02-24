@@ -67,5 +67,14 @@ namespace green::mbpt {
 
     return std::array<double, 3>{e1e, ehf, energy};
   }
+
+  inline std::pair<size_t, size_t> compute_local_and_offset_node_comm(size_t size) {
+    size_t local = size / utils::context.node_size;
+    local += (size % utils::context.node_size > utils::context.node_rank) ? 1 : 0;
+    size_t offset = local * utils::context.node_rank +
+                        ((size % utils::context.node_size > utils::context.node_rank) ? 0 : (size % utils::context.node_size));
+    return {local, offset};
+  }
+
 }  // namespace green::mbpt
 #endif  // MBPT_COMMON_UTILS_H

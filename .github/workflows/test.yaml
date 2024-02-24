@@ -28,6 +28,7 @@ jobs:
       - name: Test
         env:
           HDF5_USE_FILE_LOCKING: 'FALSE'
+          OMP_NUM_THREADS: 1
         run: |
             module load BuildEnv/gcc-12.2.0.lua;
             cd build;

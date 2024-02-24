@@ -27,7 +27,12 @@
 namespace green::mbpt {
   class mbpt_kernel_error : public std::runtime_error {
   public:
-    mbpt_kernel_error(const std::string& what) : std::runtime_error(what) {}
+    explicit mbpt_kernel_error(const std::string& what) : std::runtime_error(what) {}
+  };
+
+  class mbpt_wrong_grid : public std::runtime_error {
+  public:
+    explicit mbpt_wrong_grid(const std::string& what) : std::runtime_error(what) {}
   };
 }  // namespace green::mbpt
 #endif  // GREEN_MBPT_EXCEPT_H
