@@ -36,7 +36,7 @@ namespace green::mbpt::kernels {
       NQ_local += (_NQ % utils::context.node_size > utils::context.node_rank) ? 1 : 0;
       size_t NQ_offset = NQ_local * utils::context.node_rank +
                          ((_NQ % utils::context.node_size > utils::context.node_rank) ? 0 : (_NQ % utils::context.node_size));
-
+      NQ_offset = (NQ_offset >= _NQ) ? 0 : NQ_offset;
       statistics.start("Direct");
       // Direct diagram
       MatrixXcd  X1(_nao, _nao);
@@ -51,12 +51,14 @@ namespace green::mbpt::kernels {
         int kp_ir = _bz_utils.symmetry().full_point(ikp);
 
         coul_int1.read_integrals(kp_ir, kp_ir);
-        coul_int1.symmetrize(v, kp_ir, kp_ir, NQ_offset, NQ_local);
+        if(NQ_local > 0) {
+          coul_int1.symmetrize(v, kp_ir, kp_ir, NQ_offset, NQ_local);
 
-        X1 = CMMatrixXcd(dm.data() + is * _ink * _nao * _nao + ikp * _nao * _nao, _nao, _nao);
-        X1 = X1.transpose().eval();
-        // (Q, 1) = (Q, ab) * (ab, 1)
-        upper_Coul_m += _bz_utils.symmetry().weight()[kp_ir] * vm * X1m;
+          X1 = CMMatrixXcd(dm.data() + is * _ink * _nao * _nao + ikp * _nao * _nao, _nao, _nao);
+          X1 = X1.transpose().eval();
+          // (Q, 1) = (Q, ab) * (ab, 1)
+          upper_Coul_m += _bz_utils.symmetry().weight()[kp_ir] * vm * X1m;
+        }
       }
       statistics.start("Reduce Direct");
       MPI_Allreduce(MPI_IN_PLACE, upper_Coul.data(), upper_Coul.size(), MPI_CXX_DOUBLE_COMPLEX, MPI_SUM, utils::context.global);
@@ -69,11 +71,13 @@ namespace green::mbpt::kernels {
         int k_ir = _bz_utils.symmetry().full_point(ik);
 
         coul_int1.read_integrals(k_ir, k_ir);
-        coul_int1.symmetrize(v, k_ir, k_ir, NQ_offset, NQ_local);
+        if(NQ_local > 0) {
+          coul_int1.symmetrize(v, k_ir, k_ir, NQ_offset, NQ_local);
 
-        MMatrixXcd Fm(new_Fock.data() + is * _ink * _nao * _nao + ik * _nao * _nao, 1, _nao * _nao);
-        // (1, ij) = (1, Q) * (Q, ij)
-        Fm += upper_Coul_m.transpose() * vm;
+          MMatrixXcd Fm(new_Fock.data() + is * _ink * _nao * _nao + ik * _nao * _nao, 1, _nao * _nao);
+          // (1, ij) = (1, Q) * (Q, ij)
+          Fm += upper_Coul_m.transpose() * vm;
+        }
       }
       statistics.end();
 
@@ -103,21 +107,23 @@ namespace green::mbpt::kernels {
           CMMatrixXcd dmm(dm.data() + is * _ink * _nao * _nao + kp * _nao * _nao, _nao, _nao);
 
           coul_int1.read_integrals(k_ir, ikp);
-          // (Q, i, b) or conj(Q, j, a)
-          coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
+          if(NQ_local > 0) {
+            // (Q, i, b) or conj(Q, j, a)
+            coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
 
-          // (Qi, a) = (Qi, b) * (b, a)
-          if (_bz_utils.symmetry().conj_list()[ikp] == 0) {
-            Ym = vmm * dmm;
-          } else {
-            Ym = vmm * dmm.conjugate();
+            // (Qi, a) = (Qi, b) * (b, a)
+            if (_bz_utils.symmetry().conj_list()[ikp] == 0) {
+              Ym = vmm * dmm;
+            } else {
+              Ym = vmm * dmm.conjugate();
+            }
+            // (ia, Q)
+            Y1m = Ymm.transpose();
+            // (a, Qj). (Q, j, a) -> (a, Q, j)*
+            v2m = vmm.conjugate().transpose();
+            // (i, j) = (i, aQ) * (aQ, j)
+            Fmm -= prefactor * Y1mm * v2mm / double(_nk);
           }
-          // (ia, Q)
-          Y1m = Ymm.transpose();
-          // (a, Qj). (Q, j, a) -> (a, Q, j)*
-          v2m = vmm.conjugate().transpose();
-          // (i, j) = (i, aQ) * (aQ, j)
-          Fmm -= prefactor * Y1mm * v2mm / double(_nk);
         }
       }
       statistics.end();
