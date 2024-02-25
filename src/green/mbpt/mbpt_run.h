@@ -1,7 +1,24 @@
 /*
  * Copyright (c) 2023 University of Michigan
  *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this
+ * software and associated documentation files (the “Software”), to deal in the Software
+ * without restriction, including without limitation the rights to use, copy, modify,
+ * merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+ * PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+ * FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
  */
+
 #ifndef MBPT_MBPT_RUN_H
 #define MBPT_MBPT_RUN_H
 
@@ -54,7 +71,8 @@ namespace green::mbpt {
     for (size_t ik = 0; ik < ink; ++ik) {
       Matrixcd S = matrix(Sk(ik));
       solver.compute(S);
-      matrix(Sk_12_inv(ik)) = solver.eigenvectors() * (solver.eigenvalues().cwiseSqrt().asDiagonal().inverse()) * solver.eigenvectors().adjoint();
+      matrix(Sk_12_inv(ik)) =
+          solver.eigenvectors() * (solver.eigenvalues().cwiseSqrt().asDiagonal().inverse()) * solver.eigenvectors().adjoint();
     }
   }
 
@@ -97,7 +115,7 @@ namespace green::mbpt {
       for (size_t ik = 0; ik < nk; ++ik) {
         auto   k       = dyson_solver.bz_utils().mesh()(ik);
         double rk      = std::inner_product(r.begin(), r.end(), k.begin(), 0.0);
-        exp_rk(ir, ik) = std::exp(std::complex<double>(0, 2*rk*M_PI));
+        exp_rk(ir, ik) = std::exp(std::complex<double>(0, 2 * rk * M_PI));
       }
     }
     for (size_t ik_hs = 0; ik_hs < hs_nk; ++ik_hs) {
@@ -105,7 +123,7 @@ namespace green::mbpt {
       for (size_t ir = 0; ir < rmesh.shape()[0]; ++ir) {
         auto   r          = rmesh(ir);
         double rk         = std::inner_product(r.begin(), r.end(), k.begin(), 0.0);
-        exp_kr(ik_hs, ir) = std::exp(std::complex<double>(0, -2*rk*M_PI));
+        exp_kr(ik_hs, ir) = std::exp(std::complex<double>(0, -2 * rk * M_PI));
       }
     }
     matrix(transform) = matrix(exp_kr) * matrix(exp_rk) / double(nk);
@@ -219,7 +237,9 @@ namespace green::mbpt {
       } else if (job == WINTER) {
         winter_job(sc, p, dyson, G_tau, Sigma_tau, Sigma1);
       }
+      if (!utils::context.global_rank) std::cout << "Job " << magic_enum::enum_name(job) << " is finished." << std::endl;
     }
+    if (!utils::context.global_rank) std::cout << "Completed." << std::endl;
   }
 
 }  // namespace green::mbpt

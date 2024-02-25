@@ -106,7 +106,7 @@ namespace green::mbpt {
     double         mu2;
     double         delta = 0.5;
     utils::timing& t     = utils::timing::get_instance();
-    t.start("Checmical potential search");
+    t.start("Chemical potential search");
 
     std::cout << std::scientific << std::setprecision(15);
     mu = _mu;
@@ -191,13 +191,11 @@ namespace green::mbpt {
         std::complex<double> muomega = _ft.wsample_fermi()(ic) * 1.0i + _mu;
         matrix(G_w(ic)) = muomega * matrix(_S_k(is, ik)) - matrix(_H_k(is, ik)) - matrix(sigma1(is, ik)) - matrix(Sigma_w(ic));
         matrix(G_w(ic)) = lusolver.compute(matrix(G_w(ic))).inverse().eval();
-        // G_w(ic).matrix() = G_w(ic).matrix().inverse();
       }
 
       // Transform back to tau
       _ft.omega_to_tau(G_w, G_t, 1);
 
-      // Eigen::ComplexEigenSolver<MatrixXcd> solver(_nso);
       for (int it = 0; it < _nts; ++it) {
         matrix(g_tau(it, is, ik)) = matrix(G_t(it));
       }
@@ -316,7 +314,7 @@ namespace green::mbpt {
       ar["iter" + std::to_string(iter) + "/Energy_2b"] << _E_corr;
       ar.close();
       std::cout << "One-body Energy: " << _E_1b << std::endl;
-      std::cout << "HF Energy:: " << _E_hf + _E_nuc << std::endl;
+      std::cout << "HF Energy: " << _E_hf + _E_nuc << std::endl;
       std::cout << "Correlation Energy: " << _E_corr << std::endl;
     }
   }
