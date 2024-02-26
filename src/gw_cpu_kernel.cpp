@@ -277,12 +277,15 @@ namespace green::mbpt::kernels {
   void gw_cpu_kernel::eval_P_tilde_w(int q_ir, utils::shared_object<ztensor<4>>& P0_tilde, ztensor<4>& P0_w) {
     // Transform P0_tilde from Fermionic tau to Bonsonic Matsubara grid
     auto [nw_local, w_offset] = compute_local_and_offset_node_comm(_nw_b);
+    statistics.start("P0(t) -> P0(w)");
     _ft.tau_f_to_w_b(P0_tilde.object(), P0_w, w_offset, nw_local, true);
+    statistics.end();
 
     if (utils::context.global_rank == 0 && q_ir == 0) {
       print_leakage(_ft.check_chebyshev(P0_tilde.object()), "P0");
     }
 
+    statistics.start("GW-BSE");
     // Solve Dyson-like eqn for ncheb frequency points
     MatrixXcd              identity = MatrixXcd::Identity(_NQ, _NQ);
     // Eigen::FullPivLU<MatrixXcd> lusolver(_NQ,_NQ);
@@ -294,12 +297,17 @@ namespace green::mbpt::kernels {
       temp               = 0.5 * (temp + temp.conjugate().transpose().eval());
       matrix(P0_w(n, 0)) = (temp * matrix(P0_w(n, 0))).eval();
     }
+    statistics.start("P reduce");
     utils::allreduce(MPI_IN_PLACE, P0_w.data(), P0_w.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, utils::context.node_comm);
+    statistics.end();
+    statistics.end();
 
+    statistics.start("P(w) -> P(t)");
     // Transform back from Bosonic Matsubara to Fermionic tau.
     P0_tilde.fence();
     if (!utils::context.node_rank) _ft.w_b_to_tau_f(P0_w, P0_tilde.object());
     P0_tilde.fence();
+    statistics.end();
     // for G0W0 correction
     if (_q0_utils.q0_treatment() == extrapolate and utils::context.global_rank == 0) {
       size_t iq = _bz_utils.symmetry().reduced_point(q_ir);
