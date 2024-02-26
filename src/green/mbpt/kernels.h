@@ -44,7 +44,7 @@ namespace green::mbpt::kernels {
         _beta(p["BETA"]), _nts(ft.sd().repn_fermi().nts()), _nts_b(ft.sd().repn_bose().nts()), _ni(ft.sd().repn_fermi().ni()),
         _ni_b(ft.sd().repn_bose().ni()), _nw(ft.sd().repn_fermi().nw()), _nw_b(ft.sd().repn_bose().nw()), _nk(bz_utils.nk()),
         _ink(bz_utils.ink()), _nao(nao), _nso(nso), _ns(ns), _NQ(NQ), _X2C(X2C), _p_sp(p["P_sp"]), _sigma_sp(p["Sigma_sp"]),
-        _ft(ft), _bz_utils(bz_utils), _path(p["dfintegral_file"]), _q0_utils(bz_utils.ink(), 0, S_k, _path, p["q0_treatment"]),
+        _ft(ft), _bz_utils(bz_utils), _path(p["dfintegral_file"]), statistics("GW"), _q0_utils(bz_utils.ink(), 0, S_k, _path, p["q0_treatment"]),
         // _P0_tilde(0, 0, 0, 0),
     _eps_inv_wq(ft.wsample_bose().size(), bz_utils.ink()), //_ntauspin_mpi(p["ntauspinprocs"]),
         _coul_int1(nullptr) {
@@ -181,7 +181,7 @@ namespace green::mbpt::kernels {
     hf_kernel(const params::params& p, size_t nao, size_t nso, size_t ns, size_t NQ, double madelung, const bz_utils_t& bz_utils,
               const ztensor<4>& S_k) :
         _nao(nao), _nso(nso), _nk(bz_utils.nk()), _ink(bz_utils.ink()), _ns(ns), _NQ(NQ), _madelung(madelung),
-        _bz_utils(bz_utils), _S_k(S_k), _hf_path(p["dfintegral_hf_file"]){};
+        _bz_utils(bz_utils), _S_k(S_k), _hf_path(p["dfintegral_hf_file"]), statistics("Hartree Fock"){};
     virtual ~hf_kernel() = default;
 
   protected:
