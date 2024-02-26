@@ -272,6 +272,7 @@ namespace green::mbpt::kernels {
   void gw_cpu_kernel::eval_P_tilde(int q_ir, utils::shared_object<ztensor<4>>& P0_tilde, utils::shared_object<ztensor<4>>& Pw_s) {
     // Transform P0_tilde from Fermionic tau to Bonsonic Matsubara grid
     auto [nw_local, w_offset] = compute_local_and_offset_node_comm(_nw_b);
+    auto [nt_local, t_offset] = compute_local_and_offset_node_comm(_nts);
     MPI_Win_lock_all(MPI_MODE_NOCHECK, Pw_s.win());
     auto & P0_w = Pw_s.object();
     statistics.start("P0(t) -> P0(w)");
@@ -303,15 +304,19 @@ namespace green::mbpt::kernels {
 
     statistics.start("P(w) -> P(t)");
     // Transform back from Bosonic Matsubara to Fermionic tau.
-    P0_tilde.fence();
-    if (!utils::context.node_rank) _ft.w_b_to_tau_f(P0_w, P0_tilde.object());
-    P0_tilde.fence();
-    statistics.end();
+    // P0_tilde.fence();
+    // if (!utils::context.node_rank) _ft.w_b_to_tau_f(P0_w, P0_tilde.object());
+    MPI_Win_lock_all(MPI_MODE_NOCHECK, P0_tilde.win());
+    _ft.w_b_to_tau_f(P0_w, P0_tilde.object(), t_offset, nt_local, true);
     // for G0W0 correction
     if (_q0_utils.q0_treatment() == extrapolate and utils::context.global_rank == 0) {
       size_t iq = _bz_utils.symmetry().reduced_point(q_ir);
       _q0_utils.aux_to_PW_00(P0_w, _eps_inv_wq, iq);
     }
+    MPI_Win_sync(P0_tilde.win());
+    MPI_Barrier(utils::context.node_comm);
+    MPI_Win_unlock_all(P0_tilde.win());
+    statistics.end();
     // Transform back to intermediate Chebyshev representation for P_tilde
     if (utils::context.global_rank == 0 && q_ir == 0) {
       print_leakage(_ft.check_chebyshev(P0_tilde.object()), "P");
