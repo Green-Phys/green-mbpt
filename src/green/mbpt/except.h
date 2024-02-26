@@ -34,5 +34,10 @@ namespace green::mbpt {
   public:
     explicit mbpt_wrong_grid(const std::string& what) : std::runtime_error(what) {}
   };
+
+  class mbpt_chemical_potential_search_failure : public std::runtime_error {
+  public:
+    explicit mbpt_chemical_potential_search_failure(const std::string& what) : std::runtime_error(what) {}
+  };
 }  // namespace green::mbpt
 #endif  // GREEN_MBPT_EXCEPT_H

@@ -149,7 +149,7 @@ namespace green::mbpt {
     p.define<scf_type>("scf_type", "Self-consistency level.");
     p.define<bool>("P_sp", "Compute polarization in single precision", false);
     p.define<bool>("Sigma_sp", "Compute self-energy in single precision", false);
-    p.define<int>("ntauspinprocs", "Number MPI cores to run loop over time+spin.", 1);
+    p.define<int>("verbose", "Print verbose output.", 0);
     p.define<std::string>("high_symmetry_output_file", "Name of the file to store Wannier interpolated Green's function.",
                           "output_hs.h5");
     p.define<sigma_q0_treatment_e>("q0_treatment", "GW q=0 divergence treatment", ignore_G0);

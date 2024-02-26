@@ -8,6 +8,7 @@
 #include <green/utils/timing.h>
 
 #include "green/mbpt/common_utils.h"
+#include "green/mbpt/except.h"
 
 namespace green::mbpt {
 
@@ -15,7 +16,7 @@ namespace green::mbpt {
   dyson<G, S1, St>::dyson(const params::params& p) :
       _ft(p), _bz_utils(p), _ncheb(_ft.sd().repn_fermi().ni()), _nts(_ft.sd().repn_fermi().nts()),
       _nw(_ft.sd().repn_fermi().nw()), _nk(_bz_utils.nk()), _ink(_bz_utils.ink()), _X2C(false), _mu(0.0),
-      _const_density(p["const_density"]), _tol(p["tolerance"]) {
+      _const_density(p["const_density"]), _tol(p["tolerance"]), _verbose(p["verbose"]) {
     dtensor<5>    S_k_tmp;
     dtensor<5>    H_k_tmp;
     h5pp::archive in_file(p["input_file"]);
@@ -101,7 +102,7 @@ namespace green::mbpt {
   template <typename G, typename S1, typename St>
   void dyson<G, S1, St>::find_mu(Sigma1& sigma1, Sigma_tau& sigma_tau_s) {
     double         mu = _mu;
-    double         nel, nel1, nel2, nel_diff1, nel_diff2;
+    double         nel, nel1, nel2, nel_old;
     double         mu1;
     double         mu2;
     double         delta = 0.5;
@@ -114,7 +115,7 @@ namespace green::mbpt {
     selfenergy_eigenspectra(sigma1, sigma_tau_s, eigenvalues_Sigma_p_F);
     // Start search for the chemical potential
     nel = compute_number_of_electrons(mu, eigenvalues_Sigma_p_F);
-    if (!utils::context.global_rank) std::cout << "nel:" << nel << " mu: " << mu << " target nel:" << _nel << std::endl;
+    if (!utils::context.global_rank && _verbose != 0) std::cout << "nel:" << nel << " mu: " << mu << " target nel:" << _nel << std::endl;
 
     if (std::abs((nel - _nel) / double(_nel)) > _tol) {
       if (nel > _nel) {
@@ -122,38 +123,40 @@ namespace green::mbpt {
         double d = delta;
         do {
           nel1 = compute_number_of_electrons(mu1, eigenvalues_Sigma_p_F);
-          if (!utils::context.global_rank) std::cout << "nel:" << nel1 << " mu: " << mu1 << std::endl;
+          if (!utils::context.global_rank && _verbose != 0) std::cout << "nel:" << nel1 << " mu: " << mu1 << std::endl;
           mu1 -= d;
         } while (nel1 > _nel);
         mu2       = mu;
         nel2      = nel;
-        nel_diff1 = _nel - nel1;
-        nel_diff2 = _nel - nel2;
       } else {
         mu2      = mu + delta;
         double d = delta;
         do {
           nel2 = compute_number_of_electrons(mu2, eigenvalues_Sigma_p_F);
-          if (!utils::context.global_rank) std::cout << "nel:" << nel2 << " mu: " << mu2 << std::endl;
+          if (!utils::context.global_rank && _verbose != 0) std::cout << "nel:" << nel2 << " mu: " << mu2 << std::endl;
           mu2 += d;
         } while (nel2 < _nel);
         mu1       = mu;
         nel1      = nel;
-        nel_diff1 = _nel - nel1;
-        nel_diff2 = _nel - nel2;
       }
       while (std::abs((nel - _nel) / double(_nel)) > _tol && std::abs(mu2 - mu1) > 0.01 * _tol) {
         mu  = (mu1 + mu2) * 0.5;
-        nel = compute_number_of_electrons(mu, eigenvalues_Sigma_p_F);
+        nel_old = compute_number_of_electrons(mu, eigenvalues_Sigma_p_F);
+        // check if we get stuck in chemical potential search
+        if(std::abs((nel_old - _nel) / double(_nel)) > _tol && std::abs(nel - nel_old) < _tol) {
+          throw mbpt_chemical_potential_search_failure("Chemical potential search failed");
+        }
+        nel = nel_old;
         if (nel > _nel) {
           mu2 = mu;
         } else {
           mu1 = mu;
         }
-        if (!utils::context.global_rank) std::cout << "nel:" << nel << " mu: " << mu << std::endl;
+        if (!utils::context.global_rank && _verbose != 0) std::cout << "nel:" << nel << " mu: " << mu << std::endl;
       }
     }
-    if (!utils::context.global_rank) std::cout << "Chemical potential has been found. mu = " << mu << std::endl;
+    if (!utils::context.global_rank) std::cout << "New chemical potential has been found. mu = " << mu << std::endl;
+    if (!utils::context.global_rank) std::cout << "Chemical potential difference Δμ = " << std::abs(mu - _mu) << std::endl;
     _nel_found = nel;
     _mu        = mu;
     t.end();
