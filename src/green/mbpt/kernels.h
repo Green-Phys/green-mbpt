@@ -44,9 +44,10 @@ namespace green::mbpt::kernels {
         _beta(p["BETA"]), _nts(ft.sd().repn_fermi().nts()), _nts_b(ft.sd().repn_bose().nts()), _ni(ft.sd().repn_fermi().ni()),
         _ni_b(ft.sd().repn_bose().ni()), _nw(ft.sd().repn_fermi().nw()), _nw_b(ft.sd().repn_bose().nw()), _nk(bz_utils.nk()),
         _ink(bz_utils.ink()), _nao(nao), _nso(nso), _ns(ns), _NQ(NQ), _X2C(X2C), _p_sp(p["P_sp"]), _sigma_sp(p["Sigma_sp"]),
-        _ft(ft), _bz_utils(bz_utils), _path(p["dfintegral_file"]), statistics("GW"), _q0_utils(bz_utils.ink(), 0, S_k, _path, p["q0_treatment"]),
+        _ft(ft), _bz_utils(bz_utils), _path(p["dfintegral_file"]), statistics("GW"),
+        _q0_utils(bz_utils.ink(), 0, S_k, _path, p["q0_treatment"]),
         // _P0_tilde(0, 0, 0, 0),
-    _eps_inv_wq(ft.wsample_bose().size(), bz_utils.ink()), //_ntauspin_mpi(p["ntauspinprocs"]),
+        _eps_inv_wq(ft.wsample_bose().size(), bz_utils.ink()),
         _coul_int1(nullptr) {
       _q0_utils.resize(_NQ);
     }
@@ -105,7 +106,7 @@ namespace green::mbpt::kernels {
      * @param q_ir - [INPUT] momentum index of polarization and screened interaction
      */
     void selfenergy_innerloop(size_t q_ir, const G_type& G_fermi, St_type& Sigma_fermi_s,
-                              utils::shared_object<ztensor<4>>& P0_tilde_s);
+                              utils::shared_object<ztensor<4>>& P0_tilde_s, utils::shared_object<ztensor<4>>& Pw_tilde_s);
 
     /**
      * Read next part of Coulomb integrals in terms of 3-index tensors for fixed set of k-points
@@ -146,16 +147,7 @@ namespace green::mbpt::kernels {
      * Solve Dyson-like equation for screened interaction W using Chebyshev convolution
      * Writes the resulting P_tilde(tau) in_P0_tilde;
      */
-    void eval_P_tilde(int q_ir, utils::shared_object<ztensor<4>>& P0_tilde_s);
-
-    /**
-     * Takes P0_tilde(tau) and
-     * solves Dyson-like equation for screened interaction W using Chebyshev convolution
-     * for a specific
-     * Writes the resulting P_tilde(Omega) in the argument P_w.
-     * This function is needed separately for two-particle density matrix evaluation.
-     */
-    void eval_P_tilde_w(int q_ir, utils::shared_object<ztensor<4>>& P0_tilde, ztensor<4>& P_w);
+    void eval_P_tilde(int q_ir, utils::shared_object<ztensor<4>>& P0_tilde_s, utils::shared_object<ztensor<4>>& Pw_s);
 
     /**
      * Evaluate self-energy

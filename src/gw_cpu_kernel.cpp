@@ -31,6 +31,7 @@ namespace green::mbpt::kernels {
   void gw_cpu_kernel::solve(G_type& g, St_type& sigma_tau) {
     _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils);
     utils::shared_object<ztensor<4>> P0_tilde_s(_nts, 1, _NQ, _NQ);
+    utils::shared_object<ztensor<4>> Pw_tilde_s(_nw_b, 1, _NQ, _NQ);
     MPI_Datatype                     dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
     MPI_Op                           matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
     auto&                            sigma_fermi   = sigma_tau.object();
@@ -44,7 +45,7 @@ namespace green::mbpt::kernels {
     statistics.start("kbatches");
     for (size_t q = utils::context.internode_rank; q < _ink; q += utils::context.internode_size) {
       size_t q_ir = _bz_utils.symmetry().full_point(q);
-      selfenergy_innerloop(q_ir, g, sigma_tau, P0_tilde_s);
+      selfenergy_innerloop(q_ir, g, sigma_tau, P0_tilde_s, Pw_tilde_s);
     }
     statistics.end();
     statistics.start("selfenergy_reduce");
@@ -69,14 +70,15 @@ namespace green::mbpt::kernels {
   }
 
   void gw_cpu_kernel::selfenergy_innerloop(size_t q_ir, const G_type& G, St_type& Sigma,
-                                           utils::shared_object<ztensor<4>>& P0_tilde_s) {
+                                           utils::shared_object<ztensor<4>>& P0_tilde_s,
+                                           utils::shared_object<ztensor<4>>& Pw_tilde_s) {
 #ifndef NDEBUG
     if (_nts % 2 != 0) {
       throw mbpt_wrong_grid("Number of tau points should be even!!!");
     }
 #endif
     P0_tilde_s.fence();
-    if(!utils::context.node_rank) P0_tilde_s.object().set_zero();
+    if (!utils::context.node_rank) P0_tilde_s.object().set_zero();
     P0_tilde_s.fence();
 
     auto [local_tau, tau_offset] = compute_local_and_offset_node_comm(_nts / 2);
@@ -108,7 +110,7 @@ namespace green::mbpt::kernels {
     // statistics.end();
     statistics.start("eval_P_tilde");
     // Solve Dyson-like eqn of P(iOmega_{n})
-    eval_P_tilde(q_ir, P0_tilde_s);
+    eval_P_tilde(q_ir, P0_tilde_s, Pw_tilde_s);
     statistics.end();
     MPI_Win_lock_all(MPI_MODE_NOCHECK, Sigma.win());
     for (size_t k1 = 0; k1 < _ink; ++k1) {
@@ -267,16 +269,11 @@ namespace green::mbpt::kernels {
     }
   }
 
-  void gw_cpu_kernel::eval_P_tilde(const int q_ir, utils::shared_object<ztensor<4>>& P0_tilde) {
-    // Matsubara P0_tilde_b
-    ztensor<4> P0_w(_nw_b, 1, _NQ, _NQ);
-
-    eval_P_tilde_w(q_ir, P0_tilde, P0_w);
-  }
-
-  void gw_cpu_kernel::eval_P_tilde_w(int q_ir, utils::shared_object<ztensor<4>>& P0_tilde, ztensor<4>& P0_w) {
+  void gw_cpu_kernel::eval_P_tilde(int q_ir, utils::shared_object<ztensor<4>>& P0_tilde, utils::shared_object<ztensor<4>>& Pw_s) {
     // Transform P0_tilde from Fermionic tau to Bonsonic Matsubara grid
     auto [nw_local, w_offset] = compute_local_and_offset_node_comm(_nw_b);
+    MPI_Win_lock_all(MPI_MODE_NOCHECK, Pw_s.win());
+    auto & P0_w = Pw_s.object();
     statistics.start("P0(t) -> P0(w)");
     _ft.tau_f_to_w_b(P0_tilde.object(), P0_w, w_offset, nw_local, true);
     statistics.end();
@@ -298,7 +295,9 @@ namespace green::mbpt::kernels {
       matrix(P0_w(n, 0)) = (temp * matrix(P0_w(n, 0))).eval();
     }
     statistics.start("P reduce");
-    utils::allreduce(MPI_IN_PLACE, P0_w.data(), P0_w.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, utils::context.node_comm);
+    MPI_Win_sync(Pw_s.win());
+    MPI_Barrier(utils::context.node_comm);
+    MPI_Win_unlock_all(Pw_s.win());
     statistics.end();
     statistics.end();
 
@@ -324,11 +323,11 @@ namespace green::mbpt::kernels {
                                       ztensor<4>& P0_tilde) {
     // k = (k1_ir, q_deg, 0, k1_ir-q_deg)
     // Link to corresponding irreducible k-point
-    size_t          k1q_pos     = _bz_utils.symmetry().reduced_point(k[3]);
+    size_t k1q_pos               = _bz_utils.symmetry().reduced_point(k[3]);
     auto [tau_local, tau_offset] = compute_local_and_offset_node_comm(_nts);
-    auto&           Sigma_fermi = Sigma_fermi_s.object();
+    auto&           Sigma_fermi  = Sigma_fermi_s.object();
 
-    size_t          k1_pos      = _bz_utils.symmetry().reduced_point(k[0]);
+    size_t          k1_pos       = _bz_utils.symmetry().reduced_point(k[0]);
     // (Q, i, m) or (Q', j, n)*
     tensor<prec, 3> v(_NQ, _nao, _nao);
     _coul_int1->symmetrize(v, k[0], k[3]);
@@ -381,7 +380,6 @@ namespace green::mbpt::kernels {
         }
       }
     }
-
   }
 
   /**
