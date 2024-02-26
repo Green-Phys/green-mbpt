@@ -38,11 +38,8 @@ namespace green::mbpt::kernels {
     sigma_tau.fence();
     if (!utils::context.node_rank) sigma_fermi.set_zero();
     sigma_tau.fence();
-    // Deal with k-batches where each k-batch has (nprocs/ntauspin_mpi) k-points or (ink) k-points if ntau_mpi=1.
-    size_t kbatch_size;
-    size_t num_kbatch;
     statistics.start("total");
-    statistics.start("kbatches");
+    statistics.start("Main loop");
     for (size_t q = utils::context.internode_rank; q < _ink; q += utils::context.internode_size) {
       size_t q_ir = _bz_utils.symmetry().full_point(q);
       selfenergy_innerloop(q_ir, g, sigma_tau, P0_tilde_s, Pw_tilde_s);
@@ -304,19 +301,15 @@ namespace green::mbpt::kernels {
 
     statistics.start("P(w) -> P(t)");
     // Transform back from Bosonic Matsubara to Fermionic tau.
-    // P0_tilde.fence();
-    // if (!utils::context.node_rank) _ft.w_b_to_tau_f(P0_w, P0_tilde.object());
-    MPI_Win_lock_all(MPI_MODE_NOCHECK, P0_tilde.win());
+    P0_tilde.fence();
     _ft.w_b_to_tau_f(P0_w, P0_tilde.object(), t_offset, nt_local, true);
+    P0_tilde.fence();
+    statistics.end();
     // for G0W0 correction
     if (_q0_utils.q0_treatment() == extrapolate and utils::context.global_rank == 0) {
       size_t iq = _bz_utils.symmetry().reduced_point(q_ir);
       _q0_utils.aux_to_PW_00(P0_w, _eps_inv_wq, iq);
     }
-    MPI_Win_sync(P0_tilde.win());
-    MPI_Barrier(utils::context.node_comm);
-    MPI_Win_unlock_all(P0_tilde.win());
-    statistics.end();
     // Transform back to intermediate Chebyshev representation for P_tilde
     if (utils::context.global_rank == 0 && q_ir == 0) {
       print_leakage(_ft.check_chebyshev(P0_tilde.object()), "P");
