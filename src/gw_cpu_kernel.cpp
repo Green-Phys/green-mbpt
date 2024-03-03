@@ -301,15 +301,19 @@ namespace green::mbpt::kernels {
 
     statistics.start("P(w) -> P(t)");
     // Transform back from Bosonic Matsubara to Fermionic tau.
-    P0_tilde.fence();
+    //P0_tilde.fence();
+    MPI_Win_lock_all(MPI_MODE_NOCHECK, P0_tilde.win());
     _ft.w_b_to_tau_f(P0_w, P0_tilde.object(), t_offset, nt_local, true);
-    P0_tilde.fence();
-    statistics.end();
+    //P0_tilde.fence();
     // for G0W0 correction
     if (_q0_utils.q0_treatment() == extrapolate and utils::context.global_rank == 0) {
       size_t iq = _bz_utils.symmetry().reduced_point(q_ir);
       _q0_utils.aux_to_PW_00(P0_w, _eps_inv_wq, iq);
     }
+    MPI_Win_sync(P0_tilde.win());
+    MPI_Barrier(utils::context.node_comm);
+    MPI_Win_unlock_all(P0_tilde.win());
+    statistics.end();
     // Transform back to intermediate Chebyshev representation for P_tilde
     if (utils::context.global_rank == 0 && q_ir == 0) {
       print_leakage(_ft.check_chebyshev(P0_tilde.object()), "P");

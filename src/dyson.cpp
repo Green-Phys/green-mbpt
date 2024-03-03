@@ -100,7 +100,7 @@ namespace green::mbpt {
   }
 
   template <typename G, typename S1, typename St>
-  void dyson<G, S1, St>::find_mu(Sigma1& sigma1, Sigma_tau& sigma_tau_s) {
+  std::pair<double, double> dyson<G, S1, St>::find_mu(const Sigma1& sigma1, const Sigma_tau& sigma_tau_s) const {
     double         mu = _mu;
     double         nel, nel1, nel2, nel_old;
     double         mu1;
@@ -157,9 +157,8 @@ namespace green::mbpt {
     }
     if (!utils::context.global_rank) std::cout << "New chemical potential has been found. mu = " << mu << std::endl;
     if (!utils::context.global_rank) std::cout << "Chemical potential difference Δμ = " << std::abs(mu - _mu) << std::endl;
-    _nel_found = nel;
-    _mu        = mu;
     t.end();
+    return {nel, mu};
   }
 
   template <>
@@ -301,7 +300,7 @@ namespace green::mbpt {
   template <typename G, typename S1, typename St>
   void dyson<G, S1, St>::solve(G& g, Sigma1& sigma1, Sigma_tau& sigma_tau) {
     if (_const_density) {
-      find_mu(sigma1, sigma_tau);
+      std::tie(_nel_found, _mu) = find_mu(sigma1, sigma_tau);
     }
     compute_G(g, sigma1, sigma_tau);
   }
@@ -315,6 +314,7 @@ namespace green::mbpt {
       ar["iter" + std::to_string(iter) + "/Energy_1b"] << _E_1b;
       ar["iter" + std::to_string(iter) + "/Energy_HF"] << _E_hf + _E_nuc;
       ar["iter" + std::to_string(iter) + "/Energy_2b"] << _E_corr;
+      ar["iter" + std::to_string(iter) + "/mu"] << _mu;
       ar.close();
       std::cout << "One-body Energy: " << _E_1b << std::endl;
       std::cout << "HF Energy: " << _E_hf + _E_nuc << std::endl;

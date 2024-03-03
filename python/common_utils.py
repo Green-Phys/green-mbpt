@@ -9,14 +9,34 @@ from pyscf.pbc import tools, gto, df, scf, dft
 
 import integral_utils as int_utils
 
+def construct_rmesh(nkx, nky, nkz):
+  #rx = np.linspace(0, nkx, nkx, endpoint=False)
+  #ry = np.linspace(0, nky, nky, endpoint=False)
+  #rz = np.linspace(0, nkz, nkz, endpoint=False)
+  #RX, RY, RZ = np.meshgrid(rx, ry, rz)
+  #rmesh = np.array([RX.flatten(), RY.flatten(), RZ.flatten()]).T
+  Lx, Ly, Lz = (nkx-1)//2, (nky-1)//2, (nkz-1)//2 # nk=6, L=2
+  leftx, lefty, leftz = (nkx-1)%2, (nky-1)%2, (nkz-1)%2 # left = 1
+
+  rx = np.linspace(-Lx, Lx+leftx, nkx, endpoint=True) # -2,-1,0,1,2,3
+  ry = np.linspace(-Ly, Ly+lefty, nky, endpoint=True)
+  rz = np.linspace(-Lz, Lz+leftz, nkz, endpoint=True)
+  RX, RY, RZ = np.meshgrid(rx, ry, rz)
+  rmesh = np.array([RX.flatten(), RY.flatten(), RZ.flatten()]).T
+
+  return rmesh
 
 def extract_ase_data(a, atoms):
     symbols = []
     positions = []
     lattice_vectors = []
     for a_i in a.splitlines():
-        lattice_vectors.append([float(x) for x in a_i.split(",")])
+        if len(a_i) == 0 or len(a_i.split(",")) != 3:
+            continue
+        lattice_vectors.append([float(x.strip()) for x in a_i.split(",")])
     for atom in atoms.splitlines():
+        if len(atom) == 0 or len(atom.split()) != 4:
+            continue
         atom = atom.strip()
         symbol = atom.split()[0]
         position = atom.split(symbol)[1].strip()

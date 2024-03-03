@@ -23,7 +23,6 @@ jobs:
           mkdir -p build && cd build;
           cmake -DCMAKE_CXX_FLAGS=" --coverage -fno-inline -fno-inline-small-functions -fno-default-inline -fprofile-arcs -ftest-coverage " ..;
           make -j 8;
-          # TODO add build statge for project
 
       - name: Test
         env:
@@ -46,7 +45,7 @@ jobs:
           lcov --list coverage.info
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           flags: unittests
         env:

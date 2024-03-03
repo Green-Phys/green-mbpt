@@ -68,11 +68,13 @@ namespace green::mbpt {
     size_t nso     = Sk.shape()[1];
     using Matrixcd = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>;
     Eigen::SelfAdjointEigenSolver<Matrixcd> solver(nso);
+    Eigen::FullPivLU<MatrixXcd> lusolver(nso, nso);
     for (size_t ik = 0; ik < ink; ++ik) {
       Matrixcd S = matrix(Sk(ik));
       solver.compute(S);
       matrix(Sk_12_inv(ik)) =
-          solver.eigenvectors() * (solver.eigenvalues().cwiseSqrt().asDiagonal().inverse()) * solver.eigenvectors().adjoint();
+          solver.eigenvectors() * (solver.eigenvalues().cwiseSqrt().asDiagonal()) * solver.eigenvectors().adjoint();
+      matrix(Sk_12_inv(ik)) = lusolver.compute(matrix(Sk_12_inv(ik))).inverse().eval();
     }
   }
 
@@ -81,6 +83,7 @@ namespace green::mbpt {
                              const utils::shared_object<ztensor<5>>& sigma_tau, const h5pp::archive& input,
                              const std::string& results_file) {
     using tau_hs_t = utils::shared_object<ztensor<4>>;
+    auto [nel, mu] = dyson_solver.find_mu(sigma_1, sigma_tau);
     // Init arrays
     dtensor<2> kmesh_hs;
     dtensor<2> rmesh;
@@ -97,7 +100,7 @@ namespace green::mbpt {
     size_t     nw    = nts - 2;
     size_t     nk    = dyson_solver.bz_utils().nk();
     size_t     hs_nk = kmesh_hs.shape()[0];
-    ztensor<3> Sigma_w(ink, nso, nso);
+    ztensor<3> Sigma_w(hs_nk, nso, nso);
     ztensor<2> G_w(nso, nso);
     ztensor<2> G_w_hs(nso, nso);
     ztensor<2> transform(hs_nk, nk);
@@ -126,7 +129,20 @@ namespace green::mbpt {
         exp_kr(ik_hs, ir) = std::exp(std::complex<double>(0, -2 * rk * M_PI));
       }
     }
+    
     matrix(transform) = matrix(exp_kr) * matrix(exp_rk) / double(nk);
+
+    ztensor<4> Sigma_1_fbz(ns, hs_nk, nso, nso);
+    utils::shared_object<ztensor<5>> sigma_tau_int(nts, ns, hs_nk, nso, nso);
+    sigma_tau_int.fence();
+    for (int its = utils::context.global_rank; its < ns * nts; its += utils::context.global_size) {
+      int it = its / ns;
+      int is = its % ns;
+      auto sigma_tau_int_its = sigma_tau_int.object()(it, is);
+      auto sigma_tau_its = sigma_tau.object()(it, is);
+      sigma_tau_int_its << transform_to_hs(dyson_solver.bz_utils().ibz_to_full(sigma_tau_its), transform);
+    }
+    sigma_tau_int.fence();
     // Compute orthogonalization transforamtion matrix
     compute_S_sqrt(Sk_hs, Sk_hs_12_inv);
     Eigen::FullPivLU<MatrixXcd> lusolver(nso, nso);
@@ -136,15 +152,15 @@ namespace green::mbpt {
       int iw = iws / ns;
       int is = iws % ns;
       Sigma_w.set_zero();
-      dyson_solver.ft().tau_to_omega_ws(sigma_tau.object(), Sigma_w, iw, is);
-      auto Sigma_1_fbz = transform_to_hs(dyson_solver.bz_utils().ibz_to_full(sigma_1(is)), transform);
-      auto Sigma_w_fbz = transform_to_hs(dyson_solver.bz_utils().ibz_to_full(Sigma_w), transform);
+      dyson_solver.ft().tau_to_omega_ws(sigma_tau_int.object(), Sigma_w, iw, is);
+      Sigma_1_fbz(is) << transform_to_hs(dyson_solver.bz_utils().ibz_to_full(sigma_1(is)), transform);
+      //auto Sigma_w_fbz = transform_to_hs(dyson_solver.bz_utils().ibz_to_full(Sigma_w), transform);
       for (int ik = 0; ik < hs_nk; ++ik) {
-        auto muomega = dyson_solver.ft().wsample_fermi()(iw) * 1.0i + dyson_solver.mu();
+        auto muomega = dyson_solver.ft().wsample_fermi()(iw) * 1.0i + mu;
 
         matrix(G_w)  = matrix(Sk_hs_12_inv(ik)) *
-                      (muomega * matrix(Sk_hs(ik)) - matrix(Hk_hs(ik)) - matrix(Sigma_1_fbz(ik)) - matrix(Sigma_w_fbz(ik))) *
-                      matrix(Sk_hs_12_inv(ik));
+                      (muomega * matrix(Sk_hs(ik)) - matrix(Hk_hs(ik)) - matrix(Sigma_1_fbz(is, ik)) - matrix(Sigma_w(ik)))
+                      * matrix(Sk_hs_12_inv(ik));
         matrix(G_w_hs) = lusolver.compute(matrix(G_w)).inverse().eval();
         for (size_t i = 0; i < nso; ++i) {
           g_omega_hs.object()(iw, is, ik, i) = G_w_hs(i, i);
@@ -169,6 +185,10 @@ namespace green::mbpt {
       h5pp::archive res(results_file, "w");
       res["G_tau_hs/data"] << g_tau_hs.object();
       res["G_tau_hs/mesh"] << dyson_solver.ft().sd().repn_fermi().tsample();
+      res["Sigma_1_hs"] << Sigma_1_fbz;
+      res["Hk_hs"] << Hk_hs;
+      res["Sk_hs"] << Sk_hs;
+      res["Sigma_tau_hs/data"] << sigma_tau_int.object();
       res.close();
     }
     MPI_Barrier(utils::context.global);

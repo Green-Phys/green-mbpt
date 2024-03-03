@@ -69,7 +69,7 @@ namespace green::mbpt {
      * @param sigma1 - static part of the self-energy
      * @param sigma_tau_s - dynamic part of the self-energy
      */
-    void     find_mu(Sigma1& sigma1, Sigma_tau& sigma_tau_s);
+    std::pair<double, double> find_mu(const Sigma1& sigma1, const Sigma_tau& sigma_tau_s) const;
 
     /**
      * Store additional information for current iteration
