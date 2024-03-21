@@ -45,7 +45,7 @@ int  main(int argc, char** argv) {
     green::sc::sc_loop<green::mbpt::shared_mem_dyson> sc(MPI_COMM_WORLD, p);
     green::mbpt::run(sc, p);
   } catch (std::exception& e) {
-    if (!green::utils::context.global_rank) std::cerr << e.what() << std::endl;
+    std::cerr << "Error on node " << green::utils::context.global_rank << ": " << e.what() << std::endl;
     MPI_Abort(green::utils::context.global, -1);
   }
 
