@@ -28,6 +28,7 @@ namespace green::mbpt {
     in_file["params/nao"] >> _nao;
     in_file["params/nel_cell"] >> _nel;
     in_file.close();
+    _X2C = _nso == 2 * _nao;
     std::array<size_t, 4> shape;
     std::copy(S_k_tmp.shape().begin(), S_k_tmp.shape().end() - 1, shape.begin());
     _S_k.resize(_ns, _ink, _nso, _nso);
@@ -115,7 +116,8 @@ namespace green::mbpt {
     selfenergy_eigenspectra(sigma1, sigma_tau_s, eigenvalues_Sigma_p_F);
     // Start search for the chemical potential
     nel = compute_number_of_electrons(mu, eigenvalues_Sigma_p_F);
-    if (!utils::context.global_rank && _verbose != 0) std::cout << "nel:" << nel << " mu: " << mu << " target nel:" << _nel << std::endl;
+    if (!utils::context.global_rank && _verbose != 0)
+      std::cout << "nel:" << nel << " mu: " << mu << " target nel:" << _nel << std::endl;
 
     if (std::abs((nel - _nel) / double(_nel)) > _tol) {
       if (nel > _nel) {
@@ -126,8 +128,8 @@ namespace green::mbpt {
           if (!utils::context.global_rank && _verbose != 0) std::cout << "nel:" << nel1 << " mu: " << mu1 << std::endl;
           mu1 -= d;
         } while (nel1 > _nel);
-        mu2       = mu;
-        nel2      = nel;
+        mu2  = mu;
+        nel2 = nel;
       } else {
         mu2      = mu + delta;
         double d = delta;
@@ -136,14 +138,14 @@ namespace green::mbpt {
           if (!utils::context.global_rank && _verbose != 0) std::cout << "nel:" << nel2 << " mu: " << mu2 << std::endl;
           mu2 += d;
         } while (nel2 < _nel);
-        mu1       = mu;
-        nel1      = nel;
+        mu1  = mu;
+        nel1 = nel;
       }
       while (std::abs((nel - _nel) / double(_nel)) > _tol && std::abs(mu2 - mu1) > 0.01 * _tol) {
-        mu  = (mu1 + mu2) * 0.5;
+        mu      = (mu1 + mu2) * 0.5;
         nel_old = compute_number_of_electrons(mu, eigenvalues_Sigma_p_F);
         // check if we get stuck in chemical potential search
-        if(std::abs((nel_old - _nel) / double(_nel)) > _tol && std::abs(nel - nel_old) < _tol) {
+        if (std::abs((nel_old - _nel) / double(_nel)) > _tol && std::abs(nel - nel_old) < _tol) {
           throw mbpt_chemical_potential_search_failure("Chemical potential search failed");
         }
         nel = nel_old;
@@ -216,7 +218,7 @@ namespace green::mbpt {
     g_tau_s.fence();
     double leakage = coeff_last / coeff_first;
     if (!utils::context.global_rank) std::cout << "Leakage of Dyson G: " << leakage << std::endl;
-    if (!utils::context.global_rank and leakage > 1e-8) std::cerr << "Warning: The leakage is larger than 1e-8"<<std::endl;
+    if (!utils::context.global_rank and leakage > 1e-8) std::cerr << "Warning: The leakage is larger than 1e-8" << std::endl;
     MPI_Type_free(&dt_matrix);
     MPI_Op_free(&matrix_sum_op);
   }
@@ -269,7 +271,7 @@ namespace green::mbpt {
     }
     double leakage = coeff_last / coeff_first;
     if (!utils::context.global_rank) std::cout << "Leakage of Dyson G: " << leakage << std::endl;
-    if (!utils::context.global_rank and leakage > 1e-8) std::cerr << "Warning: The leakage is larger than 1e-8"<<std::endl;
+    if (!utils::context.global_rank and leakage > 1e-8) std::cerr << "Warning: The leakage is larger than 1e-8" << std::endl;
     MPI_Type_free(&dt_matrix);
     MPI_Op_free(&matrix_sum_op);
   }
