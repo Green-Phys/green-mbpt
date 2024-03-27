@@ -26,10 +26,7 @@ namespace green::mbpt::kernels {
     statistics.start("Hartree-Fock");
     ztensor<4> new_Fock(_ns, _ink, _nao, _nao);
     new_Fock.set_zero();
-    // if (utils::context.internode_rank < _ink * _ns)
     {
-      // int           hf_nprocs = (utils::context.global_size > _ink * _ns) ? _ink * _ns : utils::context.global_size;
-
       df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils);
 
       size_t        NQ_local = _NQ / utils::context.node_size;
@@ -150,9 +147,7 @@ namespace green::mbpt::kernels {
   ztensor<4> hf_x2c_cpu_kernel::solve(const ztensor<4>& dm) {
     ztensor<4> new_Fock(1, _ink, _nso, _nso);
     new_Fock.set_zero();
-    if (utils::context.global_rank < 3 * _ink) {
-      int           hf_nprocs = (utils::context.global_size > 3 * _ink) ? 3 * _ink : utils::context.global_size;
-
+    {
       df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils);
 
       ztensor<3>    dm_spblks[3]{
@@ -170,63 +165,82 @@ namespace green::mbpt::kernels {
         matrix(dm_spblks[2](ik)) = dmm.block(0, _nao, _nao, _nao);
       }
 
-      ztensor<3> v(_NQ, _nao, _nao);
+      size_t NQ_local = _NQ / utils::context.node_size;
+      NQ_local += (_NQ % utils::context.node_size > utils::context.node_rank) ? 1 : 0;
+      size_t NQ_offset = NQ_local * utils::context.node_rank +
+                         ((_NQ % utils::context.node_size > utils::context.node_rank) ? 0 : (_NQ % utils::context.node_size));
+      NQ_offset = (NQ_offset >= _NQ) ? 0 : NQ_offset;
+      ztensor<3> v(NQ_local, _nao, _nao);
       // Direct diagram
-      if (utils::context.global_rank < _ink) {
+      // if (utils::context.global_rank < _ink) {
+      statistics.start("X2C direct diagram");
+      {
         MatrixXcd  X1(_nao, _nao);
         MMatrixXcd X1m(X1.data(), _nao * _nao, 1);
 
-        MMatrixXcd vm(v.data(), _NQ, _nao * _nao);
+        MMatrixXcd vm(v.data(), NQ_local, _nao * _nao);
 
         ztensor<2> upper_Coul(_NQ, 1);
-        for (size_t ikp = 0; ikp < _ink; ++ikp) {
+        MMatrixXcd upper_Coul_m(upper_Coul.data() + NQ_offset, NQ_local, 1);
+        for (int ikp = utils::context.internode_rank; ikp < _ink; ikp += utils::context.internode_size) {
+        // for (size_t ikp = 0; ikp < _ink; ++ikp) {
           size_t kp_ir = _bz_utils.symmetry().full_point(ikp);
 
           coul_int1.read_integrals(kp_ir, kp_ir);
-          coul_int1.symmetrize(v, kp_ir, kp_ir);
+          if(NQ_local > 0) {
+            coul_int1.symmetrize(v, kp_ir, kp_ir, NQ_offset, NQ_local);
 
-          // Sum of alpha-alpha and beta-beta spin block
-          // In the presence of TR symmetry,
-          // (dm_aa(-k) + dm_bb(-k)) = (dm_aa(k) + dm_bb(k))*
-          X1 = matrix(dm_spblks[0](ikp)) + matrix(dm_spblks[1](ikp));
-          X1 = X1.transpose().eval();
-          // (Q, 1) = (Q, ab) * (ab, 1)
-          // Since vm(k) = vm(-k)* as well, we only need to take care of half of the k-point
-          matrix(upper_Coul) += _bz_utils.symmetry().weight()[kp_ir] * vm * X1m;
+            // Sum of alpha-alpha and beta-beta spin block
+            // In the presence of TR symmetry,
+            // (dm_aa(-k) + dm_bb(-k)) = (dm_aa(k) + dm_bb(k))*
+            X1 = matrix(dm_spblks[0](ikp)) + matrix(dm_spblks[1](ikp));
+            X1 = X1.transpose().eval();
+            // (Q, 1) = (Q, ab) * (ab, 1)
+            // Since vm(k) = vm(-k)* as well, we only need to take care of half of the k-point
+            upper_Coul_m += _bz_utils.symmetry().weight()[kp_ir] * vm * X1m;
+          }
         }
+        statistics.start("Reduce Direct");
+        MPI_Allreduce(MPI_IN_PLACE, upper_Coul.data(), upper_Coul.size(), MPI_CXX_DOUBLE_COMPLEX, MPI_SUM, utils::context.global);
+        statistics.end();
         upper_Coul /= double(_nk);
 
         MatrixXcd  Fm(1, _nao * _nao);
         MMatrixXcd Fmm(Fm.data(), _nao, _nao);
-        for (int ik = utils::context.global_rank; ik < _ink; ik += hf_nprocs) {
+        for (int ik = utils::context.internode_rank; ik < _ink; ik += utils::context.internode_size) {
           int k_ir = _bz_utils.symmetry().full_point(ik);
 
           coul_int1.read_integrals(k_ir, k_ir);
-          coul_int1.symmetrize(v, k_ir, k_ir);
+          if(NQ_local > 0) {
+            coul_int1.symmetrize(v, k_ir, k_ir, NQ_offset, NQ_local);
 
-          Fm = matrix(upper_Coul).transpose() * vm;
-          MMatrixXcd Fm_nso(new_Fock.data() + ik * _nso * _nso, _nso, _nso);
-          Fm_nso.block(0, 0, _nao, _nao) += Fmm;
-          Fm_nso.block(_nao, _nao, _nao, _nao) += Fmm;
+            Fm = matrix(upper_Coul).transpose() * vm;
+            MMatrixXcd Fm_nso(new_Fock.data() + ik * _nso * _nso, _nso, _nso);
+            Fm_nso.block(0, 0, _nao, _nao) += Fmm;
+            Fm_nso.block(_nao, _nao, _nao, _nao) += Fmm;
+          }
         }
       }
 
+      statistics.end();
+
+      statistics.start("X2C exchange diagram");
       // Exchange diagram
-      ztensor<3> Y(_NQ, _nao, _nao);
-      MMatrixXcd Ym(Y.data(), _NQ * _nao, _nao);
-      MMatrixXcd Ymm(Y.data(), _NQ, _nao * _nao);
+      ztensor<3> Y(NQ_local, _nao, _nao);
+      MMatrixXcd Ym(Y.data(), NQ_local * _nao, _nao);
+      MMatrixXcd Ymm(Y.data(), NQ_local, _nao * _nao);
 
-      ztensor<3> Y1(_nao, _nao, _NQ);
-      MMatrixXcd Y1m(Y1.data(), _nao * _nao, _NQ);
-      MMatrixXcd Y1mm(Y1.data(), _nao, _nao * _NQ);
+      ztensor<3> Y1(_nao, _nao, NQ_local);
+      MMatrixXcd Y1m(Y1.data(), _nao * _nao, NQ_local);
+      MMatrixXcd Y1mm(Y1.data(), _nao, _nao * NQ_local);
 
-      MMatrixXcd vmm(v.data(), _NQ * _nao, _nao);
+      MMatrixXcd vmm(v.data(), NQ_local * _nao, _nao);
 
-      ztensor<3> v2(_nao, _NQ, _nao);
-      MMatrixXcd v2m(v2.data(), _nao, _NQ * _nao);
-      MMatrixXcd v2mm(v2.data(), _nao * _NQ, _nao);
+      ztensor<3> v2(_nao, NQ_local, _nao);
+      MMatrixXcd v2m(v2.data(), _nao, NQ_local * _nao);
+      MMatrixXcd v2mm(v2.data(), _nao * NQ_local, _nao);
 
-      for (size_t iks = utils::context.global_rank; iks < 3 * _ink; iks += hf_nprocs) {
+      for (int iks = utils::context.internode_rank; iks < 3 * _ink; iks += utils::context.internode_size) {
         size_t      ik = iks / 3;
         size_t      is = iks % 3;
         MMatrixXcd  Fm_nso(new_Fock.data() + ik * _nso * _nso, _nso, _nso);
@@ -236,22 +250,23 @@ namespace green::mbpt::kernels {
         if (is == 0) {
           // alpha-alpha
           Fm_nso.block(0, 0, _nao, _nao) +=
-              compute_exchange(ik, dm_spblks[0], dm_spblks[1], v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm);
+              compute_exchange(ik, dm_spblks[0], dm_spblks[1], v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm, NQ_local, NQ_offset);
           Fm_nso.block(0, 0, _nao, _nao) -= _madelung * S_aa * matrix(dm_spblks[0](ik)) * S_aa;
         } else if (is == 1) {
           // beta-beta
           Fm_nso.block(_nao, _nao, _nao, _nao) +=
-              compute_exchange(ik, dm_spblks[1], dm_spblks[0], v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm);
+              compute_exchange(ik, dm_spblks[1], dm_spblks[0], v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm, NQ_local, NQ_offset);
           Fm_nso.block(_nao, _nao, _nao, _nao) -= _madelung * S_aa * matrix(dm_spblks[1](ik)) * S_aa;
         } else if (is == 2) {
           // alpha-beta
           Fm_nso.block(0, _nao, _nao, _nao) +=
-              compute_exchange_ab(ik, dm_spblks[2], v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm);
+              compute_exchange_ab(ik, dm_spblks[2], v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm, NQ_local, NQ_offset);
           Fm_nso.block(0, _nao, _nao, _nao) -= _madelung * S_aa * matrix(dm_spblks[2](ik)) * S_aa;
           // beta-alpha
           Fm_nso.block(_nao, 0, _nao, _nao) = Fm_nso.block(0, _nao, _nao, _nao).transpose().conjugate();
         }
       }
+      statistics.end();
     }
 
     utils::allreduce(MPI_IN_PLACE, new_Fock.data(), new_Fock.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, utils::context.global);
@@ -261,7 +276,7 @@ namespace green::mbpt::kernels {
   MatrixXcd hf_x2c_cpu_kernel::compute_exchange(int ik, ztensor<3>& dm_s1_s2, ztensor<3>& dm_ms1_ms2, ztensor<3>& v,
                                                 df_integral_t& coul_int1, ztensor<3>& Y, MMatrixXcd& Ym, MMatrixXcd& Ymm,
                                                 ztensor<3>& Y1, MMatrixXcd& Y1m, MMatrixXcd& Y1mm, MMatrixXcd& vmm,
-                                                ztensor<3>& v2, MMatrixXcd& v2m, MMatrixXcd& v2mm) {
+                                                ztensor<3>& v2, MMatrixXcd& v2m, MMatrixXcd& v2mm, size_t NQ_local, size_t NQ_offset) {
     int       k_ir = _bz_utils.symmetry().full_point(ik);
     MatrixXcd Fock = MatrixXcd::Zero(_nao, _nao);
 
@@ -269,23 +284,25 @@ namespace green::mbpt::kernels {
       int kp = _bz_utils.symmetry().reduced_point(ikp);
 
       coul_int1.read_integrals(k_ir, ikp);
-      // (Q, i, b) or conj(Q, j, a)
-      coul_int1.symmetrize(v, k_ir, ikp);
+      if(NQ_local > 0) {
+        // (Q, i, b) or conj(Q, j, a)
+        coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
 
-      // (Qi, a) = (Qi, b) * (b, a)
-      if (_bz_utils.symmetry().conj_list()[ikp] == 0) {
-        CMMatrixXcd dmm(dm_s1_s2.data() + kp * _nao * _nao, _nao, _nao);
-        Ym = vmm * dmm;
-      } else {
-        CMMatrixXcd dmm(dm_ms1_ms2.data() + kp * _nao * _nao, _nao, _nao);
-        Ym = vmm * dmm.conjugate();
+        // (Qi, a) = (Qi, b) * (b, a)
+        if (_bz_utils.symmetry().conj_list()[ikp] == 0) {
+          CMMatrixXcd dmm(dm_s1_s2.data() + kp * _nao * _nao, _nao, _nao);
+          Ym = vmm * dmm;
+        } else {
+          CMMatrixXcd dmm(dm_ms1_ms2.data() + kp * _nao * _nao, _nao, _nao);
+          Ym = vmm * dmm.conjugate();
+        }
+        // (ia, Q)
+        Y1m = Ymm.transpose();
+        // (a, Qj)
+        v2m = vmm.conjugate().transpose();
+        // (i, j) = (i, aQ) * (aQ, j)
+        Fock -= Y1mm * v2mm / double(_nk);
       }
-      // (ia, Q)
-      Y1m = Ymm.transpose();
-      // (a, Qj)
-      v2m = vmm.conjugate().transpose();
-      // (i, j) = (i, aQ) * (aQ, j)
-      Fock -= Y1mm * v2mm / double(_nk);
     }
     return Fock;
   }
@@ -293,7 +310,7 @@ namespace green::mbpt::kernels {
   MatrixXcd hf_x2c_cpu_kernel::compute_exchange_ab(int ik, ztensor<3>& dm_ab, ztensor<3>& v, df_integral_t& coul_int1,
                                                    ztensor<3>& Y, MMatrixXcd& Ym, MMatrixXcd& Ymm, ztensor<3>& Y1,
                                                    MMatrixXcd& Y1m, MMatrixXcd& Y1mm, MMatrixXcd& vmm, ztensor<3>& v2,
-                                                   MMatrixXcd& v2m, MMatrixXcd& v2mm) {
+                                                   MMatrixXcd& v2m, MMatrixXcd& v2mm, size_t NQ_local, size_t NQ_offset) {
     int       k_ir = _bz_utils.symmetry().full_point(ik);
     MatrixXcd Fock = MatrixXcd::Zero(_nao, _nao);
 
@@ -301,23 +318,25 @@ namespace green::mbpt::kernels {
       int kp = _bz_utils.symmetry().reduced_point(ikp);
 
       coul_int1.read_integrals(k_ir, ikp);
-      // (Q, i, b) or conj(Q, j, a)
-      coul_int1.symmetrize(v, k_ir, ikp);
+      if(NQ_local > 0) {
+        // (Q, i, b) or conj(Q, j, a)
+        coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
 
-      // (Qi, a) = (Qi, b) * (b, a)
-      if (_bz_utils.symmetry().conj_list()[ikp] == 0) {
-        CMMatrixXcd dmm(dm_ab.data() + kp * _nao * _nao, _nao, _nao);
-        Ym = vmm * dmm;
-      } else {
-        CMMatrixXcd dmm(dm_ab.data() + kp * _nao * _nao, _nao, _nao);
-        Ym = vmm * (-1.0) * dmm.transpose();
+        // (Qi, a) = (Qi, b) * (b, a)
+        if (_bz_utils.symmetry().conj_list()[ikp] == 0) {
+          CMMatrixXcd dmm(dm_ab.data() + kp * _nao * _nao, _nao, _nao);
+          Ym = vmm * dmm;
+        } else {
+          CMMatrixXcd dmm(dm_ab.data() + kp * _nao * _nao, _nao, _nao);
+          Ym = vmm * (-1.0) * dmm.transpose();
+        }
+        // (ia, Q)
+        Y1m = Ymm.transpose();
+        // (a, Qj)
+        v2m = vmm.conjugate().transpose();
+        // (i, j) = (i, aQ) * (aQ, j)
+        Fock -= Y1mm * v2mm / double(_nk);
       }
-      // (ia, Q)
-      Y1m = Ymm.transpose();
-      // (a, Qj)
-      v2m = vmm.conjugate().transpose();
-      // (i, j) = (i, aQ) * (aQ, j)
-      Fock -= Y1mm * v2mm / double(_nk);
     }
     return Fock;
   }
