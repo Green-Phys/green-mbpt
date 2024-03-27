@@ -145,6 +145,7 @@ namespace green::mbpt::kernels {
   }
 
   ztensor<4> hf_x2c_cpu_kernel::solve(const ztensor<4>& dm) {
+    statistics.start("X2C Hartree-Fock");
     ztensor<4> new_Fock(1, _ink, _nso, _nso);
     new_Fock.set_zero();
     {
@@ -214,7 +215,7 @@ namespace green::mbpt::kernels {
           if(NQ_local > 0) {
             coul_int1.symmetrize(v, k_ir, k_ir, NQ_offset, NQ_local);
 
-            Fm = matrix(upper_Coul).transpose() * vm;
+            Fm = upper_Coul_m.transpose() * vm;
             MMatrixXcd Fm_nso(new_Fock.data() + ik * _nso * _nso, _nso, _nso);
             Fm_nso.block(0, 0, _nao, _nao) += Fmm;
             Fm_nso.block(_nao, _nao, _nao, _nao) += Fmm;
@@ -269,7 +270,11 @@ namespace green::mbpt::kernels {
       statistics.end();
     }
 
+    statistics.start("Reduce Fock");
     utils::allreduce(MPI_IN_PLACE, new_Fock.data(), new_Fock.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, utils::context.global);
+    statistics.end();
+    statistics.end();
+    statistics.print(utils::context.global);
     return new_Fock;
   }
 
