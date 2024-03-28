@@ -68,7 +68,7 @@ namespace green::mbpt {
     size_t nso     = Sk.shape()[1];
     using Matrixcd = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>;
     Eigen::SelfAdjointEigenSolver<Matrixcd> solver(nso);
-    Eigen::FullPivLU<MatrixXcd> lusolver(nso, nso);
+    Eigen::FullPivLU<MatrixXcd>             lusolver(nso, nso);
     for (size_t ik = 0; ik < ink; ++ik) {
       Matrixcd S = matrix(Sk(ik));
       solver.compute(S);
@@ -129,17 +129,17 @@ namespace green::mbpt {
         exp_kr(ik_hs, ir) = std::exp(std::complex<double>(0, -2 * rk * M_PI));
       }
     }
-    
+
     matrix(transform) = matrix(exp_kr) * matrix(exp_rk) / double(nk);
 
-    ztensor<4> Sigma_1_fbz(ns, hs_nk, nso, nso);
+    ztensor<4>                       Sigma_1_fbz(ns, hs_nk, nso, nso);
     utils::shared_object<ztensor<5>> sigma_tau_int(nts, ns, hs_nk, nso, nso);
     sigma_tau_int.fence();
     for (int its = utils::context.global_rank; its < ns * nts; its += utils::context.global_size) {
-      int it = its / ns;
-      int is = its % ns;
+      int  it                = its / ns;
+      int  is                = its % ns;
       auto sigma_tau_int_its = sigma_tau_int.object()(it, is);
-      auto sigma_tau_its = sigma_tau.object()(it, is);
+      auto sigma_tau_its     = sigma_tau.object()(it, is);
       sigma_tau_int_its << transform_to_hs(dyson_solver.bz_utils().ibz_to_full(sigma_tau_its), transform);
     }
     sigma_tau_int.fence();
@@ -154,13 +154,13 @@ namespace green::mbpt {
       Sigma_w.set_zero();
       dyson_solver.ft().tau_to_omega_ws(sigma_tau_int.object(), Sigma_w, iw, is);
       Sigma_1_fbz(is) << transform_to_hs(dyson_solver.bz_utils().ibz_to_full(sigma_1(is)), transform);
-      //auto Sigma_w_fbz = transform_to_hs(dyson_solver.bz_utils().ibz_to_full(Sigma_w), transform);
+      // auto Sigma_w_fbz = transform_to_hs(dyson_solver.bz_utils().ibz_to_full(Sigma_w), transform);
       for (int ik = 0; ik < hs_nk; ++ik) {
         auto muomega = dyson_solver.ft().wsample_fermi()(iw) * 1.0i + mu;
 
         matrix(G_w)  = matrix(Sk_hs_12_inv(ik)) *
-                      (muomega * matrix(Sk_hs(ik)) - matrix(Hk_hs(ik)) - matrix(Sigma_1_fbz(is, ik)) - matrix(Sigma_w(ik)))
-                      * matrix(Sk_hs_12_inv(ik));
+                      (muomega * matrix(Sk_hs(ik)) - matrix(Hk_hs(ik)) - matrix(Sigma_1_fbz(is, ik)) - matrix(Sigma_w(ik))) *
+                      matrix(Sk_hs_12_inv(ik));
         matrix(G_w_hs) = lusolver.compute(matrix(G_w)).inverse().eval();
         for (size_t i = 0; i < nso; ++i) {
           g_omega_hs.object()(iw, is, ik, i) = G_w_hs(i, i);
@@ -207,19 +207,19 @@ namespace green::mbpt {
     hf_solver hf(p, dyson.bz_utils(), dyson.S_k());
     switch (type) {
       case HF: {
-        sc.solve(hf, G_tau, Sigma1, Sigma_tau);
+        sc.solve(hf, dyson.H_k(), dyson.S_k(), G_tau, Sigma1, Sigma_tau);
         break;
       }
       case GW: {
         gw_solver              gw(p, dyson.ft(), dyson.bz_utils(), dyson.S_k());
         sc::composition_solver cs(hf, gw);
-        sc.solve(cs, G_tau, Sigma1, Sigma_tau);
+        sc.solve(cs, dyson.H_k(), dyson.S_k(), G_tau, Sigma1, Sigma_tau);
         break;
       }
       case GF2: {
         gf2_solver             gf2(p, dyson.ft(), dyson.bz_utils());
         sc::composition_solver cs(hf, gf2);
-        sc.solve(cs, G_tau, Sigma1, Sigma_tau);
+        sc.solve(cs, dyson.H_k(), dyson.S_k(), G_tau, Sigma1, Sigma_tau);
         break;
       }
       default: {

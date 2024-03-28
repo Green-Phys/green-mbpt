@@ -177,7 +177,7 @@ TEST_CASE("MBPT Solver") {
     S_shared.fence();
     Sigma1(0) << bz.full_to_ibz(tmp(0));
     Sigma1(1) << bz.full_to_ibz(tmp(1));
-    sc.solve(noop, G_shared, Sigma1, S_shared);
+    sc.solve(noop, sc.dyson_solver().H_k(), sc.dyson_solver().S_k(),  G_shared, Sigma1, S_shared);
   }
   SECTION("Init real Dyson. non shared") {
     auto        p          = green::params::params("DESCR");
@@ -222,7 +222,7 @@ TEST_CASE("MBPT Solver") {
     auto                                  Sigma1 = green::sc::ztensor<4>(ns, ink, nao, nao);
     Sigma1(0) << bz.full_to_ibz(tmp(0));
     Sigma1(1) << bz.full_to_ibz(tmp(1));
-    sc.solve(noop, G, Sigma1, S);
+    sc.solve(noop, sc.dyson_solver().H_k(), sc.dyson_solver().S_k(), G, Sigma1, S);
   }
 }
 
