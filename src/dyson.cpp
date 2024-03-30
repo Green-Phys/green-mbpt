@@ -159,7 +159,7 @@ namespace green::mbpt {
     }
     if (!utils::context.global_rank) {
       std::cout << std::right << std::setw(44) << "New chemical potential has been found. mu = " << mu << std::endl;
-      std::cout << std::right << std::setw(45) << "Chemical potential difference Dμ = " << std::abs(mu - _mu) << std::endl;
+      std::cout << std::right << std::setw(46) << "Chemical potential difference Δμ = " << std::abs(mu - _mu) << std::endl;
     }
     t.end();
     return {nel, mu};
