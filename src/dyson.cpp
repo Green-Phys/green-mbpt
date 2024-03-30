@@ -184,11 +184,14 @@ namespace green::mbpt {
     double coeff_first = 0.0;
     g_tau_s.fence();
     g_tau_s.fence();
+      make_hermitian(sigma1);
+    sigma_tau_s.fence();
+    if (!utils::context.node_rank) make_hermitian(sigma_tau_s.object());
+    sigma_tau_s.fence();
     for (int isk = utils::context.global_rank; isk < _ns * _ink; isk += utils::context.global_size) {
       int is = isk / _ink;
       int ik = isk % _ink;
       Sigma_k.set_zero();
-      // G_w.set_zero();
       for (int it = 0; it < _nts; ++it) matrix(Sigma_k(it)) = matrix(sigma_tau(it, is, ik));
       _ft.tau_to_omega(Sigma_k, Sigma_w, 1);
       for (int ic = 0; ic < _nw; ++ic) {
