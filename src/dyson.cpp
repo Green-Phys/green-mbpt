@@ -157,8 +157,10 @@ namespace green::mbpt {
         if (!utils::context.global_rank && _verbose != 0) std::cout << "nel:" << nel << " mu: " << mu << std::endl;
       }
     }
-    if (!utils::context.global_rank) std::cout << "New chemical potential has been found. mu = " << mu << std::endl;
-    if (!utils::context.global_rank) std::cout << "Chemical potential difference Δμ = " << std::abs(mu - _mu) << std::endl;
+    if (!utils::context.global_rank) {
+      std::cout << std::right << std::setw(44) << "New chemical potential has been found. mu = " << mu << std::endl;
+      std::cout << std::right << std::setw(45) << "Chemical potential difference Dμ = " << std::abs(mu - _mu) << std::endl;
+    }
     t.end();
     return {nel, mu};
   }
@@ -184,7 +186,7 @@ namespace green::mbpt {
     double coeff_first = 0.0;
     g_tau_s.fence();
     g_tau_s.fence();
-      make_hermitian(sigma1);
+    make_hermitian(sigma1);
     sigma_tau_s.fence();
     if (!utils::context.node_rank) make_hermitian(sigma_tau_s.object());
     sigma_tau_s.fence();
@@ -321,9 +323,9 @@ namespace green::mbpt {
       ar["iter" + std::to_string(iter) + "/Energy_2b"] << _E_corr;
       ar["iter" + std::to_string(iter) + "/mu"] << _mu;
       ar.close();
-      std::cout << "One-body Energy: " << _E_1b << std::endl;
-      std::cout << "HF Energy: " << _E_hf + _E_nuc << std::endl;
-      std::cout << "Correlation Energy: " << _E_corr << std::endl;
+      std::cout << std::setw(44) << "One-body Energy: " << _E_1b << std::endl;
+      std::cout << std::setw(44) << "HF Energy: " << _E_hf + _E_nuc << std::endl;
+      std::cout << std::setw(44) << "Correlation Energy: " << _E_corr << std::endl;
     }
   }
 
