@@ -46,8 +46,9 @@ namespace green::mbpt::kernels {
         int is    = ikps % _ns;
         int ikp   = ikps / _ns;
         int kp_ir = _bz_utils.symmetry().full_point(ikp);
-
+        statistics.start("Read Coulomb Up");
         coul_int1.read_integrals(kp_ir, kp_ir);
+        statistics.end();
         if(NQ_local > 0) {
           coul_int1.symmetrize(v, kp_ir, kp_ir, NQ_offset, NQ_local);
 
@@ -66,8 +67,9 @@ namespace green::mbpt::kernels {
         int is   = ii / _ink;
         int ik   = ii % _ink;
         int k_ir = _bz_utils.symmetry().full_point(ik);
-
+        statistics.start("Read Coulomb Low");
         coul_int1.read_integrals(k_ir, k_ir);
+        statistics.end();
         if(NQ_local > 0) {
           coul_int1.symmetrize(v, k_ir, k_ir, NQ_offset, NQ_local);
 
@@ -102,8 +104,9 @@ namespace green::mbpt::kernels {
         for (int ikp = 0; ikp < _nk; ++ikp) {
           int         kp = _bz_utils.symmetry().reduced_point(ikp);
           CMMatrixXcd dmm(dm.data() + is * _ink * _nao * _nao + kp * _nao * _nao, _nao, _nao);
-
+          statistics.start("Read Coulomb Exch");
           coul_int1.read_integrals(k_ir, ikp);
+          statistics.end();
           if(NQ_local > 0) {
             // (Q, i, b) or conj(Q, j, a)
             coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
