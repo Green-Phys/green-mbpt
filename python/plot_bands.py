@@ -26,6 +26,10 @@ norb=DOS.shape[3]
 nk = nk_again
 KDOS = np.einsum("wski->skw", -DOS.imag/np.pi)
 
+x = np.where(KDOS < 0.0)
+print(KDOS[x])
+KDOS[x] = 0.0
+
 if not os.path.isdir(args.output_dir):
    os.makedirs(args.output_dir)
 
@@ -42,10 +46,13 @@ HartreeToEv = 27.211396641308
 freqs_limit=mesh*HartreeToEv
 mask=(freqs_limit<12) & (freqs_limit>-12)
 KDOS=KDOS[0,:,mask]*HartreeToEv
+freqs = freqs_limit[mask].real
 path=np.array(range(0,nk_again))
-plt.imshow(KDOS.T, aspect='auto', origin='lower', cmap='hot', extent=[path[0], path[-1], freqs_limit[mask][0], freqs_limit[mask][-1]])
+#plt.imshow(KDOS, aspect='auto', origin='lower', cmap='hot', extent=[path[0], path[-1], freqs_limit[mask][0], freqs_limit[mask][-1]])
+z_max = np.abs(KDOS).max()
+plt.pcolormesh(path, freqs, KDOS, cmap='RdBu', vmin=0, vmax=z_max,linewidth=0,rasterized=True)
 
-plt.colorbar()
+#plt.colorbar()
 plt.xlabel('k-path')
 plt.ylabel('Frequency')
 plt.savefig(args.output_dir+"/bands.png")
