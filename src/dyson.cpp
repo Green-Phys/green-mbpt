@@ -110,14 +110,14 @@ namespace green::mbpt {
     utils::timing& t     = utils::timing::get_instance();
     t.start("Chemical potential search");
 
-    std::cout << std::scientific << std::setprecision(15);
+    std::stringstream ss;
+    ss << std::scientific << std::setprecision(15);
     mu = _mu;
     std::vector<std::complex<double>> eigenvalues_Sigma_p_F;
     selfenergy_eigenspectra(sigma1, sigma_tau_s, eigenvalues_Sigma_p_F);
     // Start search for the chemical potential
     nel = compute_number_of_electrons(mu, eigenvalues_Sigma_p_F);
-    if (!utils::context.global_rank && _verbose != 0)
-      std::cout << "nel:" << nel << " mu: " << mu << " target nel:" << _nel << std::endl;
+    if (!utils::context.global_rank && _verbose != 0) ss << "nel:" << nel << " mu: " << mu << " target nel:" << _nel << std::endl;
 
     if (std::abs((nel - _nel) / double(_nel)) > _tol) {
       if (nel > _nel) {
@@ -125,7 +125,7 @@ namespace green::mbpt {
         double d = delta;
         do {
           nel1 = compute_number_of_electrons(mu1, eigenvalues_Sigma_p_F);
-          if (!utils::context.global_rank && _verbose != 0) std::cout << "nel:" << nel1 << " mu: " << mu1 << std::endl;
+          if (!utils::context.global_rank && _verbose != 0) ss << "nel:" << nel1 << " mu: " << mu1 << std::endl;
           mu1 -= d;
         } while (nel1 > _nel);
         mu2  = mu;
@@ -135,7 +135,7 @@ namespace green::mbpt {
         double d = delta;
         do {
           nel2 = compute_number_of_electrons(mu2, eigenvalues_Sigma_p_F);
-          if (!utils::context.global_rank && _verbose != 0) std::cout << "nel:" << nel2 << " mu: " << mu2 << std::endl;
+          if (!utils::context.global_rank && _verbose != 0) ss << "nel:" << nel2 << " mu: " << mu2 << std::endl;
           mu2 += d;
         } while (nel2 < _nel);
         mu1  = mu;
@@ -154,14 +154,16 @@ namespace green::mbpt {
         } else {
           mu1 = mu;
         }
-        if (!utils::context.global_rank && _verbose != 0) std::cout << "nel:" << nel << " mu: " << mu << std::endl;
+        if (!utils::context.global_rank && _verbose != 0) ss << "nel:" << nel << " mu: " << mu << std::endl;
       }
     }
     if (!utils::context.global_rank) {
-      std::cout << std::right << std::setw(44) << "New chemical potential has been found. mu = " << mu << std::endl;
-      std::cout << std::right << std::setw(46) << "Chemical potential difference Δμ = " << std::abs(mu - _mu) << std::endl;
+      ss << std::right << std::setw(36) << "New chemical potential, μ = " << std::setw(22) << std::right << mu << std::endl;
+      ss << std::right << std::setw(37) << "Chemical potential difference Δμ = " << std::setw(22) << std::right
+         << std::abs(mu - _mu) << std::endl;
     }
     t.end();
+    std::cout << ss.str();
     return {nel, mu};
   }
 
@@ -323,9 +325,13 @@ namespace green::mbpt {
       ar["iter" + std::to_string(iter) + "/Energy_2b"] << _E_corr;
       ar["iter" + std::to_string(iter) + "/mu"] << _mu;
       ar.close();
-      std::cout << std::setw(44) << "One-body Energy: " << _E_1b << std::endl;
-      std::cout << std::setw(44) << "HF Energy: " << _E_hf + _E_nuc << std::endl;
-      std::cout << std::setw(44) << "Correlation Energy: " << _E_corr << std::endl;
+      std::stringstream ss;
+      ss << std::scientific << std::setprecision(15);
+      ss << std::setw(35) << "One-body Energy: " << std::setw(17) << std::right << _E_1b << std::endl;
+      ss << std::setw(35) << "HF Energy: " << std::setw(17) << std::right << _E_hf + _E_nuc << std::endl;
+      ss << std::setw(35) << "Correlation Energy: " << std::setw(17) << std::right << _E_corr << std::endl;
+      ss << std::setw(35) << "Total Energy: " << std::setw(17) << std::right << _E_hf + _E_nuc + _E_corr << std::endl;
+      std::cout << ss.str();
     }
   }
 
