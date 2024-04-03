@@ -167,6 +167,8 @@ def save_dca_data(args, lattice_kmesh, full_mesh, H0_lattice, S_lattice):
 
 def save_data(args, mycell, mf, kmesh, ind, weight, num_ik, ir_list, conj_list, Nk, nk, NQ, F, S, T, hf_dm, 
               Zs, last_ao):
+    kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored = int_utils.integrals_grid(mycell, kmesh)
+    print("number of reduced k-pairs: ", num_kpair_stored)
     inp_data = h5py.File(args.output_path, "w")
     inp_data["grid/k_mesh"] = kmesh
     inp_data["grid/k_mesh_scaled"] = mycell.get_scaled_kpts(kmesh)
@@ -176,6 +178,11 @@ def save_data(args, mycell, mf, kmesh, ind, weight, num_ik, ir_list, conj_list, 
     inp_data["grid/nk"] = nk
     inp_data["grid/ir_list"] = ir_list
     inp_data["grid/conj_list"] = conj_list
+    inp_data["grid/conj_pairs_list"] = kij_conj
+    inp_data["grid/trans_pairs_list"] = kij_trans
+    inp_data["grid/kpair_irre_list"] = kpair_irre_list
+    inp_data["grid/kpair_idx"] = kptij_idx
+    inp_data["grid/num_kpair_stored"] = num_kpair_stored
     inp_data["HF/Nk"] = Nk
     inp_data["HF/nk"] = nk
     inp_data["HF/Energy"] = mf.e_tot
@@ -278,6 +285,7 @@ def add_common_params(parser):
     parser.add_argument("--high_symmetry_path", type=str, default=None, help="High symmetry path")
     parser.add_argument("--high_symmetry_path_points", type=int, default=0, help="Number of points for high symmetry path")
     parser.add_argument("--memory", type=int, default=700, help="Memory bound for integral chunk in MB")
+    parser.add_argument("--grid_only", type=lambda x: (str(x).lower() in ['true','1', 'yes']), default='false', help="Only recompute k-grid points")
 
 def init_dca_params(a, atoms):
     parser = argparse.ArgumentParser(description="GF2 initialization script")
@@ -507,13 +515,24 @@ def solve_mean_field(args, mydf, mycell):
     return mf
 
 
-def store_integrals_kpairs(args, kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored):
+def store_k_grid(args, mycell, kmesh, k_ibz, ir_list, conj_list, weight, ind, num_ik):
     inp_data = h5py.File(args.output_path, "a")
-    inp_data["grid/conj_pairs_list"] = kij_conj
-    inp_data["grid/trans_pairs_list"] = kij_trans
-    inp_data["grid/kpair_irre_list"] = kpair_irre_list
-    inp_data["grid/kpair_idx"] = kptij_idx
-    inp_data["grid/num_kpair_stored"] = num_kpair_stored
+    nk = kmesh.shape[0]
+    ink = k_ibz.shape[0]
+    kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored = int_utils.integrals_grid(mycell, kmesh)
+    print("number of reduced k-pairs: ", num_kpair_stored)
+    if not "grid" in inp_data:
+        inp_data.create_group("grid")
+    grid_grp = inp_data["grid"]
+    data = [kmesh, mycell.get_scaled_kpts(kmesh), ind, weight, num_ik, nk, ir_list, conj_list, 
+               kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored]
+    names = ["k_mesh", "k_mesh_scaled", "index", "weight", "ink", "nk", "ir_list", "conj_list",
+                "conj_pair_list", "trans_pair_list", "kpair_irre_list", "kpair_idx", "num_kpair_stored" ]
+    for i, name in enumerate(names):
+        if name in grid_grp:
+            grid_grp[name][...] = data[i]
+        else:
+            grid_grp[name] = data[i]
     inp_data.close()
 
 
@@ -551,7 +570,6 @@ def compute_df_int(args, mycell, kmesh, nao, X_k, lattice_kmesh=np.zeros([3,3]))
         mydf.mesh = [args.Nk, args.Nk, args.Nk]
     df.GDF.weighted_coulG = weighted_coulG_old
     int_utils.compute_integrals(args, mycell, mydf, kmesh, nao, X_k, "df_hf_int", "cderi.h5", True)
-    store_integrals_kpairs(args, kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored)
 
 def compute_df_int_dca(args, mycell, kmesh, lattice_kmesh, nao, X_k):
     '''
@@ -602,5 +620,4 @@ def compute_df_int_dca(args, mycell, kmesh, lattice_kmesh, nao, X_k):
     int_utils.compute_integrals(mycell, mydf, kmesh, nao, X_k, args.hf_int_path, "cderi_dca.h5", False)
 
     tools.get_coulG = old_get_coulG
-    store_integrals_kpairs(args, kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored)
 

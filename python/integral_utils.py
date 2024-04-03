@@ -221,8 +221,8 @@ def kpair_reduced_lists(kptis, kptjs, kptij_idx, kmesh, a):
 
     return conj_list, trans_list
 
-def compute_integrals(args, mycell, mydf, kmesh, nao, X_k=None, basename = "df_int", cderi_name="cderi.h5", keep=True, symm=True):
 
+def integrals_grid(mycell, kmesh):
     a_lattice = mycell.lattice_vectors() / (2*np.pi)
     kptij_lst = [(ki, kmesh[j]) for i, ki in enumerate(kmesh) for j in range(i+1)]
     kptij_idx = [(i, j) for i in range(kmesh.shape[0]) for j in range(i+1)]
@@ -233,7 +233,11 @@ def compute_integrals(args, mycell, mydf, kmesh, nao, X_k=None, basename = "df_i
     kij_conj, kij_trans = kpair_reduced_lists(kptis, kptjs, kptij_idx, kmesh, a_lattice)
     kpair_irre_list = np.argwhere(kij_conj == kij_trans)[:,0]
     num_kpair_stored = len(kpair_irre_list)
-    print("number of reduced k-pairs: ", num_kpair_stored)
+    return kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored
+
+def compute_integrals(args, mycell, mydf, kmesh, nao, X_k=None, basename = "df_int", cderi_name="cderi.h5", keep=True, symm=True):
+
+    kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored = integrals_grid(mycell, kmesh)
 
     mydf.kpts = kmesh
     filename = basename + "/meta.h5"

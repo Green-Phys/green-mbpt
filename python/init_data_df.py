@@ -42,6 +42,10 @@ print("Last AO index for each atom = ", last_ao)
 
 kmesh, k_ibz, ir_list, conj_list, weight, ind, num_ik = comm.init_k_mesh(args, mycell)
 
+if args.grid_only:
+    comm.store_k_grid(args, mycell, kmesh, k_ibz, ir_list, conj_list, weight, ind, num_ik)
+    exit(0)
+
 
 '''
 Generate integrals for mean-field calculations
