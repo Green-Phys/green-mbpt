@@ -527,7 +527,7 @@ def store_k_grid(args, mycell, kmesh, k_ibz, ir_list, conj_list, weight, ind, nu
     data = [kmesh, mycell.get_scaled_kpts(kmesh), ind, weight, num_ik, nk, ir_list, conj_list, 
                kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored]
     names = ["k_mesh", "k_mesh_scaled", "index", "weight", "ink", "nk", "ir_list", "conj_list",
-                "conj_pair_list", "trans_pair_list", "kpair_irre_list", "kpair_idx", "num_kpair_stored" ]
+                "conj_pairs_list", "trans_pairs_list", "kpair_irre_list", "kpair_idx", "num_kpair_stored" ]
     for i, name in enumerate(names):
         if name in grid_grp:
             grid_grp[name][...] = data[i]
