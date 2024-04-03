@@ -326,6 +326,7 @@ namespace green::mbpt {
       std::cout << std::setw(44) << "One-body Energy: " << _E_1b << std::endl;
       std::cout << std::setw(44) << "HF Energy: " << _E_hf + _E_nuc << std::endl;
       std::cout << std::setw(44) << "Correlation Energy: " << _E_corr << std::endl;
+      std::cout << std::setw(44) << "Total Energy: " << _E_hf + _E_nuc + _E_corr << std::endl;
     }
   }
 
