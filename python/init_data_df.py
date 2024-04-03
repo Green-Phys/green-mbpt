@@ -50,7 +50,7 @@ mydf   = comm.df.GDF(mycell)
 if args.auxbasis is not None:
     mydf.auxbasis = args.auxbasis
 elif args.beta is not None:
-    mydf.auxbasis = df.aug_etb(mycell, beta=args.beta)
+    mydf.auxbasis = comm.df.aug_etb(mycell, beta=args.beta)
 # Coulomb kernel mesh
 if Nk > 0:
     mydf.mesh = [Nk, Nk, Nk]
