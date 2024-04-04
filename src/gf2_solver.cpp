@@ -12,7 +12,6 @@
 
 namespace green::mbpt {
   void gf2_solver::solve(G_type& g_tau, S1_type& sigma1, St_type& sigma_tau) {
-    Sigma_local.resize(_nts, _ns, _ink, _nao, _nao);
     _G_k1_tmp.resize(_nao, _nao);
     _Gb_k2_tmp.resize(_nao, _nao);
     _G_k3_tmp.resize(_nao, _nao);
@@ -31,13 +30,13 @@ namespace green::mbpt {
     _coul_int_x_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
     auto& Sigma_tau            = sigma_tau.object();
     // clean self_energy array
-    Sigma_local.set_zero();
+    Sigma_local = Sigma_tau;
     sigma_tau.fence();
     if (!utils::context.node_rank) Sigma_tau.set_zero();
     sigma_tau.fence();
     statistics.start("GF2 total");
     // start main loop
-    for (size_t k1k3k2 = utils::context.global_rank; k1k3k2 < _nk * _nk * _ink; k1k3k2 += utils::context.global_size) {
+    for (size_t k1k3k2 = utils::context.internode_rank; k1k3k2 < _nk * _nk * _ink; k1k3k2 += utils::context.internode_size) {
       size_t                k1_pos = k1k3k2 / (_nk * _nk);
       // Link the reduce index (k1_pos) to corresponding momentum
       size_t                k1_red = _bz_utils.symmetry().full_point(k1_pos);
@@ -46,11 +45,9 @@ namespace green::mbpt {
       std::array<size_t, 4> k      = _bz_utils.momentum_conservation({k1_red, k2, k3});
       statistics.start("read");
       // read next part of integrals
-      // std::cout<<"Read integrals"<<std::endl;
       read_next(k);
       statistics.end();
       statistics.start("setup");
-      // std::cout<<"Setup integrals"<<std::endl;
       setup_integrals(k);
       statistics.end();
       for (size_t is = 0; is < _ns; ++is) {
@@ -66,10 +63,10 @@ namespace green::mbpt {
     statistics.end();
 
     statistics.start("reduce");
-    // collect data within a node
-    MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, sigma_tau.win());
-    Sigma_tau += Sigma_local;
-    MPI_Win_unlock(0, sigma_tau.win());
+    // // collect data within a node
+    // MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, sigma_tau.win());
+    // Sigma_tau += Sigma_local;
+    // MPI_Win_unlock(0, sigma_tau.win());
     // collect data among nodes
     sigma_tau.fence();
     if (!utils::context.node_rank) {
@@ -88,7 +85,6 @@ namespace green::mbpt {
     delete _coul_int_c_4;
     delete _coul_int_x_3;
     delete _coul_int_x_4;
-    Sigma_local.resize(0, 0, 0, 0, 0);
     _G_k1_tmp.resize(0, 0);
     _Gb_k2_tmp.resize(0, 0);
     _G_k3_tmp.resize(0, 0);
@@ -152,17 +148,7 @@ namespace green::mbpt {
             // v1 for direct
             MMatrixXcd vm_1(vijkl.data() + i * nao3, nao2, _nao);
             // Direct diagram
-            // std::cout<<"Start contraction"<<std::endl;
             contraction(nao2, nao3, is == isp, false, G1, G2, G3, Xm_4, Xm_1, Xm_2, Ym_1, Ym_2, vm_1, Xm, Vm, Vmx, Sm);
-            // if (is == isp) {
-            //  Exchange diagram
-            //   if (_ewald) {
-            //     MMatrixXcd vmx_1(vxijkl.data() + i * nao3, nao2, _nao);
-            //     contraction(nao2, nao3, G1, G2, G3, Xm_4, Xm_1, Xm_2, Ym_1, Ym_2, vmx_1, Xm, Vmx, Sm);
-            //   } else {
-            //     contraction(nao2, nao3, G1, G2, G3, Xm_4, Xm_1, Xm_2, Ym_1, Ym_2, vm_1, Xm, Vmx, Sm);
-            //   }
-            // }
           }
         }
       }
@@ -256,12 +242,5 @@ namespace green::mbpt {
     }
     // v1 for direct term
     v = v1.transpose() * v2;
-    // if (_ewald) {
-    //   // v1 for exchange term
-    //   CMMatrixXcd v3(_coul_int3->vij_Q().data() + k1 * _nao * _nao * _NQ, _NQ, _nao * _nao);
-    //   CMMatrixXcd v4(_coul_int4->vij_Q().data() + k2 * _nao * _nao * _NQ, _NQ, _nao * _nao);
-    //   // v1 for exchange term
-    //   vx = v3.transpose() * v4;
-    // }
   }
 }  // namespace green::mbpt
