@@ -167,7 +167,7 @@ def save_dca_data(args, lattice_kmesh, full_mesh, H0_lattice, S_lattice):
 
 def save_data(args, mycell, mf, kmesh, ind, weight, num_ik, ir_list, conj_list, Nk, nk, NQ, F, S, T, hf_dm, 
               Zs, last_ao):
-    kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored = int_utils.integrals_grid(mycell, kmesh)
+    kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored, kptis, kptjs = int_utils.integrals_grid(mycell, kmesh)
     print("number of reduced k-pairs: ", num_kpair_stored)
     inp_data = h5py.File(args.output_path, "w")
     inp_data["grid/k_mesh"] = kmesh
@@ -519,7 +519,7 @@ def store_k_grid(args, mycell, kmesh, k_ibz, ir_list, conj_list, weight, ind, nu
     inp_data = h5py.File(args.output_path, "a")
     nk = kmesh.shape[0]
     ink = k_ibz.shape[0]
-    kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored = int_utils.integrals_grid(mycell, kmesh)
+    kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored, kptis, kptjs = int_utils.integrals_grid(mycell, kmesh)
     print("number of reduced k-pairs: ", num_kpair_stored)
     if not "grid" in inp_data:
         inp_data.create_group("grid")
