@@ -1,9 +1,27 @@
 /*
- * Copyright (c) 2020-2022 University of Michigan.
+ * Copyright (c) 2023 University of Michigan
  *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this
+ * software and associated documentation files (the “Software”), to deal in the Software
+ * without restriction, including without limitation the rights to use, copy, modify,
+ * merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+ * PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+ * FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
  */
 
 #include "green/mbpt/gf2_solver.h"
+
+#include <green/mbpt/common_utils.h>
 
 #include <Eigen/Core>
 #include <Eigen/LU>
@@ -30,12 +48,14 @@ namespace green::mbpt {
     _coul_int_x_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
     auto& Sigma_tau            = sigma_tau.object();
     // clean self_energy array
-    Sigma_local = Sigma_tau;
+    Sigma_local                = Sigma_tau;
     sigma_tau.fence();
     if (!utils::context.node_rank) Sigma_tau.set_zero();
     sigma_tau.fence();
     statistics.start("GF2 total");
+    auto [ntau_local, tau_offset] = compute_local_and_offset_node_comm(_nts);
     // start main loop
+    MPI_Win_lock_all(MPI_MODE_NOCHECK, sigma_tau.win());
     for (size_t k1k3k2 = utils::context.internode_rank; k1k3k2 < _nk * _nk * _ink; k1k3k2 += utils::context.internode_size) {
       size_t                k1_pos = k1k3k2 / (_nk * _nk);
       // Link the reduce index (k1_pos) to corresponding momentum
@@ -51,9 +71,12 @@ namespace green::mbpt {
       setup_integrals(k);
       statistics.end();
       for (size_t is = 0; is < _ns; ++is) {
-        selfenergy_innerloop(k, is, g_tau.object());
+        selfenergy_innerloop(tau_offset, ntau_local, k, is, g_tau.object());
       }
     }
+    MPI_Win_sync(sigma_tau.win());
+    MPI_Barrier(utils::context.node_comm);
+    MPI_Win_unlock_all(sigma_tau.win());
     MPI_Barrier(utils::context.global);
     statistics.start("correction");
     if (_ewald) {
@@ -96,7 +119,7 @@ namespace green::mbpt {
     MPI_Op_free(&matrix_sum_op);
   }
 
-  void gf2_solver::selfenergy_innerloop(const std::array<size_t, 4>& k, size_t is, const ztensor<5>& Gr_full_tau) {
+  void gf2_solver::selfenergy_innerloop(size_t tau_offset, size_t ntau_local, const std::array<size_t, 4>& k, size_t is, const ztensor<5>& Gr_full_tau) {
     statistics.start("nao");
     size_t nao2     = _nao * _nao;
     size_t nao3     = _nao * _nao * _nao;
@@ -127,7 +150,7 @@ namespace green::mbpt {
 
       // Loop over tau indices
 #pragma omp for
-      for (size_t t = 0; t < _nts; ++t) {
+      for (size_t t = tau_offset, ttt = 0; ttt < ntau_local; ++t, ++ttt) {
         int shift = t * _ns * _ink * nao2 + is * _ink * nao2 + momshift;
         int tt    = _nts - t - 1;
         // initialize Green's functions

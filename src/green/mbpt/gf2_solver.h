@@ -118,7 +118,7 @@ namespace green::mbpt {
     /**
      * Performs loop over time for fixed set of k-points
      */
-    void      selfenergy_innerloop(const std::array<size_t, 4>& k, size_t is, const ztensor<5>& Gr_full_tau);
+    void      selfenergy_innerloop(size_t tau_offset, size_t ntau_local, const std::array<size_t, 4>& k, size_t is, const ztensor<5>& Gr_full_tau);
 
     MatrixXcd extract_G_tau_k(const ztensor<5>& G_tau, size_t t, size_t k_pos, size_t k_red, size_t s) {
       int         ts_shift = t * G_tau.shape()[1] * G_tau.shape()[2] * _nao * _nao + s * G_tau.shape()[2] * _nao * _nao;
