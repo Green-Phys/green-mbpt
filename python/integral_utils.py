@@ -233,11 +233,11 @@ def integrals_grid(mycell, kmesh):
     kij_conj, kij_trans = kpair_reduced_lists(kptis, kptjs, kptij_idx, kmesh, a_lattice)
     kpair_irre_list = np.argwhere(kij_conj == kij_trans)[:,0]
     num_kpair_stored = len(kpair_irre_list)
-    return kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored
+    return kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored, kptis, kptjs
 
 def compute_integrals(args, mycell, mydf, kmesh, nao, X_k=None, basename = "df_int", cderi_name="cderi.h5", keep=True, symm=True):
 
-    kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored = integrals_grid(mycell, kmesh)
+    kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored, kptis, kptjs = integrals_grid(mycell, kmesh)
 
     mydf.kpts = kmesh
     filename = basename + "/meta.h5"
