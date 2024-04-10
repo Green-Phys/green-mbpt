@@ -286,6 +286,10 @@ def add_common_params(parser):
     parser.add_argument("--high_symmetry_path_points", type=int, default=0, help="Number of points for high symmetry path")
     parser.add_argument("--memory", type=int, default=700, help="Memory bound for integral chunk in MB")
     parser.add_argument("--grid_only", type=lambda x: (str(x).lower() in ['true','1', 'yes']), default='false', help="Only recompute k-grid points")
+    parser.add_argument("--diffuse_cutoff", type=float, default=0.0, help="Remove the diffused Gaussians whose exponents are less than the cutoff")
+    parser.add_argument("--damping", type=float, default=0.0, help="Damping factor for mean-field iterations")
+    parser.add_argument("--max_iter", type=int, default=100, help="Maximum number of iterations in the SCF loop")
+
 
 def init_dca_params(a, atoms):
     parser = argparse.ArgumentParser(description="GF2 initialization script")
@@ -339,6 +343,7 @@ def cell(args):
         spin = args.spin,
     )
     _a = c.lattice_vectors()
+    c.exp_to_discard = args.diffuse_cutoff
     if np.linalg.det(_a) < 0:
         raise "Lattice are not in right-handed coordinate system. Please correct your lattice vectors"
     return c
@@ -491,7 +496,7 @@ def read_dm(dm0, dm_file):
 
 def solve_mean_field(args, mydf, mycell):
     print("Solve LDA")
-    #prepate and solve DFT
+    # prepare and solve DFT
     mf    = args.mean_field(mycell,mydf.kpts).density_fit() # if args.xc is not None else scf.KUHF(mycell,mydf.kpts).density_fit()
     if args.xc is not None:
         mf.xc = args.xc
@@ -500,7 +505,8 @@ def solve_mean_field(args, mydf, mycell):
     mf.kpts = mydf.kpts
     mf.with_df = mydf
     mf.diis_space = 16
-    mf.max_cycle = 100
+    mf.damp = args.damping
+    mf.max_cycle = args.max_iter
     mf.chkfile = 'tmp.chk'
     if os.path.exists("tmp.chk"):
         init_dm = mf.from_chk('tmp.chk')
