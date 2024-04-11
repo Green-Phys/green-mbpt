@@ -47,7 +47,8 @@ namespace green::mbpt {
      */
     gf2_solver(const params::params& p, const grids::transformer_t& tr, const bz_utils_t& bz) :
         _nts(tr.sd().repn_fermi().nts()), _nk(bz.nk()), _ink(bz.ink()), _path(p["dfintegral_file"]),
-        _ewald(p["dfintegral_file"].as<std::string>() != p["dfintegral_hf_file"].as<std::string>()), _bz_utils(bz) {
+        _ewald(p["dfintegral_file"].as<std::string>() != p["dfintegral_hf_file"].as<std::string>()), _bz_utils(bz),
+        statistics("GF2") {
       h5pp::archive ar(p["input_file"]);
       ar["params/nao"] >> _nao;
       ar["params/nso"] >> _nso;
