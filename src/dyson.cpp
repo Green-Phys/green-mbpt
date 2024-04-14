@@ -135,12 +135,13 @@ namespace green::mbpt {
         mu1  = mu;
         nel1 = nel;
       }
+      if(!utils::context.global_rank && _verbose != 0) { std::cout << ss.str() << std::flush; ss.str("");}
       while (std::abs((nel - _nel) / double(_nel)) > _tol && std::abs(mu2 - mu1) > 0.01 * _tol) {
         mu      = (mu1 + mu2) * 0.5;
         nel_old = compute_number_of_electrons(mu, eigenvalues_Sigma_p_F);
         // check if we get stuck in chemical potential search
-        if (std::abs((nel_old - _nel) / double(_nel)) > _tol && std::abs(nel - nel_old) < _tol) {
-          throw mbpt_chemical_potential_search_failure("Chemical potential search failed");
+        if (std::abs((nel_old - _nel) / double(_nel)) > _tol && std::abs(nel - nel_old) < 0.001*_tol) {
+          throw mbpt_chemical_potential_search_failure("Chemical potential search failed.");
         }
         nel = nel_old;
         if (nel > _nel) {
@@ -149,6 +150,7 @@ namespace green::mbpt {
           mu1 = mu;
         }
         if (!utils::context.global_rank && _verbose != 0) ss << "nel:" << nel << " mu: " << mu << std::endl;
+        if (!utils::context.global_rank && _verbose != 0) { std::cout << ss.str() << std::flush; ss.str(""); }
       }
     }
     if (!utils::context.global_rank) {
