@@ -60,15 +60,7 @@ def init_input_data(args, cell):
     '''
     Generate integrals for mean-field calculations
     '''
-    mydf   = comm.df.GDF(mycell)
-    if args.auxbasis is not None:
-        mydf.auxbasis = args.auxbasis
-    elif args.beta is not None:
-        mydf.auxbasis = comm.df.aug_etb(mycell, beta=args.beta)
-    # Coulomb kernel mesh
-    if Nk > 0:
-        mydf.mesh = [Nk, Nk, Nk]
-    mydf.kpts = kmesh
+    mydf = comm.construct_gdf(args, mycell, kmesh)
     if os.path.exists("cderi.h5"):
         mydf._cderi = "cderi.h5"
     else:
