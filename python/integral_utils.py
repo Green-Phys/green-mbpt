@@ -1,10 +1,13 @@
-import numpy as np
-from pyscf.pbc import gto, df, tools
-from pyscf.df import addons
-import h5py
 import os
-import shutil
+import random
+import string
+
+import h5py
+import numpy as np
 from numba import jit
+from pyscf.df import addons
+from pyscf.pbc import df, tools
+
 
 def compute_kG(k, Gv, wrap_around, mesh, cell):
     if abs(k).sum() > 1e-9:
@@ -145,8 +148,9 @@ def get_coarsegrained_coulG(lattice_kmesh, cell, k=np.zeros(3), exx=False, mf=No
 
     return coulG
 
-def weighted_coulG_ewald(mydf, kpt, exx, mesh):
-    return df.aft.weighted_coulG(mydf, kpt, True, mesh)
+def weighted_coulG_ewald(mydf, kpt, exx, mesh, omega=None):
+    print("\n\n\n\nTHERE!!!\n\n\n\n")
+    return df.aft.weighted_coulG(mydf, kpt, "ewald", mesh, omega)
 
 # a = lattice vectors / (2*pi)
 @jit(nopython=True)
@@ -235,7 +239,7 @@ def integrals_grid(mycell, kmesh):
     num_kpair_stored = len(kpair_irre_list)
     return kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored, kptis, kptjs
 
-def compute_integrals(args, mycell, mydf, kmesh, nao, X_k=None, basename = "df_int", cderi_name="cderi.h5", keep=True, symm=True):
+def compute_integrals(args, mycell, mydf, kmesh, nao, X_k=None, basename = "df_int", cderi_name="cderi.h5", keep=True, keep_after=False):
 
     kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored, kptis, kptjs = integrals_grid(mycell, kmesh)
 
@@ -243,7 +247,9 @@ def compute_integrals(args, mycell, mydf, kmesh, nao, X_k=None, basename = "df_i
     filename = basename + "/meta.h5"
     os.system("sync") # This is needed to syncronize the NFS between nodes
     if os.path.exists(basename):
-        unsafe_rm = "rm  " + basename + "/*"
+        unsafe_rm = "rm  " + basename + "/VQ*"
+        os.system(unsafe_rm)
+        unsafe_rm = "rm  " + basename + "/meta*"
         os.system(unsafe_rm)
         # This is needed to ensure that files are removed both on the computational and head nodes:
         os.system("sync") 
@@ -328,5 +334,112 @@ def compute_integrals(args, mycell, mydf, kmesh, nao, X_k=None, basename = "df_i
     data["chunk_size"] = chunk_size
     data["chunk_indices"] = np.array(chunk_indices)
     data.close()
+    if not keep_after:
+        os.remove(cderi_name)
+        os.system("sync")
     print("Integrals have been computed and stored into {}".format(filename))
     return kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored
+
+def weighted_coulG_ewald_2nd(mydf, kpt, exx, mesh):
+    # this is a dirty hack
+    # PySCF needs to have a full k-grid to properly compute the madelung constant
+    # but we want to compute only the contribution for ki == kj to speedup this calculations
+    # TODO Double check where we define full_k_mesh?
+    print("\n\n!!!weighted_coulG_ewald_2nd!!!!\n")
+    if not hasattr(mydf, 'full_k_mesh'):
+        raise RuntimeError("Using wrong DF object")
+    oldkpts = mydf.kpts
+    mydf.kpts = mydf.full_k_mesh
+    coulG = df.aft.weighted_coulG(mydf, kpt, True, mesh)
+    mydf.kpts = oldkpts
+    return coulG
+
+def compute_ewald_correction(args, maindf, kmesh, nao, filename = "df_ewald.h5"):
+    # global full_k_mesh
+    data = h5py.File(filename, "w")
+    EW     = data.create_group("EW")
+    EW_bar = data.create_group("EW_bar")
+    # keep original method for computing Coulomb kernel
+    weighted_coulG_old = df.aft.weighted_coulG
+
+    # density-fitting w/o ewald correction for fine grid
+    df2 = df.GDF(maindf.cell)
+    if maindf.auxbasis is not None:
+        df2.auxbasis = maindf.auxbasis
+    # Coulomb kernel mesh
+    df2.mesh = maindf.mesh
+    cderi_file_2 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10)) + ".h5"
+    df2._cderi_to_save = cderi_file_2
+    df2._cderi = cderi_file_2
+    df2.kpts = kmesh
+    df2.build()
+
+    # densities buffer
+    auxcell = addons.make_auxmol(maindf.cell, maindf.auxbasis)
+    NQ = auxcell.nao_nr()
+    buffer1 = np.zeros((NQ, nao, nao), dtype=np.complex128)
+    buffer2 = np.zeros((NQ, nao, nao), dtype=np.complex128)
+    Lpq_mo = np.zeros((NQ, nao, nao), dtype=np.complex128)
+
+    df.aft.weighted_coulG = weighted_coulG_ewald_2nd
+    df1 = df.GDF(maindf.cell)
+    if maindf.auxbasis is not None:
+        df1.auxbasis = maindf.auxbasis
+    # Use Ewald for divergence treatment
+    df1.exxdiv = 'ewald'
+    # Coulomb kernel mesh
+    df1.mesh = maindf.mesh
+    df1.full_k_mesh = maindf.kpts
+    cderi_file_1 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10)) + ".h5"
+    df1._cderi_to_save = cderi_file_1
+    df1._cderi = cderi_file_1
+    df1.kpts = kmesh
+    df1.build()
+    nk = args.nk
+
+    # We know that G=0 contribution diverge only when q = 0
+    # so we loop over (k1,k1) pairs
+    for i, ki in enumerate(kmesh):
+        # Change the way to compute Coulomb kernel to include G=0 correction
+        df.GDF.weighted_coulG = weighted_coulG_ewald_2nd
+        s1 = 0
+        # Compute three-point integrals with G=0 contribution included with Ewald correction
+        for XXX in df1.sr_loop((ki,ki), max_memory=4000, compact=False):
+            LpqR = XXX[0]
+            LpqI = XXX[1]
+            Lpq = (LpqR + LpqI*1.j).reshape(LpqR.shape[0], nao, nao)
+            for G in range(Lpq.shape[0]):
+                Lpq_mo[G] = Lpq[G]
+            buffer1[s1:s1+Lpq.shape[0], :, :] = Lpq_mo[0:Lpq.shape[0],:,:]
+            s1 += Lpq.shape[0]
+
+        # Restore the way to compute Coulomb kernel
+        df.aft.weighted_coulG = weighted_coulG_old
+        s1 = 0
+        # Compute three-point integral without G=0 contribution included with Ewald correction
+        # and subtract it from the computed buffer to keep pure Ewald correction only
+        for XXX in df2.sr_loop((ki,ki), max_memory=4000, compact=False):
+            LpqR = XXX[0]
+            LpqI = XXX[1]
+            Lpq = (LpqR + LpqI*1.j).reshape(LpqR.shape[0], nao, nao)
+            for G in range(Lpq.shape[0]):
+                Lpq_mo[G] = Lpq[G]
+            buffer2[s1:s1+Lpq.shape[0], :, :] = Lpq_mo[0:Lpq.shape[0],:,:]
+            s1 += Lpq.shape[0]
+
+        # i = k1 * nk * nk + k2 * nk + k3
+        k3 = int(i /(nk*nk))
+        k2 = int((i % (nk*nk))/nk)
+        k1 = int(i % nk)
+        k_fine = (k3) * (nk)*(nk) + (k2) * (nk) + (k1)
+        EW["{}".format(k_fine)] = (buffer1 - buffer2).view(np.float64)
+        EW_bar["{}".format(k_fine)] = buffer2.view(np.float64)
+        buffer1[:] = 0.0
+        buffer2[:] = 0.0
+
+    data.close()
+    # cleanup
+    df.aft.weighted_coulG = weighted_coulG_old
+    os.remove(cderi_file_1)
+    os.remove(cderi_file_2)
+    print("Ewald correction has been computed and stored into {}".format(filename))

@@ -1,13 +1,15 @@
 import argparse
+import os
+
 import h5py
 import numpy as np
-import os
 import pyscf.lib.chkfile as chk
 from numba import jit
 from pyscf import gto as mgto
 from pyscf.pbc import tools, gto, df, scf, dft
 
 import integral_utils as int_utils
+
 
 def construct_rmesh(nkx, nky, nkz):
   #rx = np.linspace(0, nkx, nkx, endpoint=False)
@@ -165,7 +167,7 @@ def save_dca_data(args, lattice_kmesh, full_mesh, H0_lattice, S_lattice):
     inp_data["lattice_mesh"] = lattice_kmesh
     inp_data.close()
 
-def save_data(args, mycell, mf, kmesh, ind, weight, num_ik, ir_list, conj_list, Nk, nk, NQ, F, S, T, hf_dm, 
+def save_data(args, mycell, mf, kmesh, ind, weight, num_ik, ir_list, conj_list, Nk, nk, NQ, F, S, T, hf_dm,
               Zs, last_ao):
     kptij_idx, kij_conj, kij_trans, kpair_irre_list, num_kpair_stored, kptis, kptjs = int_utils.integrals_grid(mycell, kmesh)
     print("number of reduced k-pairs: ", num_kpair_stored)
@@ -289,6 +291,8 @@ def add_common_params(parser):
     parser.add_argument("--diffuse_cutoff", type=float, default=0.0, help="Remove the diffused Gaussians whose exponents are less than the cutoff")
     parser.add_argument("--damping", type=float, default=0.0, help="Damping factor for mean-field iterations")
     parser.add_argument("--max_iter", type=int, default=100, help="Maximum number of iterations in the SCF loop")
+    parser.add_argument("--keep_cderi", type=lambda x: (str(x).lower() in ['true','1', 'yes']), default='false', help="Keep generated cderi files.")
+    parser.add_argument("--job", choices=["init", "sym_path", "ewald_corr"], default="init")
 
 
 def init_dca_params(a, atoms):
@@ -530,7 +534,7 @@ def store_k_grid(args, mycell, kmesh, k_ibz, ir_list, conj_list, weight, ind, nu
     if not "grid" in inp_data:
         inp_data.create_group("grid")
     grid_grp = inp_data["grid"]
-    data = [kmesh, mycell.get_scaled_kpts(kmesh), ind, weight, num_ik, nk, ir_list, conj_list, 
+    data = [kmesh, mycell.get_scaled_kpts(kmesh), ind, weight, num_ik, nk, ir_list, conj_list,
                kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored]
     names = ["k_mesh", "k_mesh_scaled", "index", "weight", "ink", "nk", "ir_list", "conj_list",
                 "conj_pairs_list", "trans_pairs_list", "kpair_irre_list", "kpair_idx", "num_kpair_stored" ]
@@ -562,7 +566,7 @@ def compute_df_int(args, mycell, kmesh, nao, X_k, lattice_kmesh=np.zeros([3,3]))
     weighted_coulG_old = df.GDF.weighted_coulG
     df.GDF.weighted_coulG = int_utils.weighted_coulG_ewald
 
-    kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored = int_utils.compute_integrals(args, mycell, mydf, kmesh, nao, X_k, "df_int", "cderi_ewald.h5", True)
+    kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored = int_utils.compute_integrals(args, mycell, mydf, kmesh, nao, X_k, "df_int", "cderi_ewald.h5", True, args.keep_cderi)
 
     mydf = None
     # Use gaussian density fitting to get fitted densities
@@ -577,12 +581,24 @@ def compute_df_int(args, mycell, kmesh, nao, X_k, lattice_kmesh=np.zeros([3,3]))
     df.GDF.weighted_coulG = weighted_coulG_old
     int_utils.compute_integrals(args, mycell, mydf, kmesh, nao, X_k, "df_hf_int", "cderi.h5", True)
 
+def compute_ewald_correction(args, cell, kmesh, filename):
+    # Use gaussian density fitting to get fitted densities
+    mydf = df.GDF(cell)
+    if args.auxbasis is not None:
+        mydf.auxbasis = args.auxbasis
+    elif args.beta is not None:
+        mydf.auxbasis = df.aug_etb(cell, beta=args.beta)
+    # Coulomb kernel mesh
+    if args.Nk > 0:
+        mydf.mesh = [args.Nk, args.Nk, args.Nk]
+    int_utils.compute_ewald_correction(args, mydf, kmesh, cell.nao_nr(), filename)
+
 def compute_df_int_dca(args, mycell, kmesh, lattice_kmesh, nao, X_k):
     '''
     Generate density-fitting integrals for correlated methods
     '''
 
-    
+
     if not bool(args.df_int):
         return
     # Use gaussian density fitting to get fitted densities
