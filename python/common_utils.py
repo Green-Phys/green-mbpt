@@ -541,15 +541,11 @@ def store_k_grid(args, mycell, kmesh, k_ibz, ir_list, conj_list, weight, ind, nu
             grid_grp[name] = data[i]
     inp_data.close()
 
-
-def compute_df_int(args, mycell, kmesh, nao, X_k, lattice_kmesh=np.zeros([3,3])):
-    '''
-    Generate density-fitting integrals for correlated methods
-    '''
-    if not bool(args.df_int):
-        return
+def construct_gdf(args, mycell, kmesh=None):
     # Use gaussian density fitting to get fitted densities
     mydf = df.GDF(mycell)
+    if hasattr(mydf, "_prefer_ccdf"):
+        mydf._prefer_ccdf = True  # Disable RS-GDF switch for new pyscf versions 
     if args.auxbasis is not None:
         mydf.auxbasis = args.auxbasis
     elif args.beta is not None:
@@ -557,6 +553,18 @@ def compute_df_int(args, mycell, kmesh, nao, X_k, lattice_kmesh=np.zeros([3,3]))
     # Coulomb kernel mesh
     if args.Nk > 0:
         mydf.mesh = [args.Nk, args.Nk, args.Nk]
+    if kmesh is not None:
+        mydf.kpts = kmesh
+    return mydf
+
+
+def compute_df_int(args, mycell, kmesh, nao, X_k, lattice_kmesh=np.zeros([3,3])):
+    '''
+    Generate density-fitting integrals for correlated methods
+    '''
+    if not bool(args.df_int):
+        return
+    mydf = construct_gdf(args, mycell, kmesh)
     # Use Ewald for divergence treatment
     mydf.exxdiv = 'ewald'
     weighted_coulG_old = df.GDF.weighted_coulG
@@ -565,15 +573,7 @@ def compute_df_int(args, mycell, kmesh, nao, X_k, lattice_kmesh=np.zeros([3,3]))
     kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored = int_utils.compute_integrals(args, mycell, mydf, kmesh, nao, X_k, "df_int", "cderi_ewald.h5", True)
 
     mydf = None
-    # Use gaussian density fitting to get fitted densities
-    mydf = df.GDF(mycell)
-    if args.auxbasis is not None:
-        mydf.auxbasis = args.auxbasis
-    elif args.beta is not None:
-        mydf.auxbasis = df.aug_etb(mycell, beta=args.beta)
-    # Coulomb kernel mesh
-    if args.Nk > 0:
-        mydf.mesh = [args.Nk, args.Nk, args.Nk]
+    mydf = construct_gdf(args, mycell, kmesh)
     df.GDF.weighted_coulG = weighted_coulG_old
     int_utils.compute_integrals(args, mycell, mydf, kmesh, nao, X_k, "df_hf_int", "cderi.h5", True)
 
@@ -585,23 +585,13 @@ def compute_df_int_dca(args, mycell, kmesh, lattice_kmesh, nao, X_k):
     
     if not bool(args.df_int):
         return
-    # Use gaussian density fitting to get fitted densities
-    mydf = df.GDF(mycell)
-    mydf.kpts = kmesh
-
+    mydf = construct_gdf(args, mycell, kmesh)
     #fullkpts = np.zeros([mydf.kpts.shape[0]*lattice_kmesh.shape[0],3])
     #for ikk, kk in enumerate(mydf.kpts):
     #    for ikkp, kkp in enumerate(lattice_kmesh):
     #        fullkpts[ikk*lattice_kmesh.shape[0] + ikkp] = kk + kkp
     #        print(ikk, ikkp, mycell.get_abs_kpts(kk + kkp), mycell.get_scaled_kpts(kk + kkp))
     #exit(0)
-    if args.auxbasis is not None:
-        mydf.auxbasis = args.auxbasis
-    elif args.beta is not None:
-        mydf.auxbasis = df.aug_etb(mycell, beta=args.beta)
-    # Coulomb kernel mesh
-    if args.Nk > 0:
-        mydf.mesh = [args.Nk, args.Nk, args.Nk]
     # Use Ewald for divergence treatment
     mydf.exxdiv = 'ewald'
     weighted_coulG_old = df.GDF.weighted_coulG
@@ -613,15 +603,7 @@ def compute_df_int_dca(args, mycell, kmesh, lattice_kmesh, nao, X_k):
     kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored = int_utils.compute_integrals(mycell, mydf, kmesh, nao, X_k, args.int_path, "cderi_ewald_dca.h5", False)
 
     mydf = None
-    # Use gaussian density fitting to get fitted densities
-    mydf = df.GDF(mycell)
-    if args.auxbasis is not None:
-        mydf.auxbasis = args.auxbasis
-    elif args.beta is not None:
-        mydf.auxbasis = df.aug_etb(mycell, beta=args.beta)
-    # Coulomb kernel mesh
-    if args.Nk > 0:
-        mydf.mesh = [args.Nk, args.Nk, args.Nk]
+    mydf = construct_gdf(args, mycell, kmesh)
     df.GDF.weighted_coulG = weighted_coulG_old
     int_utils.compute_integrals(mycell, mydf, kmesh, nao, X_k, args.hf_int_path, "cderi_dca.h5", False)
 
