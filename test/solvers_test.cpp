@@ -126,9 +126,9 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
   REQUIRE_THAT(S_shared.object(), IsCloseTo(S_shared_tst.object(), 1e-6));
 }
 
-void solve_gf2(const std::string &df_int_path, const std::string &test_file) {
+void solve_gf2(const std::string &df_int_path, const std::string &test_file, const std::string &input_file) {
   auto        p           = green::params::params("DESCR");
-  std::string input_file  = TEST_PATH + "/GF2/input.h5"s;
+
   std::string grid_file   = GRID_PATH + "/ir/1e4.h5"s;
   std::string args =
       "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_DAMPING --damping 0.8 --input_file=" + input_file +
@@ -187,15 +187,15 @@ TEST_CASE("MBPT Solver") {
   SECTION("GW_X2C") { solve_gw("/GW_X2C/input.h5", "/GW_X2C/df_hf_int", "/GW_X2C/data.h5"); }
 
   SECTION("GF2") {
-    solve_gf2(TEST_PATH + "/GF2/df_hf_int"s, TEST_PATH + "/GF2/data.h5"s);
+    solve_gf2(TEST_PATH + "/GF2/df_hf_int"s, TEST_PATH + "/GF2/data.h5"s, TEST_PATH + "/GF2/input.h5"s);
   }
 
   SECTION("GF2_Empty_Ewald") {
-    solve_gf2(TEST_PATH + "/GF2/df_hf_int_z"s, TEST_PATH + "/GF2/data.h5"s);
+    solve_gf2(TEST_PATH + "/GF2/df_hf_int_z"s, TEST_PATH + "/GF2/data.h5"s, TEST_PATH + "/GF2/input.h5"s);
   }
 
   SECTION("GF2_Ewald") {
-    solve_gf2( TEST_PATH + "/GF2/df_hf_int_e"s, TEST_PATH + "/GF2/data_e.h5"s);
+    solve_gf2( TEST_PATH + "/GF2/df_hf_int_e"s, TEST_PATH + "/GF2/data_e.h5"s,TEST_PATH + "/GF2/input_e.h5"s);
   }
 
   SECTION("Init real Dyson") {

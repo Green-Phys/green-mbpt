@@ -37,9 +37,6 @@ namespace green::mbpt {
     vcijkl.resize(_nao, _nao, _nao, _nao);
     vxijkl.resize(_nao, _nao, _nao, _nao);
     vxcijkl.resize(_nao, _nao, _nao, _nao);
-    h5pp::archive ccc("g_out.h5", "w");
-    ccc["G_tau"] << g_tau.object();
-    ccc.close();
     //
     MPI_Datatype dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
     MPI_Op       matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
