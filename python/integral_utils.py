@@ -345,12 +345,11 @@ def weighted_coulG_ewald_2nd(mydf, kpt, exx, mesh):
     # PySCF needs to have a full k-grid to properly compute the madelung constant
     # but we want to compute only the contribution for ki == kj to speedup this calculations
     # TODO Double check where we define full_k_mesh?
-    print("\n\n!!!weighted_coulG_ewald_2nd!!!!\n")
-    if not hasattr(mydf, 'full_k_mesh'):
-        raise RuntimeError("Using wrong DF object")
+    if not hasattr(mydf.cell, 'full_k_mesh'):
+         raise RuntimeError("Using wrong DF object")
     oldkpts = mydf.kpts
-    mydf.kpts = mydf.full_k_mesh
-    coulG = df.aft.weighted_coulG(mydf, kpt, True, mesh)
+    mydf.kpts = mydf.cell.full_k_mesh
+    coulG = df.aft.weighted_coulG(mydf, kpt, 'ewald', mesh)
     mydf.kpts = oldkpts
     return coulG
 
@@ -360,10 +359,13 @@ def compute_ewald_correction(args, maindf, kmesh, nao, filename = "df_ewald.h5")
     EW     = data.create_group("EW")
     EW_bar = data.create_group("EW_bar")
     # keep original method for computing Coulomb kernel
-    weighted_coulG_old = df.aft.weighted_coulG
+    import pyscf.pbc.df.gdf_builder as gdf
+    weighted_coulG_old = gdf._CCGDFBuilder.weighted_coulG
 
     # density-fitting w/o ewald correction for fine grid
     df2 = df.GDF(maindf.cell)
+    if hasattr(df2, "_prefer_ccdf"):
+        df2._prefer_ccdf = True  # Disable RS-GDF switch for new pyscf versions
     if maindf.auxbasis is not None:
         df2.auxbasis = maindf.auxbasis
     # Coulomb kernel mesh
@@ -381,15 +383,18 @@ def compute_ewald_correction(args, maindf, kmesh, nao, filename = "df_ewald.h5")
     buffer2 = np.zeros((NQ, nao, nao), dtype=np.complex128)
     Lpq_mo = np.zeros((NQ, nao, nao), dtype=np.complex128)
 
-    df.aft.weighted_coulG = weighted_coulG_ewald_2nd
+    gdf._CCGDFBuilder.weighted_coulG = weighted_coulG_ewald_2nd
+    # df.aft.weighted_coulG = weighted_coulG_ewald_2nd
     df1 = df.GDF(maindf.cell)
+    df1.cell.full_k_mesh = maindf.kpts
+    if hasattr(df1, "_prefer_ccdf"):
+        df1._prefer_ccdf = True  # Disable RS-GDF switch for new pyscf versions
     if maindf.auxbasis is not None:
         df1.auxbasis = maindf.auxbasis
     # Use Ewald for divergence treatment
     df1.exxdiv = 'ewald'
     # Coulomb kernel mesh
     df1.mesh = maindf.mesh
-    df1.full_k_mesh = maindf.kpts
     cderi_file_1 = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10)) + ".h5"
     df1._cderi_to_save = cderi_file_1
     df1._cderi = cderi_file_1
@@ -401,7 +406,8 @@ def compute_ewald_correction(args, maindf, kmesh, nao, filename = "df_ewald.h5")
     # so we loop over (k1,k1) pairs
     for i, ki in enumerate(kmesh):
         # Change the way to compute Coulomb kernel to include G=0 correction
-        df.GDF.weighted_coulG = weighted_coulG_ewald_2nd
+        # df.GDF.weighted_coulG = weighted_coulG_ewald_2nd
+        gdf._CCGDFBuilder.weighted_coulG = weighted_coulG_ewald_2nd
         s1 = 0
         # Compute three-point integrals with G=0 contribution included with Ewald correction
         for XXX in df1.sr_loop((ki,ki), max_memory=4000, compact=False):
@@ -414,7 +420,8 @@ def compute_ewald_correction(args, maindf, kmesh, nao, filename = "df_ewald.h5")
             s1 += Lpq.shape[0]
 
         # Restore the way to compute Coulomb kernel
-        df.aft.weighted_coulG = weighted_coulG_old
+        # df.aft.weighted_coulG = weighted_coulG_old
+        gdf._CCGDFBuilder.weighted_coulG = weighted_coulG_old
         s1 = 0
         # Compute three-point integral without G=0 contribution included with Ewald correction
         # and subtract it from the computed buffer to keep pure Ewald correction only
@@ -439,7 +446,8 @@ def compute_ewald_correction(args, maindf, kmesh, nao, filename = "df_ewald.h5")
 
     data.close()
     # cleanup
-    df.aft.weighted_coulG = weighted_coulG_old
+    # df.aft.weighted_coulG = weighted_coulG_old
+    gdf._CCGDFBuilder.weighted_coulG = weighted_coulG_old
     os.remove(cderi_file_1)
     os.remove(cderi_file_2)
     print("Ewald correction has been computed and stored into {}".format(filename))

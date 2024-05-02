@@ -571,14 +571,15 @@ def compute_df_int(args, mycell, kmesh, nao, X_k, lattice_kmesh=np.zeros([3,3]))
     mydf = construct_gdf(args, mycell, kmesh)
     # Use Ewald for divergence treatment
     mydf.exxdiv = 'ewald'
-    weighted_coulG_old = df.GDF.weighted_coulG
-    df.GDF.weighted_coulG = int_utils.weighted_coulG_ewald
+    import pyscf.pbc.df.gdf_builder as gdf
+    weighted_coulG_old = gdf._CCGDFBuilder.weighted_coulG
+    gdf._CCGDFBuilder.weighted_coulG = int_utils.weighted_coulG_ewald
 
     kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored = int_utils.compute_integrals(args, mycell, mydf, kmesh, nao, X_k, "df_int", "cderi_ewald.h5", True, args.keep_cderi)
 
     mydf = None
     mydf = construct_gdf(args, mycell, kmesh)
-    df.GDF.weighted_coulG = weighted_coulG_old
+    gdf._CCGDFBuilder.weighted_coulG = weighted_coulG_old
     int_utils.compute_integrals(args, mycell, mydf, kmesh, nao, X_k, "df_hf_int", "cderi.h5", True)
 
 def compute_ewald_correction(args, cell, kmesh, filename):
