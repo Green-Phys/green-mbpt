@@ -6,9 +6,9 @@
 #ifndef GREEN_DFINTEGRAL_H
 #define GREEN_DFINTEGRAL_H
 
+#include <green/symmetry/symmetry.h>
 #include <green/utils/mpi_shared.h>
 #include <green/utils/mpi_utils.h>
-#include <green/symmetry/symmetry.h>
 
 #include <Eigen/Core>
 #include <Eigen/Sparse>
@@ -21,13 +21,13 @@ namespace green::mbpt {
    */
   class df_integral_t {
     // prefixes for hdf5
-    const std::string rval_         = "VQ";
-    const std::string ival_         = "ImVQ";
-    const std::string corr_val_     = "EW";
-    const std::string corr_bar_val_ = "EW_bar";
+    const std::string _chunk_basename    = "VQ";
+    const std::string _corr_path         = "df_ewald.h5";
+    const std::string _corr_basename     = "EW";
+    const std::string _corr_bar_basename = "EW_bar";
 
-    using bz_utils_t                = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
-    using int_data                  = utils::shared_object<ztensor<4>>;
+    using bz_utils_t                     = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using int_data                       = utils::shared_object<ztensor<4>>;
 
   public:
     using MatrixXcd = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
@@ -50,7 +50,7 @@ namespace green::mbpt {
      * @param k2
      * @param type
      */
-    void     read_integrals(size_t k1, size_t k2) {
+    void read_integrals(size_t k1, size_t k2) {
       assert(k1 >= 0);
       assert(k2 >= 0);
       // Find corresponding index for k-pair (k1,k2). Only k-pair with k1 > k2 will be stored.
@@ -73,7 +73,7 @@ namespace green::mbpt {
     }
 
     void read_a_chunk(size_t c_id, ztensor<4>& V_buffer) {
-      std::string   fname = _base_path + "/" + rval_ + "_" + std::to_string(c_id) + ".h5";
+      std::string   fname = _base_path + "/" + _chunk_basename + "_" + std::to_string(c_id) + ".h5";
       hid_t         file  = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
       h5pp::archive ar(fname);
       ar["/" + std::to_string(c_id)] >> reinterpret_cast<double*>(V_buffer.data());
@@ -97,8 +97,8 @@ namespace green::mbpt {
      */
     void read_correction(int k) {
       auto shape = _vij_Q->object().shape();
-      _v0ij_Q.reshape(shape[1], shape[2], shape[3]);
-      _v_bar_ij_Q.reshape(shape[1], shape[2], shape[3]);
+      _v0ij_Q.resize(shape[1], shape[2], shape[3]);
+      _v_bar_ij_Q.resize(shape[1], shape[2], shape[3]);
       // avoid unnecessary reading
       if (k == _k0) {
         // we have data cached
@@ -106,14 +106,14 @@ namespace green::mbpt {
       }
       _k0                 = k;
       std::string   inner = std::to_string(_current_chunk * _chunk_size);
-      std::string   fname = _base_path + "/" + corr_val_ + ".h5";
+      std::string   fname = _base_path + "/" + _corr_path;
       h5pp::archive ar(fname);
       // Construct integral dataset name
-      std::string   dsetnum = corr_val_ + "/" + std::to_string(k);
+      std::string   dsetnum = _corr_basename + "/" + std::to_string(k);
       // read data
       ar[dsetnum] >> reinterpret_cast<double*>(_v0ij_Q.data());
       // Construct integral dataset name
-      dsetnum = corr_bar_val_ + "/" + std::to_string(k);
+      dsetnum = _corr_bar_basename + "/" + std::to_string(k);
       // read data
       ar[dsetnum] >> reinterpret_cast<double*>(_v_bar_ij_Q.data());
       ar.close();
@@ -199,7 +199,7 @@ namespace green::mbpt {
   private:
     // Coulomb integrals stored in density fitting format
     std::shared_ptr<int_data> _vij_Q;
-    // G=0 correction to coulomb integral stored in density fitting format
+    // G=0 correction to coulomb integral stored in density fitting format for second-order e3xchange diagram
     ztensor<3>                _v0ij_Q;
     ztensor<3>                _v_bar_ij_Q;
 

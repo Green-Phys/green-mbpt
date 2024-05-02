@@ -85,17 +85,6 @@ namespace green::mbpt::kernels {
     // ztensor<4>                  _P0_tilde;
     // Dielectric function inverse in the plane-wave basis with G = G' = 0
     ztensor<2>                  _eps_inv_wq;
-
-    // // MPI communicators to be used
-    // MPI_Comm                    _tauspin_comm;
-    // MPI_Comm                    _tau_comm2;
-    // // Number of total processors and MPI jobs on tau+spin axes. Both are specified by users.
-    // int                         _ntauspin_mpi;
-    // // Processors' information
-    // int                         _ntauprocs;
-    // int                         _nspinprocs;
-    // int                         _tauid;
-    // int                         _spinid;
     // Pre-computed fitted densities
     // This object reads 3-index tensors into Vij_Q
     df_integral_t*              _coul_int1;

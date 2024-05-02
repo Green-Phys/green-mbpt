@@ -37,6 +37,9 @@ namespace green::mbpt {
     vcijkl.resize(_nao, _nao, _nao, _nao);
     vxijkl.resize(_nao, _nao, _nao, _nao);
     vxcijkl.resize(_nao, _nao, _nao, _nao);
+    h5pp::archive ccc("g_out.h5", "w");
+    ccc["G_tau"] << g_tau.object();
+    ccc.close();
     //
     MPI_Datatype dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
     MPI_Op       matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
@@ -74,16 +77,16 @@ namespace green::mbpt {
         selfenergy_innerloop(tau_offset, ntau_local, k, is, g_tau.object());
       }
     }
+    statistics.start("correction");
+    if (_ewald) {
+      if (!utils::context.global_rank) std::cout << "Correction for selfenergy" << std::endl;
+      compute_2nd_exch_correction(tau_offset, ntau_local, g_tau.object());
+    }
+    statistics.end();
     MPI_Win_sync(sigma_tau.win());
     MPI_Barrier(utils::context.node_comm);
     MPI_Win_unlock_all(sigma_tau.win());
     MPI_Barrier(utils::context.global);
-    statistics.start("correction");
-    if (_ewald) {
-      if (!utils::context.global_rank) std::cout << "Correction for selfenergy" << std::endl;
-      compute_2nd_exch_correction(g_tau.object());
-    }
-    statistics.end();
 
     statistics.start("reduce");
     // // collect data within a node

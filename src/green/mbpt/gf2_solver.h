@@ -32,22 +32,16 @@ namespace green::mbpt {
     using St_type    = utils::shared_object<ztensor<5>>;
 
   public:
+
     /**
-     * Class constructor
-     * Initialize arrays and indices for GF2 loop
      *
-     * @param nao -- number of atomic orbitals in cell
-     * @param nts -- number of time steps
-     * @param symm -- symmetrize selfenergy
-     * @param nk -- number of k-points
-     * @param NQ -- number of aux basis function in fitted densities
-     * @param Gk -- Green's function array defined in (tau,ncell,nao,nao) domain
-     * @param Sigma -- Self-energy array
-     * @param path -- path to Integrals file
+     * @param p - command line parameters
+     * @param tr - time-frequency transform
+     * @param bz - Brillouin transform
      */
     gf2_solver(const params::params& p, const grids::transformer_t& tr, const bz_utils_t& bz) :
         _nts(tr.sd().repn_fermi().nts()), _nk(bz.nk()), _ink(bz.ink()), _path(p["dfintegral_file"]),
-        _ewald(p["dfintegral_file"].as<std::string>() != p["dfintegral_hf_file"].as<std::string>()), _bz_utils(bz),
+        _ewald(std::filesystem::exists(_path + "/df_ewald.h5")), _bz_utils(bz),
         statistics("GF2") {
       h5pp::archive ar(p["input_file"]);
       ar["params/nao"] >> _nao;
@@ -57,9 +51,13 @@ namespace green::mbpt {
       ar.close();
     }
 
-    /**
-     * Solve GF2 equations for Self-energy
-     */
+     /**
+      * Solve GF2 equations for Self-energy
+      *
+      * @param g_tau - Green's function object
+      * @param sigma1 - static part of the self-energy
+      * @param sigma_tau - dynamical part of the self-energy
+      */
     void solve(G_type& g_tau, S1_type& sigma1, St_type& sigma_tau);
 
   private:
@@ -94,18 +92,17 @@ namespace green::mbpt {
     void              read_next(const std::array<size_t, 4>& k);
 
     // Compute correction into second-order from the divergent G=0 part of the interaction
-    // Compute second order contribution of the divergent part of the coulomb integrals
-    void              compute_2nd_exch_correction(const ztensor<5>& Gr_full_tau);
+    void              compute_2nd_exch_correction(size_t tau_offset, size_t ntau_local, const ztensor<5>& Gr_full_tau);
 
-    void      ewald_2nd_order_0_0(const ztensor<5>& Gr_full_tau, MatrixXcd& G1, MatrixXcd& G2, MatrixXcd& G3, MMatrixXcd& Xm_4,
+    void      ewald_2nd_order_0_0(size_t tau_offset, size_t ntau_local, const ztensor<5>& Gr_full_tau, MatrixXcd& G1, MatrixXcd& G2, MatrixXcd& G3, MMatrixXcd& Xm_4,
                                   MMatrixXcd& Xm_1, MMatrixXcd& Xm_2, MMatrixXcd& Ym_1, MMatrixXcd& Ym_2, MMatrixXcd& Xm,
                                   MMatrixXcd& Vm);
 
-    void      ewald_2nd_order_1_0(const ztensor<5>& Gr_full_tau, MatrixXcd& G1, MatrixXcd& G2, MatrixXcd& G3, MMatrixXcd& Xm_4,
+    void      ewald_2nd_order_1_0(size_t tau_offset, size_t ntau_local, const ztensor<5>& Gr_full_tau, MatrixXcd& G1, MatrixXcd& G2, MatrixXcd& G3, MMatrixXcd& Xm_4,
                                   MMatrixXcd& Xm_1, MMatrixXcd& Xm_2, MMatrixXcd& Ym_1, MMatrixXcd& Ym_2, MMatrixXcd& Xm,
                                   MMatrixXcd& Vm);
 
-    void      ewald_2nd_order_0_1(const ztensor<5>& Gr_full_tau, MatrixXcd& G1, MatrixXcd& G2, MatrixXcd& G3, MMatrixXcd& Xm_4,
+    void      ewald_2nd_order_0_1(size_t tau_offset, size_t ntau_local, const ztensor<5>& Gr_full_tau, MatrixXcd& G1, MatrixXcd& G2, MatrixXcd& G3, MMatrixXcd& Xm_4,
                                   MMatrixXcd& Xm_1, MMatrixXcd& Xm_2, MMatrixXcd& Ym_1, MMatrixXcd& Ym_2, MMatrixXcd& Xm,
                                   MMatrixXcd& Vm);
 

@@ -173,7 +173,6 @@ namespace green::mbpt {
     MPI_Op                      matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
     ztensor<3>                  G_t(_nts, _nso, _nso);
     ztensor<3>                  G_c(1, _nso, _nso);
-    ztensor<3>                  Sigma_c(_ncheb, _nso, _nso);
     ztensor<3>                  G_w(_nw, _nso, _nso);
     ztensor<3>                  Sigma_w(_nw, _nso, _nso);
     ztensor<3>                  Sigma_k(_nts, _nso, _nso);
@@ -233,7 +232,6 @@ namespace green::mbpt {
     MPI_Op                      matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
     ztensor<3>                  G_t(_nts, _nso, _nso);
     ztensor<3>                  G_c(1, _nso, _nso);
-    ztensor<3>                  Sigma_c(_ncheb, _nso, _nso);
     ztensor<3>                  G_w(_nw, _nso, _nso);
     ztensor<3>                  Sigma_w(_nw, _nso, _nso);
     ztensor<3>                  Sigma_k(_nts, _nso, _nso);
