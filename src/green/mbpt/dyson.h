@@ -109,6 +109,7 @@ namespace green::mbpt {
     [[nodiscard]] size_t        nso() const { return _nso; }
     [[nodiscard]] size_t        ns() const { return _ns; }
     [[nodiscard]] double        mu() const { return _mu; }
+    double&                     mu() { return _mu; }
 
   protected:
     // Imaginary time/frequency transform class

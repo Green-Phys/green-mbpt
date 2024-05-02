@@ -204,7 +204,7 @@ TEST_CASE("MBPT Solver") {
     std::string grid_file  = GRID_PATH + "/ir/1e4.h5"s;
     std::string args =
         "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type G_DAMPING --damping 0.8 --input_file=" + input_file +
-        " --BETA 100 --grid_file=" + grid_file;
+        " --BETA 100 --verbose=1 --grid_file=" + grid_file;
     green::sc::define_parameters(p);
     green::symmetry::define_parameters(p);
     green::grids::define_parameters(p);
@@ -212,14 +212,15 @@ TEST_CASE("MBPT Solver") {
     p.parse(args);
     green::sc::noop_solver                            noop;
     green::sc::sc_loop<green::mbpt::shared_mem_dyson> sc(MPI_COMM_WORLD, p);
-    size_t                                            nts, ns, nk, ink, nao;
+    size_t                                            nts;
+    size_t ns = sc.dyson_solver().ns();
+    size_t nk = sc.dyson_solver().bz_utils().nk();
+    size_t ink = sc.dyson_solver().bz_utils().ink();
+    size_t nao = sc.dyson_solver().nao();
+    size_t nso = sc.dyson_solver().nso();
     green::sc::ztensor<4>                             tmp;
     {
       green::h5pp::archive ar(input_file);
-      ar["params/nao"] >> nao;
-      ar["params/ns"] >> ns;
-      ar["params/nk"] >> nk;
-      ar["grid/ink"] >> ink;
       green::sc::dtensor<5> H_k;
       green::sc::dtensor<5> F_k;
       ar["HF/H-k"] >> H_k;
@@ -229,12 +230,7 @@ TEST_CASE("MBPT Solver") {
       tmp.resize(ns, nk, nao, nao);
       tmp << F_k.view<std::complex<double>>().reshape(ns, nk, nao, nao);
     }
-    {
-      green::h5pp::archive ar(grid_file);
-      ar["fermi/metadata/ncoeff"] >> nts;
-      ar.close();
-      nts += 2;
-    }
+    nts = sc.dyson_solver().ft().sd().repn_fermi().nts();
     green::symmetry::brillouin_zone_utils bz(p);
     auto G_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nao, nao));
     auto S_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nao, nao));
@@ -242,8 +238,9 @@ TEST_CASE("MBPT Solver") {
     S_shared.fence();
     if (!green::utils::context.node_rank) S_shared.object().set_zero();
     S_shared.fence();
-    Sigma1(0) << bz.full_to_ibz(tmp(0));
-    Sigma1(1) << bz.full_to_ibz(tmp(1));
+    Sigma1(0) << sc.dyson_solver().bz_utils().full_to_ibz(tmp(0));
+    Sigma1(1) << sc.dyson_solver().bz_utils().full_to_ibz(tmp(1));
+    sc.dyson_solver().mu() = -1.5;
     sc.solve(noop, sc.dyson_solver().H_k(), sc.dyson_solver().S_k(), G_shared, Sigma1, S_shared);
   }
   SECTION("Init real Dyson. non shared") {
