@@ -8,8 +8,7 @@ from numba import jit
 from pyscf import gto as mgto
 from pyscf.pbc import tools, gto, df, scf, dft
 
-import integral_utils as int_utils
-
+from . import integral_utils as int_utils
 
 def construct_rmesh(nkx, nky, nkz):
   #rx = np.linspace(0, nkx, nkx, endpoint=False)
