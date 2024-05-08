@@ -350,6 +350,7 @@ def cell(args):
     c.exp_to_discard = args.diffuse_cutoff
     if np.linalg.det(_a) < 0:
         raise "Lattice are not in right-handed coordinate system. Please correct your lattice vectors"
+    c.build()
     return c
 
 
