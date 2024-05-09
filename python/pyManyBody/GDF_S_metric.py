@@ -2,13 +2,16 @@ import numpy
 import h5py
 import scipy.linalg as LA
 
-import integral_utils as int_utils
-import common_utils as comm
+from . import integral_utils as int_utils
+from . import common_utils as comm
 
 from pyscf import lib
 from pyscf.pbc.lib.kpts_helper import is_zero, member, unique
-from pyscf.pbc.df import df, ft_ao, incore
+from pyscf.pbc.df import df, ft_ao, incore, aft
 from pyscf.pbc.df.df_jk import zdotCN
+import importlib
+if importlib.find_loader('pyscf.pbc.df.gdf_builder') is not None :
+    import pyscf.pbc.df.gdf_builder as gdf_builder
 
 '''
 Gaussian density fitting with the overlap metric
@@ -101,7 +104,11 @@ def _make_j2c_rsgdf(mydf, cell, auxcell, uniq_kpts, exx=False):
 # where the range of lattice Ls vectors are improved. 
 # This version should be compatible with both PySCF 1.7 and 2.0
 def _make_j2c_gdf(mydf, cell, auxcell, uniq_kpts, exx=False):
-  fused_cell, fuse = df.fuse_auxcell(mydf, auxcell)
+  import importlib
+  if importlib.find_loader('pyscf.pbc.df.gdf_builder') is not None :
+      fused_cell, fuse = gdf_builder.fuse_auxcell(auxcell, aft.estimate_eta(cell, cell.precision))
+  else : 
+      fused_cell, fuse = df.fuse_auxcell(mydf, auxcell)
 
   nao = cell.nao_nr()
   naux = auxcell.nao_nr()

@@ -69,7 +69,7 @@ void solve_hf(const std::string& input, const std::string& int_hf, const std::st
   REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));
 }
 
-void solve_gw(const std::string& input, const std::string& int_f, const std::string& data) {
+void solve_gw(const std::string& input, const std::string& int_f, const std::string& data, const std::string& q0 = "IGNORE_G0") {
   auto        p           = green::params::params("DESCR");
   std::string input_file  = TEST_PATH + input;
   std::string df_int_path = TEST_PATH + int_f;
@@ -77,7 +77,7 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
   std::string grid_file   = GRID_PATH + "/ir/1e4.h5"s;
   std::string args =
       "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_DAMPING --damping 0.8 --input_file=" + input_file +
-      " --BETA 100 --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path;
+      " --BETA 100 --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path + " --q0_treatment " + q0;
   green::grids::define_parameters(p);
   green::mbpt::define_parameters(p);
   green::symmetry::define_parameters(p);
@@ -123,6 +123,9 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
   }
   green::mbpt::gw_solver solver(p, ft, bz, Sk);
   solver.solve(G_shared, Sigma1, S_shared);
+  green::h5pp::archive ar(test_file + "out_", "w");
+ar["data"] << S_shared.object();
+  ar.close();
   REQUIRE_THAT(S_shared.object(), IsCloseTo(S_shared_tst.object(), 1e-6));
 }
 
@@ -184,6 +187,7 @@ TEST_CASE("MBPT Solver") {
   SECTION("HF") { solve_hf("/HF/input.h5", "/HF/df_hf_int", "/HF/data.h5"); }
   SECTION("HF_X2C") { solve_hf("/HF_X2C/input.h5", "/HF_X2C/df_hf_int", "/HF_X2C/data.h5"); }
   SECTION("GW") { solve_gw("/GW/input.h5", "/GW/df_int", "/GW/data.h5"); }
+  SECTION("GW_C") { solve_gw("/GW/input.h5", "/GW/df_hf_int", "/GW/data_c.h5", "EXTRAPOLATE"); }
   SECTION("GW_X2C") { solve_gw("/GW_X2C/input.h5", "/GW_X2C/df_hf_int", "/GW_X2C/data.h5"); }
 
   SECTION("GF2") {
