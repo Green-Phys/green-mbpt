@@ -3,6 +3,7 @@
 [![DOI](https://zenodo.org/badge/699493450.svg)](https://zenodo.org/doi/10.5281/zenodo.10071545)
 
 ![grids](https://github.com/Green-Phys/green-mbpt/actions/workflows/test.yaml/badge.svg)
+[![codecov](https://codecov.io/gh/Green-Phys/green-mbpt/graph/badge.svg?token=ZHN38G4O5U)](https://codecov.io/gh/Green-Phys/green-mbpt)
 
 ```
  █▀▀█ █▀▀█ █▀▀ █▀▀ █▀▀▄
