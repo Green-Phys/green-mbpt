@@ -8,8 +8,7 @@ from numba import jit
 from pyscf import gto as mgto
 from pyscf.pbc import tools, gto, df, scf, dft
 
-import integral_utils as int_utils
-
+from . import integral_utils as int_utils
 
 def construct_rmesh(nkx, nky, nkz):
   #rx = np.linspace(0, nkx, nkx, endpoint=False)
@@ -118,6 +117,41 @@ def transform(Z, X, X_inv):
     print("Maximum difference between Z and Z_restore ", maxdiff)
     return Z_X
 
+def fold_back_to_1stBZ(kpts):
+  nkpts = len(kpts)
+  for i, ik in enumerate(kpts):
+    kpts[i] = np.array([wrap_1stBZ(kk) for kk in ik])
+  return kpts
+
+def inversion_sym(kmesh_scaled):
+  ind = np.arange(np.shape(kmesh_scaled)[0])
+  weight = np.zeros(np.shape(kmesh_scaled)[0])
+  for i, ki in enumerate(kmesh_scaled):
+      ki = [wrap_1stBZ(l) for l in ki]
+      kmesh_scaled[i] = ki
+
+  # Time-reversal symmetry
+  Inv = (-1) * np.identity(3)
+  for i, ki in enumerate(kmesh_scaled):
+      ki = np.dot(Inv,ki)
+      ki = [wrap_1stBZ(l) for l in ki]
+      for l, kl in enumerate(kmesh_scaled[:i]):
+          if np.allclose(ki,kl):
+              ind[i] = l
+              break
+
+  uniq = np.unique(ind, return_counts=True)
+  for i, k in enumerate(uniq[0]):
+      weight[k] = uniq[1][i]
+  ir_list = uniq[0]
+
+  # Mark down time-reversal-reduced k-points
+  conj_list = np.zeros(len(kmesh_scaled))
+  for i, k in enumerate(ind):
+      if i != k:
+          conj_list[i] = 1
+
+  return ir_list, ind, weight, conj_list
 
 def wrap_k(k):
     while k < 0 :
@@ -293,30 +327,7 @@ def add_common_params(parser):
     parser.add_argument("--max_iter", type=int, default=100, help="Maximum number of iterations in the SCF loop")
     parser.add_argument("--keep_cderi", type=lambda x: (str(x).lower() in ['true','1', 'yes']), default='false', help="Keep generated cderi files.")
     parser.add_argument("--job", choices=["init", "sym_path", "ewald_corr"], default="init")
-
-
-def init_dca_params(a, atoms):
-    parser = argparse.ArgumentParser(description="GF2 initialization script")
-    add_common_params(parser, a, atoms)
-    parser.add_argument("--lattice_size", type=int, default=3, help="size of the super lattice in each direction")
-    parser.add_argument("--interaction_lattice_size", type=int, default=3, help="size of the super lattice mesh for Coulomb interaction in each direction")
-    parser.add_argument("--interaction_lattice_point_i", type=int, default=0, help="first interction momentum index")
-    parser.add_argument("--interaction_lattice_point_j", type=int, default=0, help="second interction momentum index")
-    parser.add_argument("--keep", type=int, default=0, help="keep cderi files")
-    parser.add_argument("--regenerate", type=int, default=0, help="regenerate integrals")
-    args = parser.parse_args()
-    args.basis = parse_basis(args.basis)
-    args.auxbasis = parse_basis(args.auxbasis)
-    args.ecp = parse_basis(args.ecp)
-    args.pseudo = parse_basis(args.pseudo)
-    args.xc = parse_basis(args.xc)
-    if args.xc is not None:
-        args.mean_field = dft.KRKS if args.restricted else dft.KUKS
-    else:
-        args.mean_field = scf.KRHF if args.restricted else scf.KUHF
-    args.ns = 1 if args.restricted else 2
-    return args
-
+    parser.add_argument("--finite_size_kind", choices=["ewald", "gf2", "gw", "gw_s", "coarse_grained"], default="ewald", help="Two body finite-size correction. Be default computes the second set of integrals that include simple ewald correction.")
 
 def init_pbc_params():
     parser = argparse.ArgumentParser(description="GF2 initialization script")
@@ -350,6 +361,7 @@ def cell(args):
     c.exp_to_discard = args.diffuse_cutoff
     if np.linalg.det(_a) < 0:
         raise "Lattice are not in right-handed coordinate system. Please correct your lattice vectors"
+    c.build()
     return c
 
 
@@ -560,27 +572,6 @@ def construct_gdf(args, mycell, kmesh=None):
     if kmesh is not None:
         mydf.kpts = kmesh
     return mydf
-
-
-def compute_df_int(args, mycell, kmesh, nao, X_k, lattice_kmesh=np.zeros([3,3])):
-    '''
-    Generate density-fitting integrals for correlated methods
-    '''
-    if not bool(args.df_int):
-        return
-    mydf = construct_gdf(args, mycell, kmesh)
-    # Use Ewald for divergence treatment
-    mydf.exxdiv = 'ewald'
-    import pyscf.pbc.df.gdf_builder as gdf
-    weighted_coulG_old = gdf._CCGDFBuilder.weighted_coulG
-    gdf._CCGDFBuilder.weighted_coulG = int_utils.weighted_coulG_ewald
-
-    kij_conj, kij_trans, kpair_irre_list, kptij_idx, num_kpair_stored = int_utils.compute_integrals(args, mycell, mydf, kmesh, nao, X_k, "df_int", "cderi_ewald.h5", True, args.keep_cderi)
-
-    mydf = None
-    mydf = construct_gdf(args, mycell, kmesh)
-    gdf._CCGDFBuilder.weighted_coulG = weighted_coulG_old
-    int_utils.compute_integrals(args, mycell, mydf, kmesh, nao, X_k, "df_hf_int", "cderi.h5", True)
 
 def compute_ewald_correction(args, cell, kmesh, filename):
     # Use gaussian density fitting to get fitted densities

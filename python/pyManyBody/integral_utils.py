@@ -149,7 +149,6 @@ def get_coarsegrained_coulG(lattice_kmesh, cell, k=np.zeros(3), exx=False, mf=No
     return coulG
 
 def weighted_coulG_ewald(mydf, kpt, exx, mesh, omega=None):
-    print("\n\n\n\nTHERE!!!\n\n\n\n")
     return df.aft.weighted_coulG(mydf, kpt, "ewald", mesh, omega)
 
 # a = lattice vectors / (2*pi)
