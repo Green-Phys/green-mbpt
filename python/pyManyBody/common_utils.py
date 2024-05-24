@@ -307,7 +307,7 @@ def add_common_params(parser):
     parser.add_argument("--shift", type=float, nargs=3, default=[0.0, 0.0, 0.0], help="mesh shift")
     parser.add_argument("--center", type=float, nargs=3, default=[0.0, 0.0, 0.0], help="mesh center")
     parser.add_argument("--xc", type=str, nargs="*", default=[None], help="XC functional")
-    parser.add_argument("--dm0", type=str, nargs=1, default=None, help="initial guess for density matrix")
+    parser.add_argument("--dm0", type=str, default=None, help="initial guess for density matrix")
     parser.add_argument("--df_int", type=int, default=1, help="prepare density fitting integrals or not")
     parser.add_argument("--int_path", type=str, default="df_int", help="path to store ewald corrected integrals")
     parser.add_argument("--hf_int_path", type=str, default="df_hf_int", help="path to store hf integrals")
