@@ -1,16 +1,13 @@
 import os
-import numpy as np
-import h5py
 
+import h5py
+import numpy as np
 from pyscf.df import addons
 from pyscf.pbc import tools
 
+from . import GDF_S_metric as gdf_S
 from . import common_utils as comm
 from . import integral_utils as int_utils
-from . import GDF_S_metric as gdf_S
-
-
-
 
 
 class pyscf_init:
@@ -124,7 +121,7 @@ class pyscf_init:
             exit(0)
         if self.args.high_symmetry_path is None:
             raise RuntimeError("Please specify high-symmetry path")
-        if args.high_symmetry_path is not None:
+        if self.args.high_symmetry_path is not None:
             try:
                 comm.check_high_symmetry_path(self.cell, self.args)
             except RuntimeError as e:
