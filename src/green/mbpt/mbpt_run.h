@@ -234,7 +234,7 @@ namespace green::mbpt {
     h5pp::archive input(p["input_file"]);
     if (input.has_group("high_symm_path")) {
       if (!utils::context.global_rank) std::cout << "Running Wannier interpolation" << std::endl;
-      sc::read_results(g0_tau, sigma1, sigma_tau, p["results_file"]);
+      sc::read_results(dyson.mu(), g0_tau, sigma1, sigma_tau, p["results_file"]);
       wannier_interpolation(dyson, sigma1, sigma_tau, input, p["high_symmetry_output_file"]);
     }
     input.close();

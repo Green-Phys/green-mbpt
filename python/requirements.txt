@@ -1,4 +1,5 @@
-pyscf >= 2.1.0
+green-mbtools >= 0.2.1b0
 numba >= 0.58.0
 spglib >= 2.2.0
 ase >= 3.21.0
+matplotlib >=3.8.0
