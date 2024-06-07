@@ -207,7 +207,7 @@ TEST_CASE("MBPT Solver") {
     std::string input_file = TEST_PATH + "/Dyson/input.h5"s;
     std::string grid_file  = GRID_PATH + "/ir/1e4.h5"s;
     std::string args =
-        "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type G_DAMPING --damping 0.8 --input_file=" + input_file +
+        "test --restart 0 --itermax 2 --E_thr 1e-13 --mixing_type G_DAMPING --damping 0.8 --input_file=" + input_file +
         " --BETA 100 --verbose=1 --grid_file=" + grid_file;
     green::sc::define_parameters(p);
     green::symmetry::define_parameters(p);
@@ -252,7 +252,7 @@ TEST_CASE("MBPT Solver") {
     std::string input_file = TEST_PATH + "/Dyson/input.h5"s;
     std::string grid_file  = GRID_PATH + "/ir/1e4.h5"s;
     std::string args =
-        "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type G_DAMPING --damping 0.8 --input_file=" + input_file +
+        "test --restart 0 --itermax 2 --E_thr 1e-13 --mixing_type G_DAMPING --damping 0.8 --input_file=" + input_file +
         " --BETA 100 --grid_file=" + grid_file;
     green::sc::define_parameters(p);
     green::symmetry::define_parameters(p);

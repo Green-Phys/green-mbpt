@@ -32,7 +32,7 @@ namespace green::mbpt {
     using Sigma1    = Sigma1_type;
     using Sigma_tau = Sigma_tau_type;
 
-             dyson(const params::params& p);
+    dyson(const params::params& p);
 
     virtual ~dyson(){};
 
@@ -43,7 +43,7 @@ namespace green::mbpt {
      * @param sigma1
      * @param sigma_tau
      */
-    void     compute_G(G& g_tau, Sigma1& sigma1, Sigma_tau& sigma_tau) const;
+    void   compute_G(G& g_tau, Sigma1& sigma1, Sigma_tau& sigma_tau) const;
 
     /**
      * For each matsubara frequency compute eigenvalues of (H + sigma1 + sigma_w) to speedup chemical potetial search
@@ -52,8 +52,8 @@ namespace green::mbpt {
      * @param sigma_tau - dynamic part of the self-energy
      * @param eigenvalues_Sigma_p_F - eigenvalues of (H + sigma1 + sigma_w)
      */
-    void     selfenergy_eigenspectra(const Sigma1& sigma1, const Sigma_tau& sigma_tau,
-                                     std::vector<std::complex<double>>& eigenvalues_Sigma_p_F) const;
+    void   selfenergy_eigenspectra(const Sigma1& sigma1, const Sigma_tau& sigma_tau,
+                                   std::vector<std::complex<double>>& eigenvalues_Sigma_p_F) const;
 
     /**
      * For a given chemical potetial and eigenspectra of (H + sigma1 + sigma_w) find number of electrons
@@ -62,22 +62,26 @@ namespace green::mbpt {
      * @param eigenvalues_Sigma_p_F - eigenspectra of (H + sigma1 + sigma_w)
      * @return number of electrons for given parameters
      */
-    double   compute_number_of_electrons(double mu, const std::vector<std::complex<double>>& eigenvalues_Sigma_p_F) const;
+    double compute_number_of_electrons(double mu, const std::vector<std::complex<double>>& eigenvalues_Sigma_p_F) const;
 
     /**
      * From diagonalized Dyson equation find new chemical potential
      * @param sigma1 - static part of the self-energy
      * @param sigma_tau_s - dynamic part of the self-energy
      */
-    std::pair<double, double> find_mu(const Sigma1& sigma1, const Sigma_tau& sigma_tau_s) const;
+    std::pair<double, double>   find_mu(const Sigma1& sigma1, const Sigma_tau& sigma_tau_s) const;
 
     /**
      * Store additional information for current iteration
      *
      * @param iter - number of the current iteration
+     * @param gtau - Green's function to be dumped
+     * @param s1 - Static part of the self-energy to be dumped
+     * @param st - Dynamic part of the self-energy to be dumped
      * @param result_file - name of the file with results
      */
-    void     dump_iteration(size_t iter, const std::string& result_file);
+    void                        dump_iteration(size_t iter, const G_type& gtau, const Sigma1_type&s1, const Sigma_tau_type&st,
+                                               const std::string& result_file);
 
     /**
      * For a given static and dynamic parts of a self-energy solve the dyson equation and obtain new
@@ -88,7 +92,7 @@ namespace green::mbpt {
      * @param sigma1 - static part of a self-energy
      * @param sigma_tau - dynamic part of a self-energy
      */
-    void     solve(G& g, Sigma1& sigma1, Sigma_tau& sigma_tau);
+    void                        solve(G& g, Sigma1& sigma1, Sigma_tau& sigma_tau);
 
     /**
      * Compute difference for a target parameter for the current iteration
@@ -97,7 +101,7 @@ namespace green::mbpt {
      * @param sigma1 - static part of a self-energy at the current iteration
      * @param sigma_tau - dynamic part of a self-energy at the current iteration
      */
-    double   diff(G& g, Sigma1& sigma1, Sigma_tau& sigma_tau);
+    double                      diff(G& g, Sigma1& sigma1, Sigma_tau& sigma_tau);
 
     const grids::transformer_t& ft() const { return _ft; }
     //
@@ -148,12 +152,15 @@ namespace green::mbpt {
     ztensor<4>           _H_k;
     ztensor<4>           _S_k;
     //
-    double               _E_corr;
-    double               _E_hf;
-    double               _E_1b;
-    double               _E_nuc;
+    double               _E_corr{0};
+    double               _E_hf{0};
+    double               _E_1b{0};
+    double               _E_nuc{0};
 
     int                  _verbose;
+
+  private:
+    void print_convergence(size_t iter, const G&gtau, const std::string& result_file);
   };
 
   using shared_mem_dyson = dyson<utils::shared_object<ztensor<5>>, ztensor<4>, utils::shared_object<ztensor<5>>>;

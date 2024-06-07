@@ -65,7 +65,7 @@ if (CUSTOM_KERNEL)
 endif ()
 
 add_executable(mbpt.exe main.cpp)
-target_link_libraries(mbpt.exe PUBLIC GREEN::MBPT GREEN::SC)
+target_link_libraries(mbpt.exe PUBLIC GREEN::MBPT)
 if (BLAS_FOUND)
     target_link_libraries(mbpt.exe PUBLIC BLAS::BLAS)
 endif (BLAS_FOUND)

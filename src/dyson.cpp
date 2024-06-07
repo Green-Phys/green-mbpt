@@ -5,7 +5,11 @@
 
 #include "green/mbpt/dyson.h"
 
+#include <green/sc/common_defs.h>
+#include <green/sc/common_utils.h>
 #include <green/utils/timing.h>
+
+#include <type_traits>
 
 #include "green/mbpt/common_utils.h"
 #include "green/mbpt/except.h"
@@ -74,7 +78,7 @@ namespace green::mbpt {
     MatrixXcd            trace_w(_nw, 1);
     MatrixXcd            trace_t(1, 1);
     std::complex<double> muomega;
-    trace_w              = MatrixXcd::Zero(_nw, 1);
+    trace_w = MatrixXcd::Zero(_nw, 1);
     for (size_t iwsk = utils::context.global_rank, iii = 0; iwsk < _nw * _ns * _ink; iwsk += utils::context.global_size) {
       size_t iw   = iwsk / (_ns * _ink);
       size_t is   = (iwsk % (_ns * _ink)) / _ink;
@@ -135,12 +139,15 @@ namespace green::mbpt {
         mu1  = mu;
         nel1 = nel;
       }
-      if(!utils::context.global_rank && _verbose != 0) { std::cout << ss.str() << std::flush; ss.str("");}
+      if (!utils::context.global_rank && _verbose != 0) {
+        std::cout << ss.str() << std::flush;
+        ss.str("");
+      }
       while (std::abs((nel - _nel) / double(_nel)) > _tol && std::abs(mu2 - mu1) > 0.01 * _tol) {
         mu      = (mu1 + mu2) * 0.5;
         nel_old = compute_number_of_electrons(mu, eigenvalues_Sigma_p_F);
         // check if we get stuck in chemical potential search
-        if (std::abs((nel_old - _nel) / double(_nel)) > _tol && std::abs(nel - nel_old) < 0.001*_tol) {
+        if (std::abs((nel_old - _nel) / double(_nel)) > _tol && std::abs(nel - nel_old) < 0.001 * _tol) {
           throw mbpt_chemical_potential_search_failure("Chemical potential search failed.");
         }
         nel = nel_old;
@@ -150,7 +157,10 @@ namespace green::mbpt {
           mu1 = mu;
         }
         if (!utils::context.global_rank && _verbose != 0) ss << "nel:" << nel << " mu: " << mu << std::endl;
-        if (!utils::context.global_rank && _verbose != 0) { std::cout << ss.str() << std::flush; ss.str(""); }
+        if (!utils::context.global_rank && _verbose != 0) {
+          std::cout << ss.str() << std::flush;
+          ss.str("");
+        }
       }
     }
     if (!utils::context.global_rank) {
@@ -309,7 +319,7 @@ namespace green::mbpt {
   }
 
   template <typename G, typename S1, typename St>
-  void dyson<G, S1, St>::dump_iteration(size_t iter, const std::string& result_file) {
+  void dyson<G, S1, St>::dump_iteration(size_t iter, const G& gtau, const S1&, const St&, const std::string& result_file) {
     if (!utils::context.global_rank) {
       h5pp::archive ar(result_file, "a");
       ar["iter" + std::to_string(iter) + "/G_tau/mesh"] << _ft.sd().repn_fermi().tsample();
@@ -326,7 +336,54 @@ namespace green::mbpt {
       ss << std::setw(35) << "Correlation Energy: " << std::setw(17) << std::right << _E_corr << std::endl;
       ss << std::setw(35) << "Total Energy: " << std::setw(17) << std::right << _E_hf + _E_nuc + _E_corr << std::endl;
       std::cout << ss.str();
+      print_convergence(iter, gtau, result_file);
     }
+  }
+
+  template <typename G, typename S1, typename St>
+  void dyson<G, S1, St>::print_convergence(size_t iter, const G& gtau, const std::string& result_file) {
+    double        e1, ehf, e2b, mu;
+    double        e1_1, ehf_1, e2b_1, mu_1 = 0;
+    h5pp::archive ar(result_file, "r");
+    S1            gam;
+    if constexpr(std::is_same_v<G, ztensor<5>>) {
+      gam = gtau(gtau.shape()[gtau.shape().size() - 1]);
+    } else if constexpr(std::is_same_v<G, utils::shared_object<ztensor<5>>>) {
+      gam = gtau.object()(gtau.object().shape()[gtau.object().shape().size() - 1]);
+    }
+    if (!ar.has_group("iter" + std::to_string(iter))) {
+      return;
+    }
+    if (ar.has_group("iter" + std::to_string(iter - 1))) {
+      ar["iter" + std::to_string(iter - 1) + "/Energy_1b"] >> e1_1;
+      ar["iter" + std::to_string(iter - 1) + "/Energy_HF"] >> ehf_1;
+      ar["iter" + std::to_string(iter - 1) + "/Energy_2b"] >> e2b_1;
+      ar["iter" + std::to_string(iter - 1) + "/mu"] >> mu_1;
+      G g_tmp(green::sc::internal::init_data(gtau));
+      sc::internal::read_data(g_tmp, result_file, "iter" + std::to_string(iter - 1) + "/G_tau/data");
+      if constexpr(std::is_same_v<G, ztensor<5>>) {
+        gam -= g_tmp(g_tmp.shape()[gtau.shape().size() - 1]);
+      } else if constexpr(std::is_same_v<G, utils::shared_object<ztensor<5>>>) {
+        gam -= g_tmp.object()(g_tmp.object().shape()[gtau.object().shape().size() - 1]);
+      }
+      sc::internal::cleanup_data(g_tmp);
+    }
+    ar["iter" + std::to_string(iter) + "/Energy_1b"] >> e1;
+    ar["iter" + std::to_string(iter) + "/Energy_HF"] >> ehf;
+    ar["iter" + std::to_string(iter) + "/Energy_2b"] >> e2b;
+    ar["iter" + std::to_string(iter) + "/mu"] >> mu;
+    ar.close();
+
+    double dg = std::abs(std::inner_product(gam.begin(), gam.end(), gam.begin(), std::complex<double>(0.0)))/gam.size();
+
+    std::stringstream ss;
+    ss << "====================================================================================" << std::endl;
+    ss << std::scientific << std::setprecision(15);
+    ss << std::setw(28) << std::right << "|ΔE_tot|" << std::setw(23) << std::right << "|Δμ|" << std::setw(26) << std::right
+       << "|Δγ|" << std::endl;
+    ss << "Convergence: " << std::abs(+ehf + e2b - ehf_1 - e2b_1) << "  " << std::abs(mu - mu_1) << "  " << dg << std::endl;
+    ss << std::endl;
+    std::cout << ss.str();
   }
 
   template class dyson<utils::shared_object<ztensor<5>>, ztensor<4>, utils::shared_object<ztensor<5>>>;
