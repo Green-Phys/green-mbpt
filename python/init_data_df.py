@@ -1,5 +1,5 @@
 
-import green_mbtools as pymb
+import green_mbtools.mint as pymb
 
 pyscf_init = pymb.pyscf_init()
 
