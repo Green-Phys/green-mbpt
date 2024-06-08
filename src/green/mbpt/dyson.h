@@ -160,6 +160,13 @@ namespace green::mbpt {
     int                  _verbose;
 
   private:
+    /**
+     * Reads data from the current and the previous iterations and compute the difference
+     *
+     * @param iter - current iteration
+     * @param gtau - Green's function at the current iteration, needed to get density matrix
+     * @param result_file - file with the simulation results
+     */
     void print_convergence(size_t iter, const G&gtau, const std::string& result_file);
   };
 

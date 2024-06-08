@@ -346,9 +346,9 @@ namespace green::mbpt {
     double        e1_1, ehf_1, e2b_1, mu_1 = 0;
     h5pp::archive ar(result_file, "r");
     S1            gam;
-    if constexpr(std::is_same_v<G, ztensor<5>>) {
+    if constexpr (std::is_same_v<G, ztensor<5>>) {
       gam = gtau(gtau.shape()[gtau.shape().size() - 1]);
-    } else if constexpr(std::is_same_v<G, utils::shared_object<ztensor<5>>>) {
+    } else if constexpr (std::is_same_v<G, utils::shared_object<ztensor<5>>>) {
       gam = gtau.object()(gtau.object().shape()[gtau.object().shape().size() - 1]);
     }
     if (!ar.has_group("iter" + std::to_string(iter))) {
@@ -361,9 +361,9 @@ namespace green::mbpt {
       ar["iter" + std::to_string(iter - 1) + "/mu"] >> mu_1;
       G g_tmp(green::sc::internal::init_data(gtau));
       sc::internal::read_data(g_tmp, result_file, "iter" + std::to_string(iter - 1) + "/G_tau/data");
-      if constexpr(std::is_same_v<G, ztensor<5>>) {
+      if constexpr (std::is_same_v<G, ztensor<5>>) {
         gam -= g_tmp(g_tmp.shape()[gtau.shape().size() - 1]);
-      } else if constexpr(std::is_same_v<G, utils::shared_object<ztensor<5>>>) {
+      } else if constexpr (std::is_same_v<G, utils::shared_object<ztensor<5>>>) {
         gam -= g_tmp.object()(g_tmp.object().shape()[gtau.object().shape().size() - 1]);
       }
       sc::internal::cleanup_data(g_tmp);
@@ -374,7 +374,10 @@ namespace green::mbpt {
     ar["iter" + std::to_string(iter) + "/mu"] >> mu;
     ar.close();
 
-    double dg = std::abs(std::inner_product(gam.begin(), gam.end(), gam.begin(), std::complex<double>(0.0)))/gam.size();
+    double dg = std::sqrt(std::transform_reduce(gam.begin(), gam.end(), std::complex<double>(0.0), std::plus{},
+                                                [](const std::complex<double>& a) { return a * std::conj(a); })
+                              .real()) /
+                gam.size();
 
     std::stringstream ss;
     ss << "====================================================================================" << std::endl;
