@@ -3,11 +3,13 @@ import green_mbtools.mint as pymb
 
 pyscf_init = pymb.pyscf_init()
 
-if pyscf_init.args.job == "init":
+print(pyscf_init.args.job)
+
+if "init" in pyscf_init.args.job:
     pyscf_init.mean_field_input()
-elif pyscf_init.args.job == "sym_path":
+if "sym_path" in pyscf_init.args.job:
     pyscf_init.evaluate_high_symmetry_path()
-elif pyscf_init.args.job == "ewald_corr":
+if "ewald_corr" in pyscf_init.args.job:
     pyscf_init.compute_twobody_finitesize_correction()
 
 print("Done")
