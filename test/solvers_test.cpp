@@ -9,6 +9,7 @@
 #include <green/mbpt/gw_solver.h>
 #include <green/mbpt/hf_solver.h>
 #include <green/sc/sc_loop.h>
+#include <green/mbpt/mbpt_run.h>
 
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -23,7 +24,7 @@ void solve_hf(const std::string& input, const std::string& int_hf, const std::st
   std::string test_file   = TEST_PATH + data;
   std::string grid_file   = GRID_PATH + "/ir/1e4.h5"s;
   std::string args =
-      "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_DAMPING --damping 0.8 --input_file=" + input_file +
+      "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_MIXING --mixing_weight 0.8 --input_file=" + input_file +
       " --BETA 100 --grid_file=" + grid_file + " --dfintegral_hf_file=" + df_int_path;
   green::grids::define_parameters(p);
   green::mbpt::define_parameters(p);
@@ -76,7 +77,7 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
   std::string test_file   = TEST_PATH + data;
   std::string grid_file   = GRID_PATH + "/ir/1e4.h5"s;
   std::string args =
-      "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_DAMPING --damping 0.8 --input_file=" + input_file +
+      "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_MIXING --mixing_weight 0.8 --input_file=" + input_file +
       " --BETA 100 --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path + " --q0_treatment " + q0;
   green::grids::define_parameters(p);
   green::mbpt::define_parameters(p);
@@ -124,17 +125,17 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
   green::mbpt::gw_solver solver(p, ft, bz, Sk);
   solver.solve(G_shared, Sigma1, S_shared);
   green::h5pp::archive ar(test_file + "out_", "w");
-ar["data"] << S_shared.object();
+  ar["data"] << S_shared.object();
   ar.close();
   REQUIRE_THAT(S_shared.object(), IsCloseTo(S_shared_tst.object(), 1e-6));
 }
 
-void solve_gf2(const std::string &df_int_path, const std::string &test_file, const std::string &input_file) {
-  auto        p           = green::params::params("DESCR");
+void solve_gf2(const std::string& df_int_path, const std::string& test_file, const std::string& input_file) {
+  auto        p         = green::params::params("DESCR");
 
-  std::string grid_file   = GRID_PATH + "/ir/1e4.h5"s;
+  std::string grid_file = GRID_PATH + "/ir/1e4.h5"s;
   std::string args =
-      "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_DAMPING --damping 0.8 --input_file=" + input_file +
+      "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_MIXING --mixing_weight 0.8 --input_file=" + input_file +
       " --BETA 100 --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path + " --dfintegral_hf_file=" + df_int_path;
   green::grids::define_parameters(p);
   green::mbpt::define_parameters(p);
@@ -190,16 +191,37 @@ TEST_CASE("MBPT Solver") {
   SECTION("GW_C") { solve_gw("/GW/input.h5", "/GW/df_hf_int", "/GW/data_c.h5", "EXTRAPOLATE"); }
   SECTION("GW_X2C") { solve_gw("/GW_X2C/input.h5", "/GW_X2C/df_hf_int", "/GW_X2C/data.h5"); }
 
-  SECTION("GF2") {
-    solve_gf2(TEST_PATH + "/GF2/df_hf_int"s, TEST_PATH + "/GF2/data.h5"s, TEST_PATH + "/GF2/input.h5"s);
-  }
+  SECTION("GF2") { solve_gf2(TEST_PATH + "/GF2/df_hf_int"s, TEST_PATH + "/GF2/data.h5"s, TEST_PATH + "/GF2/input.h5"s); }
 
   SECTION("GF2_Empty_Ewald") {
     solve_gf2(TEST_PATH + "/GF2/df_hf_int_z"s, TEST_PATH + "/GF2/data.h5"s, TEST_PATH + "/GF2/input.h5"s);
   }
 
   SECTION("GF2_Ewald") {
-    solve_gf2( TEST_PATH + "/GF2/df_hf_int_e"s, TEST_PATH + "/GF2/data_e.h5"s,TEST_PATH + "/GF2/input_e.h5"s);
+    solve_gf2(TEST_PATH + "/GF2/df_hf_int_e"s, TEST_PATH + "/GF2/data_e.h5"s, TEST_PATH + "/GF2/input_e.h5"s);
+  }
+
+  SECTION("Input Data Version") {
+    auto        p             = green::params::params("DESCR");
+    std::string input_file    = TEST_PATH + "/Input/input.h5"s;
+    std::string df_int_path_1 = TEST_PATH + "/Input/df_int"s;
+    std::string df_int_path_2 = TEST_PATH + "/Input/df_int_x"s;
+    std::string df_int_path_3 = TEST_PATH + "/Input/df_int_y"s;
+    std::string grid_file     = GRID_PATH + "/ir/1e4.h5"s;
+    std::string args =
+        "test --restart 0 --itermax 2 --E_thr 1e-13 --mixing_type G_MIXING --mixing_weight 0.8 --input_file=" + input_file +
+        " --BETA 100 --verbose=1 --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path_1 +
+        " --dfintegral_hf_file=" + df_int_path_2;
+    green::sc::define_parameters(p);
+    green::symmetry::define_parameters(p);
+    green::grids::define_parameters(p);
+    green::mbpt::define_parameters(p);
+    p.parse(args);
+    green::symmetry::brillouin_zone_utils<green::symmetry::inv_symm_op> bz_utils(p);
+    REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_1, 2, 36, bz_utils), green::mbpt::mbpt_outdated_input);
+    REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_2, 2, 36, bz_utils), green::mbpt::mbpt_outdated_input);
+    REQUIRE_NOTHROW(green::mbpt::df_integral_t(df_int_path_3, 2, 36, bz_utils));
+    REQUIRE_THROWS_AS(green::mbpt::check_input(p), green::mbpt::mbpt_outdated_input);
   }
 
   SECTION("Init real Dyson") {
@@ -207,7 +229,7 @@ TEST_CASE("MBPT Solver") {
     std::string input_file = TEST_PATH + "/Dyson/input.h5"s;
     std::string grid_file  = GRID_PATH + "/ir/1e4.h5"s;
     std::string args =
-        "test --restart 0 --itermax 2 --E_thr 1e-13 --mixing_type G_DAMPING --damping 0.8 --input_file=" + input_file +
+        "test --restart 0 --itermax 2 --E_thr 1e-13 --mixing_type G_MIXING --mixing_weight 0.8 --input_file=" + input_file +
         " --BETA 100 --verbose=1 --grid_file=" + grid_file;
     green::sc::define_parameters(p);
     green::symmetry::define_parameters(p);
@@ -217,14 +239,14 @@ TEST_CASE("MBPT Solver") {
     green::sc::noop_solver                            noop;
     green::sc::sc_loop<green::mbpt::shared_mem_dyson> sc(MPI_COMM_WORLD, p);
     size_t                                            nts;
-    size_t ns = sc.dyson_solver().ns();
-    size_t nk = sc.dyson_solver().bz_utils().nk();
-    size_t ink = sc.dyson_solver().bz_utils().ink();
-    size_t nao = sc.dyson_solver().nao();
-    size_t nso = sc.dyson_solver().nso();
+    size_t                                            ns  = sc.dyson_solver().ns();
+    size_t                                            nk  = sc.dyson_solver().bz_utils().nk();
+    size_t                                            ink = sc.dyson_solver().bz_utils().ink();
+    size_t                                            nao = sc.dyson_solver().nao();
+    size_t                                            nso = sc.dyson_solver().nso();
     green::sc::ztensor<4>                             tmp;
     {
-      green::h5pp::archive ar(input_file);
+      green::h5pp::archive  ar(input_file);
       green::sc::dtensor<5> H_k;
       green::sc::dtensor<5> F_k;
       ar["HF/H-k"] >> H_k;
@@ -252,7 +274,7 @@ TEST_CASE("MBPT Solver") {
     std::string input_file = TEST_PATH + "/Dyson/input.h5"s;
     std::string grid_file  = GRID_PATH + "/ir/1e4.h5"s;
     std::string args =
-        "test --restart 0 --itermax 2 --E_thr 1e-13 --mixing_type G_DAMPING --damping 0.8 --input_file=" + input_file +
+        "test --restart 0 --itermax 2 --E_thr 1e-13 --mixing_type G_MIXING --mixing_weight 0.8 --input_file=" + input_file +
         " --BETA 100 --grid_file=" + grid_file;
     green::sc::define_parameters(p);
     green::symmetry::define_parameters(p);

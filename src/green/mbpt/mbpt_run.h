@@ -240,9 +240,25 @@ namespace green::mbpt {
     input.close();
   }
 
+  inline void check_input(const params::params&p) {
+    std::string path = p["input_file"];
+    h5pp::archive ar(path, "r");
+    if(ar.has_attribute("__green_version__")) {
+      std::string int_version = ar.get_attribute<std::string>("__green_version__");
+      if (int_version.rfind(INPUT_VERSION, 0) != 0) {
+        throw mbpt_outdated_input("Input file at '" + path +"' is outdated, please run migration script python/migrate.py");
+      }
+    } else {
+      throw mbpt_outdated_input("Input file at '" + path +"' is outdated, please run migration script python/migrate.py");
+    }
+    ar.close();
+  }
+
   inline void run(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p) {
     const auto       jobs = p["jobs"].as<std::vector<job_type>>();
     const scf_type   type = p["scf_type"];
+    // Check input file
+    check_input(p);
     // initialize Dyson solver
     shared_mem_dyson dyson(p);
     // Allocate working arrays

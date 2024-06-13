@@ -39,5 +39,10 @@ namespace green::mbpt {
   public:
     explicit mbpt_chemical_potential_search_failure(const std::string& what) : std::runtime_error(what) {}
   };
+
+  class mbpt_outdated_input : public std::runtime_error {
+  public:
+    explicit mbpt_outdated_input(const std::string& what) : std::runtime_error(what) {}
+  };
 }  // namespace green::mbpt
 #endif  // GREEN_MBPT_EXCEPT_H
