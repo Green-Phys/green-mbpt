@@ -1,9 +1,9 @@
-
+import logging
 import green_mbtools.mint as pymb
 
-pyscf_init = pymb.pyscf_init()
+logging.basicConfig(level=logging.INFO)
 
-print(pyscf_init.args.job)
+pyscf_init = pymb.pyscf_pbc_init()
 
 if "init" in pyscf_init.args.job:
     pyscf_init.mean_field_input()
