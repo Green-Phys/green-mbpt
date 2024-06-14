@@ -3,27 +3,48 @@ import os
 
 import h5py
 
-
-def pregreen_version_0_2_4(args):
-    old_input = h5py.File(args.old_input_file, "r")
-    old_meta = h5py.File(args.old_integral_path[0] + "/meta.h5", "r")
-    new_input = h5py.File(args.new_input_file, "w")
-
+def copy_input_data(old_input_file, new_input_file):
+    '''
+    copy all existing data from old file into a new file
+    both files have to be open
+    Parameters
+    ----------
+    old_input_file: old HDF5 file object
+    new_input_file: new HDF5 file object
+    '''
     for key in old_input.keys():
         old_input.copy(key, new_input)
 
+
+
+def pregreen_version_0_2_4(args):
+    '''
+    Migrate data into version 0.2.4
+    '''
+    old_input = None
+    new_input = None
+    old_meta = h5py.File(args.old_integral_path[0] + "/meta.h5", "r")
+
+    if args.old_input_file != args.new_input_file:
+        old_input = h5py.File(args.old_input_file, "r")
+        new_input = h5py.File(args.new_input_file, "a")
+        copy_input_data(old_input, new_input)
+    else:
+        new_input = h5py.File(args.new_input_file, "a")
+        old_input = new_input
+
+    # get shapes for spin and spin-orbits
     X = old_input["HF/S-k"][()]
     ns = X.shape[0]
+    nk = X.shape[1]
     nso = X.shape[2]
 
     if not "params/ns" in new_input:
         new_input["params/ns"] = ns
     if not "params/nso" in new_input:
         new_input["params/nso"] = nso
-
-    new_grid = new_input["/grid/"]
-    if not "nk" in new_grid:
-        old_input["params"].copy("nk", new_grid)
+    if not "grid/nk" in new_input:
+        new_input["grid/nk"] = nk
 
     meta_dsets = ["conj_pairs_list", "kpair_idx", "kpair_irre_list", "num_kpair_stored", "trans_pairs_list"]
     if "/grid" in old_meta:
@@ -31,7 +52,6 @@ def pregreen_version_0_2_4(args):
             if dset in old_meta["/grid"].keys() and not dset in new_grid.keys():
                 old_meta["/grid"].copy(dset, new_grid)
 
-    old_input.close()
     old_meta.close()
     for m in args.new_integral_path:
         if not os.path.exists(m):
@@ -42,6 +62,7 @@ def pregreen_version_0_2_4(args):
 
     new_input.attrs[GREEN_VERSION] = "0.2.4"
     new_input.close()
+    old_input.close()
 
 
 GREEN_VERSION = "__green_version__"
@@ -75,6 +96,11 @@ for m in args.old_integral_path:
 assert (len(args.old_integral_path) == len(args.new_integral_path))
 
 old_input = h5py.File(args.old_input_file, "r")
+inp_version = ""
+if GREEN_VERSION in old_input.attrs:
+    inp_version = old_input.attrs[GREEN_VERSION]
+old_input.close()
+
 old_meta_versions = []
 for m in args.old_integral_path:
     old_meta = h5py.File(m + "/meta.h5", "r")
@@ -84,17 +110,19 @@ for m in args.old_integral_path:
     old_meta.close()
     old_meta_versions.append(version)
 
+# Check that all integrals have the same version
 assert (old_meta_versions.count(old_meta_versions[0]) == len(old_meta_versions))
 
-inp_version = ""
-if GREEN_VERSION in old_input.attrs:
-    inp_version = old_input.attrs[GREEN_VERSION]
+v2 = inp_version if inp_version != '' else "undefined"
+v2 = old_meta_versions[0] if old_meta_versions[0] != '' else "undefined"
 
 print(f"old input file version is '{inp_version}', old integrals version "
-      f"is '{old_meta_versions[0] if old_meta_versions[0] != '' else "undefined"}'")
+      f"is '{v2}'")
 
 if not ((inp_version, old_meta_versions[0]), args.version) in migration_map:
     print(f"No migration between version {inp_version} and {args.version} has been defined")
     exit(0)
 
 migration_map[((inp_version, old_meta_versions[0]), args.version)](args)
+
+print(f"Migration to version {args.version} successfully finished")

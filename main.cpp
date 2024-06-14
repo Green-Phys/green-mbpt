@@ -42,6 +42,7 @@ int  main(int argc, char** argv) {
   if (!green::utils::context.global_rank) p.print();
 
   try {
+    green::mbpt::check_input(p);
     green::sc::sc_loop<green::mbpt::shared_mem_dyson> sc(MPI_COMM_WORLD, p);
     green::mbpt::run(sc, p);
   } catch (std::exception& e) {
