@@ -14,9 +14,7 @@ def copy_input_data(old_input_file, new_input_file):
     '''
     for key in old_input.keys():
         old_input.copy(key, new_input)
-    new_grid = new_input["/grid/"]
-    if not "nk" in new_grid:
-        old_input["params"].copy("nk", new_grid)
+
 
 
 def pregreen_version_0_2_4(args):
@@ -38,12 +36,15 @@ def pregreen_version_0_2_4(args):
     # get shapes for spin and spin-orbits
     X = old_input["HF/S-k"][()]
     ns = X.shape[0]
+    nk = X.shape[1]
     nso = X.shape[2]
 
     if not "params/ns" in new_input:
         new_input["params/ns"] = ns
     if not "params/nso" in new_input:
         new_input["params/nso"] = nso
+    if not "grid/nk" in new_input:
+        new_input["grid/nk"] = nk
 
     meta_dsets = ["conj_pairs_list", "kpair_idx", "kpair_irre_list", "num_kpair_stored", "trans_pairs_list"]
     if "/grid" in old_meta:

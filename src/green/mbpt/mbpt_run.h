@@ -257,8 +257,6 @@ namespace green::mbpt {
   inline void run(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p) {
     const auto       jobs = p["jobs"].as<std::vector<job_type>>();
     const scf_type   type = p["scf_type"];
-    // Check input file
-    check_input(p);
     // initialize Dyson solver
     shared_mem_dyson dyson(p);
     // Allocate working arrays
