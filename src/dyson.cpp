@@ -359,14 +359,11 @@ namespace green::mbpt {
       ar["iter" + std::to_string(iter - 1) + "/Energy_HF"] >> ehf_1;
       ar["iter" + std::to_string(iter - 1) + "/Energy_2b"] >> e2b_1;
       ar["iter" + std::to_string(iter - 1) + "/mu"] >> mu_1;
-      G g_tmp(green::sc::internal::init_data(gtau));
-      sc::internal::read_data(g_tmp, result_file, "iter" + std::to_string(iter - 1) + "/G_tau/data");
-      if constexpr (std::is_same_v<G, ztensor<5>>) {
-        gam -= g_tmp(g_tmp.shape()[gtau.shape().size() - 1]);
-      } else if constexpr (std::is_same_v<G, utils::shared_object<ztensor<5>>>) {
-        gam -= g_tmp.object()(g_tmp.object().shape()[gtau.object().shape().size() - 1]);
+      {
+        ztensor<5> g_tmp;
+        ar["iter" + std::to_string(iter - 1) + "/G_tau/data"] >> g_tmp;
+        gam -= g_tmp(g_tmp.shape()[g_tmp.shape().size() - 1]);
       }
-      sc::internal::cleanup_data(g_tmp);
     }
     ar["iter" + std::to_string(iter) + "/Energy_1b"] >> e1;
     ar["iter" + std::to_string(iter) + "/Energy_HF"] >> ehf;
