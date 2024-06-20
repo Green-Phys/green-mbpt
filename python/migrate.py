@@ -46,6 +46,10 @@ def pregreen_version_0_2_4(args):
     if not "grid/nk" in new_input:
         new_input["grid/nk"] = nk
 
+    if not "/grid" in new_input :
+        new_input.create_group("/grid")
+    new_grid = new_input["/grid"]
+
     meta_dsets = ["conj_pairs_list", "kpair_idx", "kpair_irre_list", "num_kpair_stored", "trans_pairs_list"]
     if "/grid" in old_meta:
         for dset in meta_dsets:
