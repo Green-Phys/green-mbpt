@@ -343,13 +343,19 @@ namespace green::mbpt {
   template <typename G, typename S1, typename St>
   void dyson<G, S1, St>::print_convergence(size_t iter, const G& gtau, const std::string& result_file) {
     double        e1, ehf, e2b, mu;
-    double        e1_1, ehf_1, e2b_1, mu_1 = 0;
+    double        e1_1 = 0, ehf_1 = 0, e2b_1 = 0, mu_1 = 0;
     h5pp::archive ar(result_file, "r");
     S1            gam;
+    std::vector<size_t> new_shape(4);
     if constexpr (std::is_same_v<G, ztensor<5>>) {
-      gam = gtau(gtau.shape()[gtau.shape().size() - 1]);
+      std::copy(gtau.shape().begin()+1, gtau.shape().end(), new_shape.begin());
+      gam.resize(new_shape);
+      gam << gtau(gtau.shape()[0] - 1);
     } else if constexpr (std::is_same_v<G, utils::shared_object<ztensor<5>>>) {
-      gam = gtau.object()(gtau.object().shape()[gtau.object().shape().size() - 1]);
+      const auto & gtau_o = gtau.object();
+      std::copy(gtau_o.shape().begin()+1, gtau_o.shape().end(), new_shape.begin());
+      gam.resize(new_shape);
+      gam << gtau_o(gtau_o.shape()[0] - 1);
     }
     if (!ar.has_group("iter" + std::to_string(iter))) {
       return;
@@ -370,7 +376,6 @@ namespace green::mbpt {
     ar["iter" + std::to_string(iter) + "/Energy_2b"] >> e2b;
     ar["iter" + std::to_string(iter) + "/mu"] >> mu;
     ar.close();
-
     double dg = std::sqrt(std::transform_reduce(gam.begin(), gam.end(), std::complex<double>(0.0), std::plus{},
                                                 [](const std::complex<double>& a) { return a * std::conj(a); })
                               .real()) /
