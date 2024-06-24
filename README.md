@@ -52,11 +52,12 @@ $ make install
 ## Basic usage
 
 ### Generate input data
-`Green/WeakCoupling` provides `PySCF` interface to generate input data and initial 
+`Green/WeakCoupling` provides `PySCF` interface to generate input data and initial starting point through the `green-mbtools` Python package.
 
+To generate initial mean-field solution and one- and two-body integrals run:
 ```ShellSession
 python python/init_data_df.py --a <a.dat> --atom <atom.dat> --nk <nk> --basis <basis specification>
-``` 
+```
 
 To perform weak-coupling simulations, one have to call `mbpt.exe` executable located at the installation path in the `bin` subdirectory.
 Minimal parameters that are needed to run weak-coupling simulations are following:
@@ -75,4 +76,4 @@ To get information about other parameters and their default values call `mbpt.ex
 
 ## Acknowledgements
 
-This work is supported by the National Science Foundation under the award CSSI-2310582
+This work is supported by the National Science Foundation under the award OAC-2310582
