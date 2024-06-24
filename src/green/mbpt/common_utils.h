@@ -13,7 +13,7 @@ namespace green::mbpt {
 
   inline void print_leakage(double leakage, const std::string& object) {
     std::cout << "Leakage of " + object << ": " << leakage << std::endl;
-    if (leakage > 1e-8) std::cerr << "Warning: The leakage is larger than 1e-8" << std::endl;
+    if (leakage > 1e-8) std::cerr << "WARNING: The leakage is larger than 1e-8" << std::endl;
   }
 
   inline auto compute_energy(const ztensor<5>& g_tau, const ztensor<4>& sigma1, const ztensor<5>& sigma_tau,

@@ -230,7 +230,7 @@ namespace green::mbpt {
     g_tau_s.fence();
     double leakage = coeff_last / coeff_first;
     if (!utils::context.global_rank) std::cout << "Leakage of Dyson G: " << leakage << std::endl;
-    if (!utils::context.global_rank and leakage > 1e-8) std::cerr << "Warning: The leakage is larger than 1e-8" << std::endl;
+    if (!utils::context.global_rank and leakage > 1e-8) std::cerr << "WARNING: The leakage is larger than 1e-8" << std::endl;
     MPI_Type_free(&dt_matrix);
     MPI_Op_free(&matrix_sum_op);
   }
@@ -282,7 +282,7 @@ namespace green::mbpt {
     }
     double leakage = coeff_last / coeff_first;
     if (!utils::context.global_rank) std::cout << "Leakage of Dyson G: " << leakage << std::endl;
-    if (!utils::context.global_rank and leakage > 1e-8) std::cerr << "Warning: The leakage is larger than 1e-8" << std::endl;
+    if (!utils::context.global_rank and leakage > 1e-8) std::cerr << "WARNING: The leakage is larger than 1e-8" << std::endl;
     MPI_Type_free(&dt_matrix);
     MPI_Op_free(&matrix_sum_op);
   }
