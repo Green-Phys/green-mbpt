@@ -7,6 +7,9 @@ if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
     message(FATAL_ERROR "In-source builds are not allowed")
 endif ()
 
+################ GREEN RELEASE VERSION #####################
+set(GREEN_RELEASE origin/main)
+
 set(CMAKE_CXX_STANDARD 17)
 
 execute_process(

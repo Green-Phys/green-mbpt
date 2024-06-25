@@ -6,7 +6,7 @@ function(add_green_kernel CUSTOM_KERNEL KERNEL_URL)
     FetchContent_Declare(
             ${CUSTOM_KERNEL}
             GIT_REPOSITORY ${KERNEL_URL}
-            GIT_TAG origin/main # or a later release
+            GIT_TAG ${GREEN_RELEASE} # or a later release
     )
 
     FetchContent_MakeAvailable(${CUSTOM_KERNEL})
