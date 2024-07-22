@@ -12,8 +12,8 @@ def copy_input_data(old_input_file, new_input_file):
     old_input_file: old HDF5 file object
     new_input_file: new HDF5 file object
     '''
-    for key in old_input.keys():
-        old_input.copy(key, new_input)
+    for key in old_input_file.keys():
+        old_input_file.copy(key, new_input_file)
 
 
 
