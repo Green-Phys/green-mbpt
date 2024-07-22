@@ -8,6 +8,8 @@ parser = argparse.ArgumentParser("Band-structure plotting")
 
 parser.add_argument("--input_file", type=str, required=True, help="Name of the file containing analytically continued data evaluated on high-symmetry path")
 parser.add_argument("--output_dir", type=str, required=True, help="Name of the directory to save band-strtructure plots")
+parser.add_argument("--e_min", type=float, default=-12.0, help="Lower bound of energy window (eV)")
+parser.add_argument("--e_max", type=float, default=12.0, help="Upper bound of energy window (eV)")
 
 args = parser.parse_args()
 
@@ -44,7 +46,7 @@ for s in range(nspin):
 
 HartreeToEv = 27.211396641308
 freqs_limit=mesh*HartreeToEv
-mask=(freqs_limit<12) & (freqs_limit>-12)
+mask=(freqs_limit<args.e_max) & (freqs_limit>args.e_min)
 KDOS=KDOS[0,:,mask]*HartreeToEv
 freqs = freqs_limit[mask].real
 path=np.array(range(0,nk_again))
