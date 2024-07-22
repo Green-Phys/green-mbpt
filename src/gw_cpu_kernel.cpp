@@ -35,6 +35,7 @@ namespace green::mbpt::kernels {
     MPI_Datatype                     dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
     MPI_Op                           matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
     auto&                            sigma_fermi   = sigma_tau.object();
+    _eps_inv_wq.set_zero();
     sigma_tau.fence();
     if (!utils::context.node_rank) sigma_fermi.set_zero();
     sigma_tau.fence();
@@ -54,11 +55,13 @@ namespace green::mbpt::kernels {
     }
     sigma_tau.fence();
     statistics.end();
+    statistics.start("q0_correction");
     if (_q0_utils.q0_treatment() == extrapolate) {
       MPI_Allreduce(MPI_IN_PLACE, _eps_inv_wq.data(), _eps_inv_wq.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, utils::context.global);
       _q0_utils.GW_q0_correction(_eps_inv_wq, sigma_fermi, g.object(), _ft, _X2C, utils::context.global_rank,
                                  utils::context.node_rank, utils::context.node_size, sigma_tau.win());
     }
+    statistics.end();
     statistics.end();
     statistics.print(utils::context.global);
     MPI_Type_free(&dt_matrix);
@@ -306,7 +309,7 @@ namespace green::mbpt::kernels {
     _ft.w_b_to_tau_f(P0_w, P0_tilde.object(), t_offset, nt_local, true);
     //P0_tilde.fence();
     // for G0W0 correction
-    if (_q0_utils.q0_treatment() == extrapolate and utils::context.global_rank == 0) {
+    if (_q0_utils.q0_treatment() == extrapolate and utils::context.node_rank == 0) {
       size_t iq = _bz_utils.symmetry().reduced_point(q_ir);
       _q0_utils.aux_to_PW_00(P0_w, _eps_inv_wq, iq);
     }
