@@ -33,6 +33,23 @@
 
 namespace green::mbpt {
 
+  // Define colors for verbose output
+  #define text_black "\033[22;30m"
+  #define text_red "\033[22;31m"
+  #define text_green "\033[22;32m"
+  #define text_brown "\033[22;33m"
+  #define text_blue "\033[22;34m"
+  #define text_magenta "\033[22;35m"
+  #define text_cyan "\033[22;36m"
+  #define text_gray "\033[22;37m"
+  #define text_dgray "\033[01;30m"
+  #define text_lred "\033[01;31m"
+  #define text_lgreen "\033[01;32m"
+  #define text_lyellow "\033[01;33m"
+  #define text_lblue "\033[01;34m"
+  #define text_lmagenta "\033[01;35m"
+  #define text_lcyan "\033[01;36m"
+
   static const std::string INPUT_VERSION = "0.2.4";
 
   // Matrix types

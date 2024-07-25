@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
+set(GREEN_SC_SRC "/Users/gharsha/Documents/Codes/green-sc")
 project(mbpt)
 
 if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
@@ -42,6 +43,8 @@ add_green_dependency(green-h5pp)
 add_green_dependency(green-ndarray)
 add_green_dependency(green-params)
 add_green_dependency(green-sc)
+# set(CUSTOM_PATH "/Users/gharsha/Documents/Codes/green-sc")
+# add_green_dependency(green-sc ${CUSTOM_PATH})
 add_green_dependency(green-symmetry)
 add_green_dependency(green-utils)
 

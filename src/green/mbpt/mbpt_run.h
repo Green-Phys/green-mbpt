@@ -257,9 +257,23 @@ namespace green::mbpt {
   inline void run(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p) {
     const auto       jobs = p["jobs"].as<std::vector<job_type>>();
     const scf_type   type = p["scf_type"];
+    int _verbose = p["verbose"];
     // initialize Dyson solver
     shared_mem_dyson dyson(p);
     // Allocate working arrays
+    if (!utils::context.global_rank && p["verbose"]) {
+      std::stringstream ss;
+      ss << std::scientific << std::setprecision(15) << text_red;
+      ss << "------------------------------------------------------------------------" << std::endl;
+      ss << "MEMORY INFO" << std::endl;
+      size_t size_g = dyson.ft().sd().repn_fermi().nts() * dyson.ns() * dyson.bz_utils().ink() * std::pow(dyson.nso(),2);
+      size_g *= sizeof(std::complex<double>);
+      ss << "Node-wide shared memory allocation of Green's function and self-energy: " << std::endl;
+      ss << 2 * size_g / 1024. / 1024. << " MB" << std::endl;
+      ss << "------------------------------------------------------------------------" << std::endl;
+      ss << text_black;
+      std::cout << ss.str();
+    }
     auto G_tau     = utils::shared_object<ztensor<5>>(dyson.ft().sd().repn_fermi().nts(), dyson.ns(), dyson.bz_utils().ink(),
                                                   dyson.nso(), dyson.nso());
     auto Sigma_tau = utils::shared_object<ztensor<5>>(dyson.ft().sd().repn_fermi().nts(), dyson.ns(), dyson.bz_utils().ink(),
