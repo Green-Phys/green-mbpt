@@ -133,16 +133,6 @@ namespace green::mbpt {
     matrix(transform) = matrix(exp_kr) * matrix(exp_rk) / double(nk);
 
     ztensor<4>                       Sigma_1_fbz(ns, hs_nk, nso, nso);
-    utils::shared_object<ztensor<5>> sigma_tau_int(nts, ns, hs_nk, nso, nso);
-    sigma_tau_int.fence();
-    for (int its = utils::context.global_rank; its < ns * nts; its += utils::context.global_size) {
-      int  it                = its / ns;
-      int  is                = its % ns;
-      auto sigma_tau_int_its = sigma_tau_int.object()(it, is);
-      auto sigma_tau_its     = sigma_tau.object()(it, is);
-      sigma_tau_int_its << transform_to_hs(dyson_solver.bz_utils().ibz_to_full(sigma_tau_its), transform);
-    }
-    sigma_tau_int.fence();
     // Compute orthogonalization transforamtion matrix
     compute_S_sqrt(Sk_hs, Sk_hs_12_inv);
     Eigen::FullPivLU<MatrixXcd> lusolver(nso, nso);
@@ -152,14 +142,14 @@ namespace green::mbpt {
       int iw = iws / ns;
       int is = iws % ns;
       Sigma_w.set_zero();
-      dyson_solver.ft().tau_to_omega_ws(sigma_tau_int.object(), Sigma_w, iw, is);
+      dyson_solver.ft().tau_to_omega_ws(sigma_tau.object(), Sigma_w, iw, is);
       Sigma_1_fbz(is) << transform_to_hs(dyson_solver.bz_utils().ibz_to_full(sigma_1(is)), transform);
-      // auto Sigma_w_fbz = transform_to_hs(dyson_solver.bz_utils().ibz_to_full(Sigma_w), transform);
+      auto Sigma_w_fbz = transform_to_hs(dyson_solver.bz_utils().ibz_to_full(Sigma_w), transform);
       for (int ik = 0; ik < hs_nk; ++ik) {
         auto muomega = dyson_solver.ft().wsample_fermi()(iw) * 1.0i + mu;
 
         matrix(G_w)  = matrix(Sk_hs_12_inv(ik)) *
-                      (muomega * matrix(Sk_hs(ik)) - matrix(Hk_hs(ik)) - matrix(Sigma_1_fbz(is, ik)) - matrix(Sigma_w(ik))) *
+                      (muomega * matrix(Sk_hs(ik)) - matrix(Hk_hs(ik)) - matrix(Sigma_1_fbz(is, ik)) - matrix(Sigma_w_fbz(ik))) *
                       matrix(Sk_hs_12_inv(ik));
         matrix(G_w_hs) = lusolver.compute(matrix(G_w)).inverse().eval();
         for (size_t i = 0; i < nso; ++i) {
@@ -188,7 +178,6 @@ namespace green::mbpt {
       res["Sigma_1_hs"] << Sigma_1_fbz;
       res["Hk_hs"] << Hk_hs;
       res["Sk_hs"] << Sk_hs;
-      res["Sigma_tau_hs/data"] << sigma_tau_int.object();
       res.close();
     }
     MPI_Barrier(utils::context.global);
