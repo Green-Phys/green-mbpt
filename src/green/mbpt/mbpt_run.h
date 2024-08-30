@@ -100,7 +100,7 @@ namespace green::mbpt {
     size_t     nw    = nts - 2;
     size_t     nk    = dyson_solver.bz_utils().nk();
     size_t     hs_nk = kmesh_hs.shape()[0];
-    ztensor<3> Sigma_w(hs_nk, nso, nso);
+    ztensor<3> Sigma_w(ink, nso, nso);
     ztensor<2> G_w(nso, nso);
     ztensor<2> G_w_hs(nso, nso);
     ztensor<2> transform(hs_nk, nk);
@@ -133,6 +133,7 @@ namespace green::mbpt {
     matrix(transform) = matrix(exp_kr) * matrix(exp_rk) / double(nk);
 
     ztensor<4>                       Sigma_1_fbz(ns, hs_nk, nso, nso);
+    ztensor<3>                       Sigma_w_fbz(hs_nk, nso, nso);
     // Compute orthogonalization transforamtion matrix
     compute_S_sqrt(Sk_hs, Sk_hs_12_inv);
     Eigen::FullPivLU<MatrixXcd> lusolver(nso, nso);
@@ -144,7 +145,7 @@ namespace green::mbpt {
       Sigma_w.set_zero();
       dyson_solver.ft().tau_to_omega_ws(sigma_tau.object(), Sigma_w, iw, is);
       Sigma_1_fbz(is) << transform_to_hs(dyson_solver.bz_utils().ibz_to_full(sigma_1(is)), transform);
-      auto Sigma_w_fbz = transform_to_hs(dyson_solver.bz_utils().ibz_to_full(Sigma_w), transform);
+      Sigma_w_fbz     << transform_to_hs(dyson_solver.bz_utils().ibz_to_full(Sigma_w), transform);
       for (int ik = 0; ik < hs_nk; ++ik) {
         auto muomega = dyson_solver.ft().wsample_fermi()(iw) * 1.0i + mu;
 
