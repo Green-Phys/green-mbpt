@@ -23,10 +23,18 @@
 #define GREEN_MBPT_KERNEL_FACTORY_H
 
 #include "kernels.h"
+#include "custom_kernels.h"
 
-#ifdef GREEN_CUSTOM_KERNEL_HEADER
-#include GREEN_CUSTOM_KERNEL_HEADER
-#endif
+#define CUSTOM_GW_KERNEL_CALL(NS, ENUM, X2C, p, nao, nso, ns, NQ, ft, bz_utils, S_k) \
+  if (p["kernel"].as<kernel_type>() == ENUM ) {                                      \
+    return NS::custom_gw_kernel(X2C, p, nao, nso, ns, NQ, ft, bz_utils, S_k);        \
+  }
+
+#define CUSTOM_HF_KERNEL_CALL(NS, ENUM, X2C, p, nao, nso, ns, NQ, madelung, bz_utils, S_k) \
+  if (p["kernel"].as<kernel_type>() == ENUM ) {                                            \
+    return NS::custom_hf_kernel(X2C, p, nao, nso, ns, NQ, madelung, bz_utils, S_k);        \
+  }
+
 
 namespace green::mbpt::kernels {
   class hf_kernel_factory {
@@ -53,10 +61,17 @@ namespace green::mbpt::kernels {
         };
         return std::tuple{kernel, callback};
       }
-#ifdef GREEN_CUSTOM_KERNEL_HEADER
-      if (p["kernel"].as<kernel_type>() == GREEN_CUSTOM_KERNEL_ENUM ) {
-        return custom_hf_kernel(X2C, p, nao, nso, ns, NQ, madelung, bz_utils, S_k);
-      }
+#ifdef GREEN_CUSTOM_KERNEL_HEADER_0
+      CUSTOM_HF_KERNEL_CALL(GREEN_CUSTOM_KERNEL_NS_0, GREEN_CUSTOM_KERNEL_ENUM_0, X2C, p, nao, nso, ns, NQ, madelung, bz_utils, S_k);
+#endif
+#ifdef GREEN_CUSTOM_KERNEL_HEADER_1
+      CUSTOM_HF_KERNEL_CALL(GREEN_CUSTOM_KERNEL_NS_1, GREEN_CUSTOM_KERNEL_ENUM_1, X2C, p, nao, nso, ns, NQ, madelung, bz_utils, S_k);
+#endif
+#ifdef GREEN_CUSTOM_KERNEL_HEADER_2
+      CUSTOM_HF_KERNEL_CALL(GREEN_CUSTOM_KERNEL_NS_2, GREEN_CUSTOM_KERNEL_ENUM_2, X2C, p, nao, nso, ns, NQ, madelung, bz_utils, S_k);
+#endif
+#ifdef GREEN_CUSTOM_KERNEL_HEADER_3
+      CUSTOM_HF_KERNEL_CALL(GREEN_CUSTOM_KERNEL_NS_3, GREEN_CUSTOM_KERNEL_ENUM_3, X2C, p, nao, nso, ns, NQ, madelung, bz_utils, S_k);
 #endif
       throw mbpt_kernel_error("Cannot determine HF kernel");
     }
@@ -75,10 +90,17 @@ namespace green::mbpt::kernels {
         std::function callback = [kernel](G_type& g, G_type& s) { static_cast<gw_cpu_kernel*>(kernel.get())->solve(g, s); };
         return std::tuple{kernel, callback};
       }
-#ifdef GREEN_CUSTOM_KERNEL_HEADER
-      if (p["kernel"].as<kernel_type>() == GREEN_CUSTOM_KERNEL_ENUM ) {
-        return custom_gw_kernel(X2C, p, nao, nso, ns, NQ, ft, bz_utils, S_k);
-      }
+#ifdef GREEN_CUSTOM_KERNEL_HEADER_0
+      CUSTOM_GW_KERNEL_CALL(GREEN_CUSTOM_KERNEL_NS_0, GREEN_CUSTOM_KERNEL_ENUM_0, X2C, p, nao, nso, ns, NQ, ft, bz_utils, S_k);
+#endif
+#ifdef GREEN_CUSTOM_KERNEL_HEADER_1
+      CUSTOM_GW_KERNEL_CALL(GREEN_CUSTOM_KERNEL_NS_1, GREEN_CUSTOM_KERNEL_ENUM_1, X2C, p, nao, nso, ns, NQ, ft, bz_utils, S_k);
+#endif
+#ifdef GREEN_CUSTOM_KERNEL_HEADER_2
+      CUSTOM_GW_KERNEL_CALL(GREEN_CUSTOM_KERNEL_NS_2, GREEN_CUSTOM_KERNEL_ENUM_2, X2C, p, nao, nso, ns, NQ, ft, bz_utils, S_k);
+#endif
+#ifdef GREEN_CUSTOM_KERNEL_HEADER_3
+      CUSTOM_GW_KERNEL_CALL(GREEN_CUSTOM_KERNEL_NS_3, GREEN_CUSTOM_KERNEL_ENUM_3, X2C, p, nao, nso, ns, NQ, ft, bz_utils, S_k);
 #endif
       throw mbpt_kernel_error("Cannot determine GW kernel");
     }
