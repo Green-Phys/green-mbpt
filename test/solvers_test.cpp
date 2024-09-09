@@ -124,9 +124,6 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
   }
   green::mbpt::gw_solver solver(p, ft, bz, Sk);
   solver.solve(G_shared, Sigma1, S_shared);
-  green::h5pp::archive ar(test_file + "out_", "w");
-  ar["data"] << S_shared.object();
-  ar.close();
   REQUIRE_THAT(S_shared.object(), IsCloseTo(S_shared_tst.object(), 1e-6));
 }
 

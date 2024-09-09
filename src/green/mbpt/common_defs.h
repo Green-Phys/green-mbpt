@@ -27,9 +27,7 @@
 
 #include <Eigen/Dense>
 
-#ifdef GREEN_CUSTOM_KERNEL_HEADER
-#include GREEN_CUSTOM_KERNEL_HEADER
-#endif
+#include "custom_kernels.h"
 
 namespace green::mbpt {
 
@@ -139,8 +137,17 @@ namespace green::mbpt {
 
   enum kernel_type {
     CPU
-#ifdef CUSTOM_KERNEL
-    , GREEN_CUSTOM_KERNEL_ENUM
+#ifdef GREEN_CUSTOM_KERNEL_ENUM_0
+    , GREEN_CUSTOM_KERNEL_ENUM_0
+#endif
+#ifdef GREEN_CUSTOM_KERNEL_ENUM_1
+    , GREEN_CUSTOM_KERNEL_ENUM_1
+#endif
+#ifdef GREEN_CUSTOM_KERNEL_ENUM_2
+    , GREEN_CUSTOM_KERNEL_ENUM_2
+#endif
+#ifdef GREEN_CUSTOM_KERNEL_ENUM_3
+    , GREEN_CUSTOM_KERNEL_ENUM_3
 #endif
   };
 
@@ -158,8 +165,17 @@ namespace green::mbpt {
     p.define<sigma_q0_treatment_e>("q0_treatment", "GW q=0 divergence treatment", ignore_G0);
     p.define<std::vector<job_type>>("jobs", "Jobs to run.", std::vector{SC});
     p.define<kernel_type>("kernel", "Type of the computing kernel.", CPU);
-#ifdef GREEN_CUSTOM_KERNEL_HEADER
-    custom_kernel_parameters(p);
+#ifdef GREEN_CUSTOM_KERNEL_HEADER_0
+    GREEN_CUSTOM_KERNEL_NS_0::custom_kernel_parameters(p);
+#endif
+#ifdef GREEN_CUSTOM_KERNEL_HEADER_1
+    GREEN_CUSTOM_KERNEL_NS_1::custom_kernel_parameters(p);
+#endif
+#ifdef GREEN_CUSTOM_KERNEL_HEADER_2
+    GREEN_CUSTOM_KERNEL_NS_2::custom_kernel_parameters(p);
+#endif
+#ifdef GREEN_CUSTOM_KERNEL_HEADER_3
+    GREEN_CUSTOM_KERNEL_NS_3::custom_kernel_parameters(p);
 #endif
   }
 }  // namespace green::mbpt
