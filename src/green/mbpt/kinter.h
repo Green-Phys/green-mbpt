@@ -100,10 +100,11 @@ namespace green::mbpt {
 
     ztensor<4>                       Sigma_1_fbz(ns, hs_nk, nso, nso);
     ztensor<3>                       Sigma_w_fbz(hs_nk, nso, nso);
-    // Compute orthogonalization transforamtion matrix
+    // interpolate the static part of the self-energy on a new grid
     for (int is = 0; is< ns; ++is ) {
       Sigma_1_fbz(is) << transform_to_hs(dyson_solver.bz_utils().ibz_to_full(sigma_1(is)), transform);
     }
+    // Compute orthogonalization transformation matrix
     ztensor<4> Xk_hs(Sk_hs.shape());
     orth("symm", Sk_hs, Hk_hs, Sigma_1_fbz, Xk_hs);
     Eigen::FullPivLU<MatrixXcd> lusolver(nso, nso);
