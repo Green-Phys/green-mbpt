@@ -3,6 +3,7 @@
 
 # IDE directories
 .idea/*
+.vscode/*
 
 # Prerequisites
 *.d

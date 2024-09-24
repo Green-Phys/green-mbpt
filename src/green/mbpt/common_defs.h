@@ -129,7 +129,7 @@ namespace green::mbpt {
     return result;
   }
 
-  enum scf_type { HF, GF2, GW };
+  enum scf_type { HF, GF2, GW, SEET };
 
   enum sigma_q0_treatment_e { ignore_G0, ewald_int, extrapolate };
 
