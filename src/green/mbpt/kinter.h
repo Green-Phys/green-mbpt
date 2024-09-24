@@ -49,12 +49,8 @@ namespace green::mbpt {
     // Init arrays
     dtensor<2> kmesh_hs;
     dtensor<2> rmesh;
-    ztensor<3> Hk_hs;
-    ztensor<3> Sk_hs;
     input["high_symm_path/k_mesh"] >> kmesh_hs;
     input["high_symm_path/r_mesh"] >> rmesh;
-    input["high_symm_path/Hk"] >> Hk_hs;
-    input["high_symm_path/Sk"] >> Sk_hs;
     size_t     nts   = sigma_tau.object().shape()[0];
     size_t     ns    = sigma_tau.object().shape()[1];
     size_t     ink   = sigma_tau.object().shape()[2];
@@ -62,11 +58,19 @@ namespace green::mbpt {
     size_t     nw    = nts - 2;
     size_t     nk    = dyson_solver.bz_utils().nk();
     size_t     hs_nk = kmesh_hs.shape()[0];
+    ztensor<4> Hk_hs(ns, hs_nk, nso, nso);
+    ztensor<4> Sk_hs(ns, hs_nk, nso, nso);
+    {
+      ztensor<3> tmp;
+      input["high_symm_path/Hk"] >> tmp;
+      for(int is = 0; is < ns; ++is) Hk_hs(is) << tmp;
+      input["high_symm_path/Sk"] >> tmp;
+      for(int is = 0; is < ns; ++is) Sk_hs(is) << tmp;
+    }
     ztensor<3> Sigma_w(ink, nso, nso);
     ztensor<2> G_w(nso, nso);
     ztensor<2> G_w_hs(nso, nso);
     ztensor<2> transform(hs_nk, nk);
-    ztensor<3> Sk_hs_12_inv(Sk_hs.shape());
     // exponential from r to k_hs
     ztensor<2> exp_kr(hs_nk, rmesh.shape()[0]);
     // exponential from k to r
@@ -97,7 +101,11 @@ namespace green::mbpt {
     ztensor<4>                       Sigma_1_fbz(ns, hs_nk, nso, nso);
     ztensor<3>                       Sigma_w_fbz(hs_nk, nso, nso);
     // Compute orthogonalization transforamtion matrix
-    compute_S_sqrt(Sk_hs, Sk_hs_12_inv);
+    for (int is = 0; is< ns; ++is ) {
+      Sigma_1_fbz(is) << transform_to_hs(dyson_solver.bz_utils().ibz_to_full(sigma_1(is)), transform);
+    }
+    ztensor<4> Xk_hs(Sk_hs.shape());
+    orth("symm", Sk_hs, Hk_hs, Sigma_1_fbz, Xk_hs);
     Eigen::FullPivLU<MatrixXcd> lusolver(nso, nso);
     // Interpolate G onto a new grid and perform symmetric orthogonalization
     g_omega_hs.fence();
@@ -106,14 +114,12 @@ namespace green::mbpt {
       int is = iws % ns;
       Sigma_w.set_zero();
       dyson_solver.ft().tau_to_omega_ws(sigma_tau.object(), Sigma_w, iw, is);
-      Sigma_1_fbz(is) << transform_to_hs(dyson_solver.bz_utils().ibz_to_full(sigma_1(is)), transform);
       Sigma_w_fbz     << transform_to_hs(dyson_solver.bz_utils().ibz_to_full(Sigma_w), transform);
       for (int ik = 0; ik < hs_nk; ++ik) {
         auto muomega = dyson_solver.ft().wsample_fermi()(iw) * 1.0i + mu;
-
-        matrix(G_w)  = matrix(Sk_hs_12_inv(ik)) *
-                      (muomega * matrix(Sk_hs(ik)) - matrix(Hk_hs(ik)) - matrix(Sigma_1_fbz(is, ik)) - matrix(Sigma_w_fbz(ik))) *
-                      matrix(Sk_hs_12_inv(ik));
+        matrix(G_w)  = matrix(Xk_hs(is, ik)) *
+                      (muomega * matrix(Sk_hs(is, ik)) - matrix(Hk_hs(is, ik)) - matrix(Sigma_1_fbz(is, ik)) - matrix(Sigma_w_fbz(ik))) *
+                      matrix(Xk_hs(is, ik));
         matrix(G_w_hs) = lusolver.compute(matrix(G_w)).inverse().eval();
         for (size_t i = 0; i < nso; ++i) {
           g_omega_hs.object()(iw, is, ik, i) = G_w_hs(i, i);

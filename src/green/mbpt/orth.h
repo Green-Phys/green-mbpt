@@ -58,8 +58,9 @@ namespace green::mbpt {
       for(size_t is(1); is<X_k.shape()[0]; ++is) {
         X_k(is) << X_k(0);
       }
+    } else {
+      throw mbpt_orth_error("Unknown orthogonalization type");
     }
-
   }
 }
 
