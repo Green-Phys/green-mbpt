@@ -84,7 +84,6 @@ namespace green::mbpt {
 
     void read_a_chunk(size_t c_id, ztensor<4>& V_buffer) {
       std::string   fname = _base_path + "/" + _chunk_basename + "_" + std::to_string(c_id) + ".h5";
-      hid_t         file  = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
       h5pp::archive ar(fname);
       ar["/" + std::to_string(c_id)] >> reinterpret_cast<double*>(V_buffer.data());
       ar.close();
