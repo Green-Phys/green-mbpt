@@ -45,10 +45,23 @@ void buffer::setup_mpi_shmem(){
   //initialize status on shmem rank 0
   if(shmem_rank_==0) for(int i=0;i<number_of_keys_;++i) element_status_[i]=status_elem_unavailable;
 
-  //create a shared memory status for the elements
+  //create a shared memory access counter array
   element_access_counter_.setup_shmem_region(shmem_comm_, number_of_keys_);
   //initialize status on shmem rank 0
   if(shmem_rank_==0) for(int i=0;i<number_of_keys_;++i) element_access_counter_[i]=0;
+
+
+  //create a shared memory access counter array
+  element_last_access_.setup_shmem_region(shmem_comm_, number_of_keys_);
+  //initialize on shmem rank 0
+  if(shmem_rank_==0) for(int i=0;i<number_of_keys_;++i) element_last_access_[i]=access_elem_never_accessed;
+
+  //this is where we store the index in the buffer of where this element is stored
+  shared_memory_region<int> element_last_access_;
+  //create a shared memory access counter array
+  element_buffer_index_.setup_shmem_region(shmem_comm_, number_of_keys_);
+  //initialize on shmem rank 0
+  if(shmem_rank_==0) for(int i=0;i<number_of_keys_;++i) element_buffer_index_[i]=buffer_index_nowhere;
 
   MPI_Barrier(shmem_comm_);
 }

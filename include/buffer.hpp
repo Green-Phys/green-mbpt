@@ -2,11 +2,18 @@
 #include<Eigen/Dense>
 #include<mpi.h>
 #include"shared_memory_region.hpp"
+#include"access_counter.hpp"
 
 enum element_status{
   status_elem_reading=-2,
   status_elem_unavailable=-1,
   status_elem_idle=0
+};
+enum{
+  access_elem_never_accessed=std::numeric_limits<int>::max()
+};
+enum{
+  buffer_index_nowhere=-1
 };
 
 class buffer{
@@ -32,7 +39,7 @@ public:
 
   int element_status(int key) const{ return element_status_[key];}
 
-  double access_element(int key);
+  double *access_element(int key);
   void release_element(int key);
 private:
   void setup_mpi_shmem();
@@ -51,9 +58,14 @@ private:
   shared_memory_region<int> element_status_;
   //this is where we count how many concurrent accesses we have
   shared_memory_region<int> element_access_counter_;
+  //this is where we check when this element was last accessed
+  shared_memory_region<int> element_last_access_;
+  //this is where we store the index in the buffer of where this element is stored
+  shared_memory_region<int> element_buffer_index_;
   //this is where we keep the actual data
   shared_memory_region<double> buffer_data_;
 
+  access_counter ctr_;
 
   //MPI shared memory auxiliaries
   MPI_Comm shmem_comm_;

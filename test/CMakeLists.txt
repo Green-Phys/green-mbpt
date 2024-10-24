@@ -16,6 +16,7 @@ include(GoogleTest)
 set(test_src
   test_main.cpp
   test_mpi.cpp
+  test_access_counter.cpp
   test_buffer.cpp
   test_shared_memory_region.cpp
 )
