@@ -13,9 +13,12 @@ public:
   buffer(int element_size, int number_of_keys, bool verbose=false):
     element_size_(element_size),
     number_of_keys_(number_of_keys),
-    verbose_(verbose){    
+    verbose_(verbose)
+  { 
     setup_mpi_shmem();
-    buffer_status_=Eigen::VectorXi::Constant(number_of_keys, status_elem_unavailable);
+  }
+  ~buffer(){
+    release_mpi_shmem();
   }
   //getter function for size of each buffer element
   std::size_t element_size() const{return element_size_;}
@@ -28,17 +31,21 @@ public:
   int buffer_status(int key) const{ return buffer_status_[key];}
 private:
   void setup_mpi_shmem();
+  void release_mpi_shmem();
 
   const std::size_t element_size_;
   const std::size_t number_of_keys_;
 
   const bool verbose_;
 
-  Eigen::VectorXi buffer_status_;
+  int *buffer_status_; //pointer to be addressed with shared mem MPI
+  int *buffer_status_alloc_; //pointer to be allocated and deallocated with shared mem MPI
 
 
   //MPI shared memory auxiliaries
   MPI_Comm shmem_comm_;
   int shmem_size_, shmem_rank_;
+  MPI_Win buffer_status_window_; //the MPI window where we keep read/write/availability accounting info
+  MPI_Win buffer_window_;     //the MPI window where we keep the actual data
 
 };
