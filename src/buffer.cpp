@@ -3,7 +3,7 @@
 #include <unistd.h>
 
 
-int buffer::nelem_heuristics(double ratio, int element_size, int total_num_elem) {
+int buffer::n_buffer_elem_heuristics(double ratio, int element_size, int total_num_elem) {
     //figure out how much memory is available on the machine
     unsigned long long pages = sysconf(_SC_PHYS_PAGES);
     unsigned long long page_size = sysconf(_SC_PAGE_SIZE);
@@ -40,10 +40,15 @@ void buffer::setup_mpi_shmem(){
   }
   MPI_Barrier(MPI_COMM_WORLD);
   
-  //create a shared memory status buffer
-  buffer_status_.setup_shmem_region(shmem_comm_, number_of_keys_);
+  //create a shared memory status for the elements
+  element_status_.setup_shmem_region(shmem_comm_, number_of_keys_);
   //initialize status on shmem rank 0
-  if(shmem_rank_==0) for(int i=0;i<number_of_keys_;++i) buffer_status_[i]=status_elem_unavailable;
+  if(shmem_rank_==0) for(int i=0;i<number_of_keys_;++i) element_status_[i]=status_elem_unavailable;
+
+  //create a shared memory status for the elements
+  element_access_counter_.setup_shmem_region(shmem_comm_, number_of_keys_);
+  //initialize status on shmem rank 0
+  if(shmem_rank_==0) for(int i=0;i<number_of_keys_;++i) element_access_counter_[i]=0;
 
   MPI_Barrier(shmem_comm_);
 }

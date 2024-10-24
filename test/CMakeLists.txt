@@ -27,7 +27,7 @@ target_link_libraries(runtests PUBLIC gtest)
 target_link_libraries(runtests PRIVATE mpi_read_lock)
 target_link_libraries(runtests PUBLIC BLAS::BLAS)
 target_link_libraries(runtests PUBLIC MPI::MPI_CXX)
-target_compile_definitions(runtests PRIVATE MATHEMATICA_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/../Mathematica/")
+target_compile_definitions(runtests PRIVATE HDF5_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/../hdf5/")
 
 if (TEST_XML_OUTPUT)
     add_test(NAME all_tests

@@ -50,6 +50,7 @@ TEST(shmem, Lock) {
   MPI_Comm shmem_comm;
   MPI_Comm_split_type(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,global_rank,info,&shmem_comm);
   MPI_Comm_rank(shmem_comm,&shmem_rank);
+  MPI_Comm_size(shmem_comm,&shmem_size);
 
 
   shared_memory_region<int> shmemi;
@@ -64,5 +65,5 @@ TEST(shmem, Lock) {
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
   //if the lock works we'll spend 1000 microseconds in the lock for each rank. If it does not work this should trigger even for 2 MPI ranks
-  EXPECT_GT(4000, duration.count());
+  EXPECT_GT(duration.count(), shmem_size*1000);
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include<Eigen/Dense>
+#include<iostream>
 #include<mpi.h>
 
 template<typename T> class shared_memory_region{
@@ -12,6 +13,7 @@ public:
     MPI_Comm_rank(shmem_comm,&shmem_rank);
     //create a shared memory status buffer
     MPI_Win_allocate_shared(shmem_rank==0?region_size* sizeof(T):0, sizeof(T), MPI_INFO_NULL, shmem_comm, &buffer_status_alloc_, &window_);
+    validate_shmem_model();
     //get a local pointer to shared memory buffer
     {
       MPI_Aint rss2;
@@ -56,6 +58,8 @@ public:
   bool locked() const{ return locked_;}
 
 private:
+  void validate_shmem_model();
+
   MPI_Win window_; //the MPI window where we keep read/write/availability accounting info
   T *buffer_status_; //pointer to be addressed with shared mem MPI
   T *buffer_status_alloc_; //pointer to be allocated and deallocated with shared mem MPI
@@ -63,4 +67,22 @@ private:
   bool allocated_; //to be set after memory obtained from system
   bool locked_;
 };
+
+//this makes sure that we have the unified model. Otherwise we need to think about explicit synchronization.
+template<class T> void shared_memory_region<T>::validate_shmem_model(){
+  void * attr_ptr;
+  int    attr_flag;
+  MPI_Win_get_attr(window_, MPI_WIN_MODEL, &attr_ptr, &attr_flag);
+  int * attr_val = (int*)attr_ptr;
+  if ( (*attr_val)==MPI_WIN_SEPARATE ) {
+    std::cerr<<"This platform is running an untested SEPARATE MPI shared memory model, MPI_WIN_MODEL = MPI_WIN_SEPARATE. aborting."<<std::endl;
+    throw std::runtime_error("Unsupported MPI shared memory model");
+  } else if ( (*attr_val)==MPI_WIN_UNIFIED ) {
+    ; //we are happy. We want MPI_WIN_UNIFIED
+  } else {
+    std::cerr<<"This platform is running an untested shared memory model, MPI_WIN_MODEL is neither MPI_WIN_SEPARATE nor MPI_WIN_UNIFIED. aborting."<<std::endl;
+    throw std::runtime_error("Unsupported MPI shared memory model");
+  }
+}
+
 
