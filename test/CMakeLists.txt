@@ -19,6 +19,7 @@ set(test_src
   test_access_counter.cpp
   test_buffer.cpp
   test_shared_memory_region.cpp
+  test_chunk_reader.cpp
 )
 
 add_executable(runtests

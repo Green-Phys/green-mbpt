@@ -35,6 +35,8 @@ if (BLAS_FOUND)
     add_compile_definitions(EIGEN_USE_BLAS)
 endif ()
 
+find_package(HDF5 REQUIRED COMPONENTS HL)
+
 #manual location of green-mbpt src files
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
