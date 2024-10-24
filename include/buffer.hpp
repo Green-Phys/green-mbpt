@@ -1,6 +1,7 @@
 #pragma once
 #include<Eigen/Dense>
 #include<mpi.h>
+#include"shared_memory_region.hpp"
 
 enum buffer_status{
   status_elem_reading=-2,
@@ -26,7 +27,7 @@ public:
   std::size_t number_of_keys() const{return number_of_keys_;}
 
   //memory heuristics for figuring out how many elements we should allocate, as function of total memory size
-  int nelem_heuristics(double ratio) const;
+  static int nelem_heuristics(double ratio, int element_size, int total_num_elem) ;
 
   int buffer_status(int key) const{ return buffer_status_[key];}
 private:
@@ -38,14 +39,14 @@ private:
 
   const bool verbose_;
 
-  int *buffer_status_; //pointer to be addressed with shared mem MPI
-  int *buffer_status_alloc_; //pointer to be allocated and deallocated with shared mem MPI
+  //this is where we do the accounting and locking/unlocking.
+  shared_memory_region<int> buffer_status_;
+  //this is where we keep the actual data
+  shared_memory_region<double> buffer_data_;
 
 
   //MPI shared memory auxiliaries
   MPI_Comm shmem_comm_;
   int shmem_size_, shmem_rank_;
-  MPI_Win buffer_status_window_; //the MPI window where we keep read/write/availability accounting info
-  MPI_Win buffer_window_;     //the MPI window where we keep the actual data
 
 };
