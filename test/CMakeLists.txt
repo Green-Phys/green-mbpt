@@ -20,6 +20,7 @@ set(test_src
   test_buffer.cpp
   test_shared_memory_region.cpp
   test_chunk_reader.cpp
+  test_bufferedSI.cpp
 )
 
 add_executable(runtests

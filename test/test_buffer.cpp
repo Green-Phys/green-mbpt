@@ -5,14 +5,16 @@
 TEST(buffer, Init) {
   std::size_t element_size=100;
   std::size_t total_keys=100;
-  buffer b(element_size, total_keys, total_keys);
+  reader R;
+  buffer b(element_size, total_keys, total_keys, &R);
 }
 TEST(buffer, ValSize) {
   int nao=26;
   int naux=200;
   int nKQ=1200; //#K x #Q, total number of keys
   int element_size=nao*nao*naux*2; //the 2 is for complex
-  buffer b(element_size, nKQ, nKQ);
+  reader R;
+  buffer b(element_size, nKQ, nKQ, &R);
   EXPECT_EQ(b.element_size(), element_size);
   EXPECT_EQ(b.number_of_keys(), nKQ);
 }
@@ -34,7 +36,8 @@ TEST(buffer, NelemHeuristics) {
 
   //this is a case where all entries fit -- just load them all.
   nKQ=1200;
-  buffer b2(element_size, buffer::n_buffer_elem_heuristics(0.5, element_size, nKQ), nKQ);
+  reader R;
+  buffer b2(element_size, buffer::n_buffer_elem_heuristics(0.5, element_size, nKQ), nKQ, &R);
   EXPECT_EQ(buffer::n_buffer_elem_heuristics(0.5, element_size, nKQ), b2.number_of_keys());
 }
 TEST(buffer, InitialStatus) {
@@ -42,8 +45,9 @@ TEST(buffer, InitialStatus) {
   int naux=200;
   int nKQ=1200; 
   int element_size=nao*nao*naux*2;
+  reader R;
 
-  buffer b(element_size, nKQ, nKQ);
+  buffer b(element_size, nKQ, nKQ, &R);
   for(int i=0;i<nKQ;++i){
     EXPECT_EQ(b.element_status(i), status_elem_unavailable);
   }

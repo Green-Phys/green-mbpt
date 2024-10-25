@@ -38,10 +38,26 @@ void chunk_reader::read_key(int key, double *buffer){
 
   read_key_at_offset(filepath, chunk_name, offset, buffer);
 }
+int find_lower_or_equal(const Eigen::VectorXi& vec, int key) {
+    // Find the first element that is not less than 'key'
+    auto it = std::lower_bound(vec.begin(), vec.end(), key);
+    
+    // Check if the found element is exactly equal to the key
+    if (it != vec.end() && *it == key) {
+        return *it; // The element is equal to the key
+    }
+    
+    // If the iterator points to the beginning, it means all elements are greater than the key
+    if (it == vec.begin()) {
+        throw std::runtime_error("this should never happen");
+    }
+    
+    // Otherwise, the previous element is the one that is lower or equal to the key
+    return *(--it);
+}
 void chunk_reader::find_file_and_offset(int key, std::string &filepath, int &chunk_name, unsigned long long &offset){
-  auto chunk_ptr=std::lower_bound ((chunk_indices_.begin()), chunk_indices_.end(), key);
-  if(*chunk_ptr != key) chunk_ptr--;
-  chunk_name=*chunk_ptr;
+  //auto chunk_ptr=std::lower_bound ((chunk_indices_.begin()), chunk_indices_.end(), key);
+  chunk_name=find_lower_or_equal(chunk_indices_, key);
   offset=key-chunk_name;
   std::stringstream filepath_sstr; filepath_sstr<<basepath_<<"/VQ_"<<chunk_name<<".h5";
   filepath=filepath_sstr.str();

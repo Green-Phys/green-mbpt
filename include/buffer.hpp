@@ -3,6 +3,7 @@
 #include<mpi.h>
 #include"shared_memory_region.hpp"
 #include"access_counter.hpp"
+#include"reader.hpp"
 
 enum element_status{
   status_elem_reading=-2,
@@ -19,15 +20,24 @@ enum{
 
 class buffer{
 public:
-  buffer(int element_size, int number_of_keys, int number_of_buffered_elements, bool verbose=false):
+  buffer(int element_size, int number_of_keys, int number_of_buffered_elements, reader *reader_ptr, bool verbose=false):
     element_size_(element_size),
     number_of_keys_(number_of_keys),
     number_of_buffered_elements_(number_of_buffered_elements),
-    verbose_(verbose)
+    verbose_(verbose),
+    reader_ptr_(reader_ptr)
   { 
     setup_mpi_shmem();
   }
   ~buffer(){
+    MPI_Barrier(shmem_comm_);
+    for(int i=0;i<number_of_buffered_elements_;++i){
+      if (buffer_access_counter_[i]!=0){
+        std::cerr<<"buffer released is still being accessed"<<std::endl;
+        MPI_Abort(MPI_COMM_WORLD, 1);
+      }
+    }
+    MPI_Barrier(shmem_comm_);
     release_mpi_shmem();
   }
   //getter function for size of each buffer element
@@ -44,6 +54,10 @@ public:
   const double *access_element(int key);
   //as a user: notify that you're done with reading so memory can be reused, if idle.
   void release_element(int key);
+
+  //shmem rank and size
+  int shmem_rank() const{ return shmem_rank_;}
+  int shmem_size() const{ return shmem_size_;}
 private:
   void setup_mpi_shmem();
   void release_mpi_shmem();
@@ -78,4 +92,7 @@ private:
   //MPI shared memory auxiliaries
   MPI_Comm shmem_comm_;
   int shmem_size_, shmem_rank_;
+
+  //pointer to the object that does the actual reading
+  reader *reader_ptr_;
 };
