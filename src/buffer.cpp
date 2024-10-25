@@ -142,6 +142,10 @@ const double *buffer::access_element(int key){
     buffer_last_access_.acquire_exclusive_lock();
     buffer_last_access_[buffer]=ctr_(); //note access# and increase counter
     buffer_last_access_.release_exclusive_lock();
+
+    buffer_key_.acquire_exclusive_lock();
+    buffer_key_[buffer]=key;
+    buffer_key_.release_exclusive_lock();
   }
 
   //unlock status. Nobody will mess with our buffer cause we are currently in status 'reading'
@@ -182,11 +186,15 @@ std::pair<int, int> buffer::find_oldest_unused_buffer_key() const{
     buffer=key_and_last_access[i].buffer;
     int current_access=buffer_access_counter_[buffer];
     if(current_access==0){
+      //std::cerr<<"on: "<<shmem_rank_<<" buffer: "<<buffer<<" for key: "<<key<<" is idle"<<std::endl; 
       break; //otherwise continue because despite being old, this buffer is busy
     }
-    //std::cerr<<"buffer: "<<buffer<<" for key: "<<key<<" is busy, accessed by: "<<current_access<<std::endl;
+    if(i==number_of_buffered_elements_-1){
+      std::cerr<<"all buffers are currently in use. Should have many more buffers than concurrent access requests!"<<std::endl;
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    //std::cerr<<"on "<<shmem_rank_<<" buffer: "<<buffer<<" for key: "<<key<<" is busy, accessed by: "<<current_access<<std::endl;
   }
-  if(buffer_access_counter_[buffer]!=0) throw std::runtime_error("all buffers are currently in use. Should have many more buffers than threads!");
   //consistency checks. should never fail
   if(buffer_key_[buffer]!=key_index_nowhere){
     if(buffer_key_[buffer]!=key) throw std::logic_error("buffer_key points to wrong key");

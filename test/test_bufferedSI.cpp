@@ -17,7 +17,7 @@ TEST(ReadingSI, Init) {
   EXPECT_NEAR(val[0], 5.26945, 1.e-5);
   b.release_element(0);
 }
-TEST(ReadingSI, ReadAllInts) {
+TEST(ReadingSI, DISABLED_ReadAllInts) {
   int chunks_per_file=336;
   int total_files=36;
   int nao=26;
@@ -36,6 +36,28 @@ TEST(ReadingSI, ReadAllInts) {
     b.release_element(i);
   }
 }
+
+TEST(ReadingSI, ReadAllIntsSmallBuffer) {
+  int chunks_per_file=336;
+  int total_files=36;
+  int nao=26;
+  int naux=200;
+  int number_of_keys=chunks_per_file*total_files;
+  int n_buffered_elem=100;
+
+  chunk_reader c(HDF5_DATA_DIR, number_of_keys, naux, nao); //test these numbers
+  buffer b(c.element_size(), number_of_keys, n_buffered_elem, &c);
+
+  for(int i=b.shmem_rank();i<chunks_per_file*total_files;i+=b.shmem_size()){
+    if(i>=chunks_per_file*total_files) break;
+    //std::cout<<"rank: "<<b.shmem_rank()<<" accessing element: "<<i<<std::endl;
+    const double* val=b.access_element(i);
+    b.release_element(i);
+  }
+}
+
+
+
 
 
 
