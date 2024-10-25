@@ -1,5 +1,6 @@
 add_library(mpi_read_lock 
 buffer.cpp
+reader.cpp
 chunk_reader.cpp
 )
 target_link_libraries(mpi_read_lock PUBLIC Eigen3::Eigen)

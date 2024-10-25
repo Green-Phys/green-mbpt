@@ -48,3 +48,6 @@ TEST(buffer, InitialStatus) {
     EXPECT_EQ(b.element_status(i), status_elem_unavailable);
   }
 }
+TEST(buffer,FindLastAccessBuffer){
+
+}

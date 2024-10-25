@@ -4,6 +4,25 @@
 #include <chrono>
 #include <thread>
 
+
+TEST(reader, ReadFakeData) {
+
+  int chunks_per_file=336;
+  int total_files=36;
+  int nao=26;
+  int naux=200;
+  int number_of_keys=chunks_per_file*total_files;
+
+  reader c("no_such_file", number_of_keys, naux, nao); //test these numbers
+
+  Eigen::VectorXd buffer(naux*nao*nao*2);
+  c.read_key(0, &(buffer[0]));
+
+  EXPECT_EQ(buffer[0], 42);
+  EXPECT_EQ(buffer[naux], 42.);
+  EXPECT_EQ(buffer[naux*nao*nao*2-1], 42.);
+}
+
 TEST(chunk_reader, Init) {
   chunk_reader c;
 }
@@ -22,6 +41,7 @@ TEST(chunk_reader, InitBasepath) {
   EXPECT_EQ(c.chunk_indices()[1],336);
   EXPECT_EQ(c.chunk_indices()[35],11760);
 }
+
 TEST(chunk_reader, ReadSomething){
   int chunks_per_file=336;
   int total_files=36;

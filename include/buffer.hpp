@@ -7,13 +7,14 @@
 enum element_status{
   status_elem_reading=-2,
   status_elem_unavailable=-1,
-  status_elem_idle=0
+  status_elem_available=0
 };
 enum{
-  access_elem_never_accessed=std::numeric_limits<int>::max()
+  buffer_never_accessed=-1
 };
 enum{
-  buffer_index_nowhere=-1
+  buffer_index_nowhere=-1,
+  key_index_nowhere=-1
 };
 
 class buffer{
@@ -39,11 +40,16 @@ public:
 
   int element_status(int key) const{ return element_status_[key];}
 
-  double *access_element(int key);
+  //as a user: this is how you access an element. reading will be done behind the scenes
+  const double *access_element(int key);
+  //as a user: notify that you're done with reading so memory can be reused, if idle.
   void release_element(int key);
 private:
   void setup_mpi_shmem();
   void release_mpi_shmem();
+
+   //returns the key and buffer of the oldest buffer that is unused.
+  std::pair<int, int> find_oldest_unused_buffer_key() const;
 
   //amount of memory each element uses (in units of doubles)
   const std::size_t element_size_;
@@ -57,10 +63,12 @@ private:
   //this is where we do the accounting and locking/unlocking.
   shared_memory_region<int> element_status_;
   //this is where we count how many concurrent accesses we have
-  shared_memory_region<int> element_access_counter_;
+  shared_memory_region<int> buffer_access_counter_;
   //this is where we check when this element was last accessed
-  shared_memory_region<int> element_last_access_;
-  //this is where we store the index in the buffer of where this element is stored
+  shared_memory_region<unsigned long long> buffer_last_access_;
+  //this is where we store the key for a particular buffer
+  shared_memory_region<unsigned long long> buffer_key_;
+  //this is where we store the buffer for a particular key
   shared_memory_region<int> element_buffer_index_;
   //this is where we keep the actual data
   shared_memory_region<double> buffer_data_;
