@@ -22,8 +22,8 @@ set(GIT_HASH "${PROJECT_NAME}:${TMP_HASH}" CACHE INTERNAL "")
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 find_package(Eigen3 REQUIRED)
-find_package(BLAS)
-find_package(MPI)
+find_package(BLAS REQUIRED)
+find_package(MPI REQUIRED)
 if (BLAS_FOUND)
     if (BLAS_LIBRARIES MATCHES ".*Accelerate")
         message(INFO " Using Apple BLAS")
@@ -35,7 +35,7 @@ if (BLAS_FOUND)
     add_compile_definitions(EIGEN_USE_BLAS)
 endif ()
 
-find_package(HDF5 REQUIRED COMPONENTS HL)
+find_package(HDF5 REQUIRED)
 
 #manual location of green-mbpt src files
 include_directories(${CMAKE_SOURCE_DIR}/include)
