@@ -4,6 +4,7 @@
 #include"shared_memory_region.hpp"
 #include"access_counter.hpp"
 #include"reader.hpp"
+#include"age_out_buffer.hpp"
 
 enum element_status{
   status_elem_reading=-2,
@@ -25,6 +26,7 @@ public:
     number_of_keys_(number_of_keys),
     number_of_buffered_elements_(number_of_buffered_elements),
     verbose_(verbose),
+    aob_(number_of_buffered_elements_),
     reader_ptr_(reader_ptr)
   { 
     setup_mpi_shmem();
@@ -63,7 +65,7 @@ private:
   void release_mpi_shmem();
 
    //returns the key and buffer of the oldest buffer that is unused.
-  std::pair<int, int> find_oldest_unused_buffer_key() const;
+//  std::pair<int, int> find_oldest_unused_buffer_key() const;
 
   //amount of memory each element uses (in units of doubles)
   const std::size_t element_size_;
@@ -79,7 +81,7 @@ private:
   //this is where we count how many concurrent accesses we have
   shared_memory_region<int> buffer_access_counter_;
   //this is where we check when this element was last accessed
-  shared_memory_region<unsigned long long> buffer_last_access_;
+  //shared_memory_region<unsigned long long> buffer_last_access_;
   //this is where we store the key for a particular buffer
   shared_memory_region<unsigned long long> buffer_key_;
   //this is where we store the buffer for a particular key
@@ -88,6 +90,7 @@ private:
   shared_memory_region<double> buffer_data_;
 
   access_counter ctr_;
+  age_out_buffer aob_;
 
   //MPI shared memory auxiliaries
   MPI_Comm shmem_comm_;

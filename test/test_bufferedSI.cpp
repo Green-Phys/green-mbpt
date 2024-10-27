@@ -17,7 +17,7 @@ TEST(ReadingSI, Init) {
   EXPECT_NEAR(val[0], 5.26945, 1.e-5);
   b.release_element(0);
 }
-TEST(ReadingSI, DISABLED_ReadAllInts) {
+TEST(ReadingSI, ReadAllInts) {
   int chunks_per_file=336;
   int total_files=36;
   int nao=26;
