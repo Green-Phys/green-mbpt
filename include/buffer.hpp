@@ -88,7 +88,7 @@ private:
   //this is where we store the buffer for a particular key
   shared_memory_region<int> element_buffer_index_;
   //this is where we keep the actual data
-  shared_memory_region<double> buffer_data_;
+  std::vector<shared_memory_region<double>> buffer_data_;
 
   //in case we only allow a single thread to read at once
   shared_memory_region<bool> single_thread_readlock_;

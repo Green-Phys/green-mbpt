@@ -11,17 +11,29 @@ TEST(age_out_buffer, Init) {
 TEST(age_out_buffer, last) {
   age_out_buffer aob(10);
 
+  MPI_Barrier(MPI_COMM_WORLD);
   EXPECT_EQ(aob.oldest_entry(), 9);
+  MPI_Barrier(MPI_COMM_WORLD);
   aob.promote_to_top(8);
+  MPI_Barrier(MPI_COMM_WORLD);
   EXPECT_EQ(aob.oldest_entry(), 9);
+  MPI_Barrier(MPI_COMM_WORLD);
   aob.promote_to_top(9);
+  MPI_Barrier(MPI_COMM_WORLD);
   EXPECT_EQ(aob.oldest_entry(), 7);
+  MPI_Barrier(MPI_COMM_WORLD);
   aob.promote_to_top(6);
+  MPI_Barrier(MPI_COMM_WORLD);
   EXPECT_EQ(aob.oldest_entry(), 7);
+  MPI_Barrier(MPI_COMM_WORLD);
   aob.promote_to_top(7);
+  MPI_Barrier(MPI_COMM_WORLD);
   EXPECT_EQ(aob.oldest_entry(), 5);
+  MPI_Barrier(MPI_COMM_WORLD);
   aob.promote_to_top(9);
+  MPI_Barrier(MPI_COMM_WORLD);
   EXPECT_EQ(aob.oldest_entry(), 5);
+  MPI_Barrier(MPI_COMM_WORLD);
   
 }
 TEST(age_out_buffer, repeat) {

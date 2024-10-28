@@ -63,7 +63,7 @@ TEST(ReadingSI, ReadAllIntsConsecutivelyLargeStride) {
   int number_of_keys=chunks_per_file*total_files;
 
   chunk_reader c(HDF5_DATA_DIR, number_of_keys, naux, nao); //test these numbers
-  buffer b(c.element_size(), number_of_keys, 2000, &c, false, false);
+  buffer b(c.element_size(), number_of_keys, number_of_keys, &c, false, false);
 
   int stride=number_of_keys/b.shmem_size();
   int start=number_of_keys/b.shmem_size()*b.shmem_rank();

@@ -69,7 +69,9 @@ void buffer::setup_mpi_shmem(){
   single_thread_readlock_.setup_shmem_region(shmem_comm_, 1);
 
   //finally the allocation of the buffer
-  buffer_data_.setup_shmem_region(shmem_comm_, (unsigned long long) number_of_buffered_elements_*(unsigned long long) element_size_);
+  buffer_data_.resize(number_of_buffered_elements_);
+  for(int i=0;i<number_of_buffered_elements_;++i)
+    buffer_data_[i].setup_shmem_region(shmem_comm_,(unsigned long long) element_size_);
 
   MPI_Barrier(shmem_comm_);
 }
@@ -123,7 +125,7 @@ const double *buffer::access_element(int key){
     //release status lock, return buffer index
     //std::cout<<"node: "<<shmem_rank_<<" accessed: "<<key<<" releasing lock and moving on: "<<std::endl;
     element_status_.release_exclusive_lock();
-    return &(buffer_data_[0])+buffer*element_size_;
+    return &(buffer_data_[buffer][0]);
   }
   //otherwise status is unavailable.
   if(element_status_[key]!=status_elem_unavailable) throw std::runtime_error("unknown element status");
@@ -168,7 +170,7 @@ const double *buffer::access_element(int key){
   element_status_.release_exclusive_lock();
 
   //go and read the data
-  double *read_buffer= &(buffer_data_[0])+buffer*element_size_;
+  double *read_buffer= &(buffer_data_[buffer][0]);
   if(single_thread_read_)
     single_thread_readlock_.acquire_exclusive_lock();
   reader_ptr_->read_key(key, read_buffer);
