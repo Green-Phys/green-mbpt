@@ -1,6 +1,7 @@
 #pragma once
 #include<iostream>
 #include<mpi.h>
+#include<vector>
 #include"shared_memory_region.hpp"
 
 

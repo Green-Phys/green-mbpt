@@ -3,7 +3,7 @@
 #include "chunk_reader.hpp"
 #include <mpi.h>
 
-TEST(ReadingSI, DISABLED_Init) {
+TEST(ReadingSI, Init) {
   int chunks_per_file=336;
   int total_files=36;
   int nao=26;
@@ -17,7 +17,7 @@ TEST(ReadingSI, DISABLED_Init) {
   EXPECT_NEAR(val[0], 5.26945, 1.e-5);
   b.release_element(0);
 }
-TEST(ReadingSI, DISABLED_ReadAllIntsConsecutively) {
+TEST(ReadingSI, ReadAllIntsConsecutively) {
   int chunks_per_file=336;
   int total_files=36;
   int nao=26;
@@ -37,7 +37,7 @@ TEST(ReadingSI, DISABLED_ReadAllIntsConsecutively) {
   }
 }
 
-TEST(ReadingSI, DISABLED_ReadAllIntsSmallBuffer) {
+TEST(ReadingSI, ReadAllIntsSmallBuffer) {
   int chunks_per_file=336;
   int total_files=36;
   int nao=26;
@@ -63,7 +63,7 @@ TEST(ReadingSI, ReadAllIntsConsecutivelyLargeStride) {
   int number_of_keys=chunks_per_file*total_files;
 
   chunk_reader c(HDF5_DATA_DIR, number_of_keys, naux, nao); //test these numbers
-  buffer b(c.element_size(), number_of_keys, 1200, &c, false, true);
+  buffer b(c.element_size(), number_of_keys, 2000, &c, false, false);
 
   int stride=number_of_keys/b.shmem_size();
   int start=number_of_keys/b.shmem_size()*b.shmem_rank();

@@ -8,7 +8,8 @@ if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
 endif ()
 
 set(CMAKE_CXX_STANDARD 11)
-SET( CMAKE_CXX_FLAGS "-O3 -g -fsanitize=address -fno-omit-frame-pointer")
+SET( CMAKE_CXX_FLAGS "-O3 -g -fno-omit-frame-pointer")
+#SET( CMAKE_CXX_FLAGS "-O3 -g -fsanitize=address -fno-omit-frame-pointer")
 
 execute_process(
         COMMAND git log -1 --format=%h

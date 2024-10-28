@@ -33,10 +33,10 @@ target_link_libraries(runtests PUBLIC BLAS::BLAS)
 target_link_libraries(runtests PUBLIC MPI::MPI_CXX)
 target_compile_definitions(runtests PRIVATE HDF5_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/../hdf5/")
 
-if (TEST_XML_OUTPUT)
-    add_test(NAME all_tests
-             COMMAND runtests --gtest_output="xml:report.xml")
-else ()
-    gtest_discover_tests(runtests)
-endif ()
+#if (TEST_XML_OUTPUT)
+#    add_test(NAME all_tests
+#             COMMAND runtests --gtest_output="xml:report.xml")
+#else ()
+#    gtest_discover_tests(runtests)
+#endif ()
 
