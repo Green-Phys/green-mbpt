@@ -21,13 +21,14 @@ enum{
 
 class buffer{
 public:
-  buffer(int element_size, int number_of_keys, int number_of_buffered_elements, reader *reader_ptr, bool verbose=false):
+  buffer(int element_size, int number_of_keys, int number_of_buffered_elements, reader *reader_ptr, bool verbose=false, bool single_thread_read=false):
     element_size_(element_size),
     number_of_keys_(number_of_keys),
     number_of_buffered_elements_(number_of_buffered_elements),
     verbose_(verbose),
     aob_(number_of_buffered_elements_),
-    reader_ptr_(reader_ptr)
+    reader_ptr_(reader_ptr),
+    single_thread_read_(single_thread_read)
   { 
     setup_mpi_shmem();
   }
@@ -89,12 +90,17 @@ private:
   //this is where we keep the actual data
   shared_memory_region<double> buffer_data_;
 
+  //in case we only allow a single thread to read at once
+  shared_memory_region<bool> single_thread_readlock_;
+  bool single_thread_read_;
+
   access_counter ctr_;
   age_out_buffer aob_;
 
   //MPI shared memory auxiliaries
   MPI_Comm shmem_comm_;
   int shmem_size_, shmem_rank_;
+
 
   //pointer to the object that does the actual reading
   reader *reader_ptr_;

@@ -65,6 +65,9 @@ void buffer::setup_mpi_shmem(){
   //initialize on shmem rank 0
   if(shmem_rank_==0) for(int i=0;i<number_of_keys_;++i) element_buffer_index_[i]=buffer_index_nowhere;
 
+  //create shared memory window that we'll use for a simple lock in case we only allow a single thread to read at a time
+  single_thread_readlock_.setup_shmem_region(shmem_comm_, 1);
+
   //finally the allocation of the buffer
   buffer_data_.setup_shmem_region(shmem_comm_, (unsigned long long) number_of_buffered_elements_*(unsigned long long) element_size_);
 
@@ -166,7 +169,11 @@ const double *buffer::access_element(int key){
 
   //go and read the data
   double *read_buffer= &(buffer_data_[0])+buffer*element_size_;
+  if(single_thread_read_)
+    single_thread_readlock_.acquire_exclusive_lock();
   reader_ptr_->read_key(key, read_buffer);
+  if(single_thread_read_)
+    single_thread_readlock_.release_exclusive_lock();
 
   // lock, change status to available, and release lock 
   element_status_.acquire_exclusive_lock();

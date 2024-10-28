@@ -21,6 +21,8 @@ public:
       MPI_Win_shared_query(window_, 0, &rss2, &soT2, &buffer_status_);
       if(rss2!=region_size*sizeof(T)) throw std::runtime_error("shared window error: nk2 should be number of keys");
       if(soT2!=sizeof(T)) throw std::runtime_error("shared window error: soi2 should be sizeof(int)");
+      double size_in_gb=region_size*sizeof(T)/1014./1024./1024.;
+      if(shmem_rank==0 && size_in_gb>1) std::cout<<"allocating: "<<size_in_gb<<" GB"<<std::endl;
     }
     region_size_=region_size;
     allocated_=true;

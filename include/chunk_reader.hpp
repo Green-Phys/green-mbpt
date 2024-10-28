@@ -18,7 +18,7 @@ class chunk_reader:public reader{
     void validate_threadsafety(){
       hbool_t is_ts;
       H5is_library_threadsafe (&is_ts);
-      if(!is_ts) throw std::runtime_error("this hdf5 library is not threadsafe. Threadsafety is a prerequisite for accessing files multiple times");
+      //if(!is_ts) throw std::runtime_error("this hdf5 library is not threadsafe. Threadsafety is a prerequisite for accessing files multiple times");
     }
 
     //read key ('chunk') into buffer
