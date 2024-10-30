@@ -1,4 +1,4 @@
-#include "gtest/gtest.h"
+#include <catch2/catch_test_macros.hpp>
 #include "buffer.hpp"
 #include "chunk_reader.hpp"
 #include <mpi.h>
@@ -6,7 +6,7 @@
 #include <iomanip>
 
 
-TEST(ReadingSI, HashOfKeys) {
+TEST_CASE("HashOfKeys","[ReadingSI]") {
   int chunks_per_file=336;
   int total_files=36;
   int nao=26;

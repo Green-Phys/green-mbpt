@@ -1,9 +1,12 @@
-#include "gtest/gtest.h"
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
 #include "buffer.hpp"
 #include "chunk_reader.hpp"
 #include <mpi.h>
 
-TEST(ReadingSI, Init) {
+TEST_CASE("Init","[ReadingSI]") {
+
   int chunks_per_file=336;
   int total_files=36;
   int nao=26;
@@ -14,10 +17,10 @@ TEST(ReadingSI, Init) {
   buffer b(c.element_size(), number_of_keys, number_of_keys, &c);
 
   const double* val=b.access_element(0);
-  EXPECT_NEAR(val[0], 5.26945, 1.e-5);
+  REQUIRE_THAT(val[0], Catch::Matchers::WithinAbs(5.26945, 1.e-5));
   b.release_element(0);
 }
-TEST(ReadingSI, ReadAllIntsConsecutively) {
+TEST_CASE("ReadAllIntsConsecutively","[ReadingSI]") {
   int chunks_per_file=336;
   int total_files=36;
   int nao=26;
@@ -37,7 +40,7 @@ TEST(ReadingSI, ReadAllIntsConsecutively) {
   }
 }
 
-TEST(ReadingSI, ReadAllIntsSmallBuffer) {
+TEST_CASE("ReadAllIntsSmallBuffer","[ReadingSI]") {
   int chunks_per_file=336;
   int total_files=36;
   int nao=26;
@@ -55,7 +58,7 @@ TEST(ReadingSI, ReadAllIntsSmallBuffer) {
     b.release_element(i);
   }
 }
-TEST(ReadingSI, ReadAllIntsConsecutivelyLargeStride) {
+TEST_CASE("ReadAllIntsConsecutivelyLargeStride","[ReadingSI]") {
   int chunks_per_file=336;
   int total_files=36;
   int nao=26;

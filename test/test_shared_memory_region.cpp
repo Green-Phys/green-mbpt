@@ -1,16 +1,17 @@
-#include "gtest/gtest.h"
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include "shared_memory_region.hpp"
 #include <mpi.h>
 #include <chrono>
 #include <thread>
 
-TEST(shmem, Init) {
+TEST_CASE("Init","[shmem]") {
   shared_memory_region<int> shmemi;
   shared_memory_region<double> shmemd;
-  EXPECT_FALSE(shmemi.allocated());
-  EXPECT_FALSE(shmemd.allocated());
+  REQUIRE_FALSE(shmemi.allocated());
+  REQUIRE_FALSE(shmemd.allocated());
 }
-TEST(shmem, Alloc) {
+TEST_CASE("Alloc","[shmem]") {
   int global_rank; MPI_Comm_rank(MPI_COMM_WORLD, &global_rank);
   int shmem_size, shmem_rank;
   MPI_Info info; MPI_Info_create(&info);
@@ -32,18 +33,18 @@ TEST(shmem, Alloc) {
 
   //shmem read
   for(int i=0;i<shmem_size;++i){
-    EXPECT_EQ(shmemi[i], i);
-    EXPECT_NEAR(shmemd[i], i*M_PI, 1.e-14);
+    REQUIRE(shmemi[i]==i);
+    REQUIRE_THAT(shmemd[i], Catch::Matchers::WithinAbs(i*M_PI, 1.e-14));
   } 
   //make sure we're allocated
-  EXPECT_TRUE(shmemi.allocated());
-  EXPECT_TRUE(shmemd.allocated());
+  REQUIRE(shmemi.allocated());
+  REQUIRE(shmemd.allocated());
 
   //double allocation throw
-  EXPECT_THROW(shmemi.setup_shmem_region(shmem_comm, 1), std::logic_error);
-  EXPECT_THROW(shmemd.setup_shmem_region(shmem_comm, 1), std::logic_error);
+  REQUIRE_THROWS_AS(shmemi.setup_shmem_region(shmem_comm, 1), std::logic_error);
+  REQUIRE_THROWS_AS(shmemd.setup_shmem_region(shmem_comm, 1), std::logic_error);
 }
-TEST(shmem, Lock) {
+TEST_CASE("Lock","[shmem]") {
   int global_rank; MPI_Comm_rank(MPI_COMM_WORLD, &global_rank);
   int shmem_size, shmem_rank;
   MPI_Info info; MPI_Info_create(&info);
@@ -65,5 +66,5 @@ TEST(shmem, Lock) {
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
 
   //if the lock works we'll spend 1000 microseconds in the lock for each rank. If it does not work this should trigger even for 2 MPI ranks
-  EXPECT_GT(duration.count(), shmem_size*1000);
+  REQUIRE(duration.count()>shmem_size*1000);
 }

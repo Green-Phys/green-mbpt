@@ -1,5 +1,6 @@
+#define CATCH_CONFIG_RUNNER
 #include <iostream>
-#include "gtest/gtest.h"
+#include <catch2/catch_session.hpp>
 #include<mpi.h>
 
 int main(int argc, char** argv) {
@@ -12,17 +13,11 @@ int main(int argc, char** argv) {
   if(!rank) std::cout<<"running tests under MPI on "<<size<<" processes. Only printing results from rank 0."<<std::endl;
 
 
-  ::testing::InitGoogleTest(&argc, argv);
-  ::testing::TestEventListeners& listeners =::testing::UnitTest::GetInstance()->listeners();
-  if (rank != 0) {
-    delete listeners.Release(listeners.default_result_printer());
-  }
-
-  int rat=RUN_ALL_TESTS();
+  int result = Catch::Session().run( argc, argv );
 
   MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
-  return rat;
+  return result;
 }
 
 

@@ -1,14 +1,14 @@
-#include "gtest/gtest.h"
+#include <catch2/catch_test_macros.hpp>
 #include "access_counter.hpp"
 #include <mpi.h>
 #include <chrono>
 #include <thread>
 
-TEST(access_counter, Init) {
+TEST_CASE("Init","[access_counter]") {
   access_counter ctr;
-  EXPECT_EQ(ctr(), 0);
+  REQUIRE(ctr()==0);
 }
-TEST(access_counter, count) {
+TEST_CASE("count", "[access_counter]") {
   access_counter ctr;
   int ncount=100;
 
@@ -17,5 +17,5 @@ TEST(access_counter, count) {
     ctr++;
   }
   MPI_Barrier(MPI_COMM_WORLD);
-  EXPECT_EQ(ctr(), ctr.shmem_size()*ncount);
+  REQUIRE(ctr()==ctr.shmem_size()*ncount);
 }
