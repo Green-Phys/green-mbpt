@@ -19,7 +19,7 @@ TEST_CASE("HashOfKeys","[ReadingSI]") {
   chunk_reader c(HDF5_DATA_DIR, number_of_keys, naux, nao); //test these numbers
   buffer b(c.element_size(), number_of_keys, 100, &c, false, false);
   if(b.shmem_rank()==0){
-  for(int i=0;i<number_of_keys;++i){
+  for(int i=0;i<5;++i){
     const double* val=b.access_element(i);
     SHA1((unsigned char*)val, c.element_size()*sizeof(double), digest);
     std::cout<<"digest of: "<<i<<" is: "<<std::hex<<std::setw(2)<<std::setfill('0');

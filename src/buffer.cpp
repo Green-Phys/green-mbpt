@@ -41,7 +41,7 @@ void buffer::setup_mpi_shmem(){
   MPI_Barrier(MPI_COMM_WORLD);
   
   //create a shared memory status for the elements
-  element_status_.setup_shmem_region(shmem_comm_, number_of_keys_);
+  element_status_.setup_shmem_region(shmem_comm_, number_of_keys_, true); //also validate shmem model
   //initialize status on shmem rank 0
   if(shmem_rank_==0) for(int i=0;i<number_of_keys_;++i) element_status_[i]=status_elem_unavailable;
 

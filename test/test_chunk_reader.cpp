@@ -51,7 +51,7 @@ TEST_CASE("ReadSomething","[chunk_reader]") {
   int naux=200;
   int number_of_keys=chunks_per_file*total_files;
 
-  chunk_reader c(HDF5_DATA_DIR, number_of_keys, naux, nao); //test these numbers
+  chunk_reader c(HDF5_DATA_DIR, number_of_keys, naux, nao,true); //test these numbers
 
   Eigen::VectorXd data(c.element_size());
   c.read_key(0, &(data[0]));

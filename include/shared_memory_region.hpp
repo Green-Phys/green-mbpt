@@ -6,14 +6,18 @@
 template<typename T> class shared_memory_region{
 public:
   shared_memory_region(){allocated_=false;locked_=false;}
-  void setup_shmem_region(const MPI_Comm &shmem_comm, std::size_t region_size){
+  void setup_shmem_region(const MPI_Comm &shmem_comm, std::size_t region_size, bool validate_shmem=false){
     if(allocated_) throw std::logic_error("shmem region can only be allocated once");
     int shmem_size, shmem_rank;
     MPI_Comm_size(shmem_comm,&shmem_size);
     MPI_Comm_rank(shmem_comm,&shmem_rank);
     //create a shared memory status buffer
-    MPI_Win_allocate_shared(shmem_rank==0?region_size* sizeof(T):0, sizeof(T), MPI_INFO_NULL, shmem_comm, &buffer_status_alloc_, &window_);
-    validate_shmem_model();
+    int err=MPI_Win_allocate_shared(shmem_rank==0?region_size* sizeof(T):0, sizeof(T), MPI_INFO_NULL, shmem_comm, &buffer_status_alloc_, &window_);
+    if(err !=MPI_SUCCESS){
+      std::cerr<<"memory allocation error on shmem rank: "<<shmem_rank<<std::endl;
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    if(validate_shmem) validate_shmem_model();
     //get a local pointer to shared memory buffer
     {
       MPI_Aint rss2;

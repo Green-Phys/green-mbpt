@@ -2,6 +2,7 @@
 #include <hdf5.h>
 #include <Eigen/Dense>
 #include <iostream>
+#include <chrono>
 
 void chunk_reader::parse_meta(){
   std::string filename=basepath_+"/meta.h5";
@@ -36,7 +37,11 @@ void chunk_reader::read_key(int key, double *buffer){
 
   find_file_and_offset(key, filepath, chunk_name, offset);
 
+  auto start = std::chrono::high_resolution_clock::now();
   read_key_at_offset(filepath, chunk_name, offset, buffer);
+  auto end = std::chrono::high_resolution_clock::now();
+  elapsed_+= end - start;
+  ctr_++;
 }
 int find_lower_or_equal(const Eigen::VectorXi& vec, int key) {
     // Find the first element that is not less than 'key'
