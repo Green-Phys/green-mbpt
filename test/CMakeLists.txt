@@ -22,6 +22,7 @@ set(test_src
   test_chunk_reader.cpp
   test_bufferedSI.cpp
   test_age_out_buffer.cpp
+  test_hash.cpp
 )
 
 add_executable(runtests
@@ -31,6 +32,7 @@ target_link_libraries(runtests PUBLIC gtest)
 target_link_libraries(runtests PRIVATE mpi_read_lock)
 target_link_libraries(runtests PUBLIC BLAS::BLAS)
 target_link_libraries(runtests PUBLIC MPI::MPI_CXX)
+target_link_libraries(runtests PUBLIC OpenSSL::Crypto)
 target_compile_definitions(runtests PRIVATE HDF5_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/../hdf5/")
 
 #if (TEST_XML_OUTPUT)

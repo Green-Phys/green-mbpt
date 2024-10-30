@@ -75,5 +75,20 @@ TEST(ReadingSI, ReadAllIntsConsecutivelyLargeStride) {
   }
 }
 
-//on OSX: windows above 2.4GB seem to be EXTREMELY slow. Is this due to window size or something else???
+/*TEST(ReadingSI, HashOfKeys) {
+  int chunks_per_file=336;
+  int total_files=36;
+  int nao=26;
+  int naux=200;
+  int number_of_keys=chunks_per_file*total_files;
 
+  chunk_reader c(HDF5_DATA_DIR, number_of_keys, naux, nao); //test these numbers
+  buffer b(c.element_size(), number_of_keys, 5, &c, false, false){
+  std::hash<std::array<double, 2*element_>> hasher;
+  for(int i=0;i<number_of_keys;++i){
+    const double* val=b.access_element(i);
+    std::hash<double>(val, val+element_size);
+
+  }
+}
+*/
