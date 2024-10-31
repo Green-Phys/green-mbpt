@@ -5,3 +5,6 @@ add_library(mbpt dyson.cpp hf_solver.cpp gw_solver.cpp gf2_solver.cpp gf2_solver
         gw_cpu_kernel.cpp)
 target_include_directories(mbpt PUBLIC .)
 target_link_libraries(mbpt PUBLIC GREEN::PARAMS GREEN::H5PP GREEN::UTILS GREEN::NDARRAY GREEN::GRIDS GREEN::SYMMETRY GREEN::SC)
+add_library(mpi_read_lock buffer.cpp reader.cpp chunk_reader.cpp)
+target_link_libraries(mpi_read_lock PUBLIC Eigen3::Eigen MPI::MPI_CXX hdf5::hdf5)
+target_include_directories(mpi_read_lock PUBLIC ${CMAKE_SOURCE_DIR}/include)

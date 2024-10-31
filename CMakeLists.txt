@@ -34,6 +34,12 @@ if (BLAS_FOUND)
     endif ()
     add_compile_definitions(EIGEN_USE_BLAS)
 endif ()
+find_package(Eigen3 REQUIRED)
+find_package(BLAS REQUIRED)
+find_package(MPI REQUIRED)
+find_package(OpenSSL REQUIRED)
+find_package(HDF5 REQUIRED)
+
 
 include(GreenDeps)
 
@@ -92,5 +98,6 @@ if (Build_Tests)
     enable_testing()
     add_subdirectory(test)
 endif ()
+
 install(TARGETS mbpt.exe DESTINATION bin)
 install(DIRECTORY python DESTINATION . FILES_MATCHING PATTERN "*.py")
