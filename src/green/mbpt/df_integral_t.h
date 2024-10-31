@@ -46,7 +46,6 @@ namespace green::mbpt {
       } else {
         throw mbpt_outdated_input("Integral files at '" + path +"' are outdated, please run migration script python/migrate.py");
       }
-      hid_t         file = H5Fopen((path + "/meta.h5").c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
       ar["chunk_size"] >> _chunk_size;
       ar.close();
       _vij_Q = std::make_shared<int_data>(_chunk_size, NQ, nao, nao);
