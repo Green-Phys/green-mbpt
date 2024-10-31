@@ -200,8 +200,8 @@ namespace green::mbpt {
   }
 
   void gf2_solver::read_next_correction_0_1(size_t k1, size_t k2) {
-    size_t kx3 = _coul_int_x_3->wrap(k2, k1);
-    size_t kx4 = _coul_int_x_4->wrap(k1, k2);
+    size_t kx3 = _coul_int_x_3->momenta_to_red_key_in_chunk(k2, k1);
+    size_t kx4 = _coul_int_x_4->momenta_to_red_key_in_chunk(k1, k2);
     _coul_int_c_1->read_correction(k1);
     _coul_int_c_2->read_correction(k2);
     _coul_int_x_3->read_integrals(k2, k1);
@@ -234,8 +234,8 @@ namespace green::mbpt {
   }
 
   void gf2_solver::read_next_correction_1_0(size_t k1, size_t k2) {
-    size_t k1_w = _coul_int_c_1->wrap(k1, k2);
-    size_t k2_w = _coul_int_c_2->wrap(k2, k1);
+    size_t k1_w = _coul_int_c_1->momenta_to_red_key_in_chunk(k1, k2);
+    size_t k2_w = _coul_int_c_2->momenta_to_red_key_in_chunk(k2, k1);
     _coul_int_c_1->read_integrals(k1, k2);
     _coul_int_c_2->read_integrals(k2, k1);
     _coul_int_x_3->read_correction(k1);

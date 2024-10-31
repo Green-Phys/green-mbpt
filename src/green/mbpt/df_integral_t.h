@@ -12,14 +12,12 @@
 
 #include <green/mbpt/except.h>
 
-#include <Eigen/Core>
-#include <Eigen/Sparse>
-#include <vector>
+#include "df_legacy_reader.h"
 
 namespace green::mbpt {
   enum integral_symmetry_type_e { direct, conjugated, transposed };
   /**
-   * @brief Integral class read Density fitted 3-center integrals from a HDF5 file, given by the path argument
+   * @brief Integral class to parse Density fitted 3-center integrals, handles reading given by the path argument
    */
   class df_integral_t {
     // prefixes for hdf5
@@ -32,60 +30,16 @@ namespace green::mbpt {
     using int_data                       = utils::shared_object<ztensor<4>>;
 
   public:
-    using MatrixXcd = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
-    using MatrixXcf = Eigen::Matrix<std::complex<float>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
-    using MatrixXd  = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
     df_integral_t(const std::string& path, int nao, int NQ, const bz_utils_t& bz_utils) :
-        _base_path(path), _k0(-1), _current_chunk(-1), _chunk_size(0), _NQ(NQ), _bz_utils(bz_utils) {
-      h5pp::archive ar(path + "/meta.h5");
-      if(ar.has_attribute("__green_version__")) {
-        std::string int_version = ar.get_attribute<std::string>("__green_version__");
-        if (int_version.rfind(INPUT_VERSION, 0) != 0) {
-          throw mbpt_outdated_input("Integral files at '" + path +"' are outdated, please run migration script python/migrate.py");
-        }
-      } else {
-        throw mbpt_outdated_input("Integral files at '" + path +"' are outdated, please run migration script python/migrate.py");
-      }
-      ar["chunk_size"] >> _chunk_size;
-      ar.close();
-      _vij_Q = std::make_shared<int_data>(_chunk_size, NQ, nao, nao);
+      _base_path(path),
+      _vij_Q(path, nao, NQ, bz_utils), //initialize legacy reader
+        _k0(-1), _NQ(NQ), _bz_utils(bz_utils) {
     }
 
     virtual ~df_integral_t() {}
 
-    /**
-     * Read next part of the interaction integral from
-     * @param k1
-     * @param k2
-     * @param type
-     */
-    void read_integrals(size_t k1, size_t k2) {
-      assert(k1 >= 0);
-      assert(k2 >= 0);
-      // Find corresponding index for k-pair (k1,k2). Only k-pair with k1 > k2 will be stored.
-      size_t idx = (k1 >= k2) ? k1 * (k1 + 1) / 2 + k2 : k2 * (k2 + 1) / 2 + k1;  // k-pair = (k1, k2) or (k2, k1)
-      // Corresponding symmetry-related k-pair
-      if (_bz_utils.symmetry().conj_kpair_list()[idx] != idx) {
-        idx = _bz_utils.symmetry().conj_kpair_list()[idx];
-      } else if (_bz_utils.symmetry().trans_kpair_list()[idx] != idx) {
-        idx = _bz_utils.symmetry().trans_kpair_list()[idx];
-      }
-      long idx_red = _bz_utils.symmetry().irre_pos_kpair(idx);
-      if ((idx_red / _chunk_size) == _current_chunk) return;  // we have data cached
-
-      _current_chunk = idx_red / _chunk_size;
-
-      size_t c_id    = _current_chunk * _chunk_size;
-      (*_vij_Q).fence();
-      if (!utils::context.node_rank) read_a_chunk(c_id, _vij_Q->object());
-      (*_vij_Q).fence();
-    }
-
-    void read_a_chunk(size_t c_id, ztensor<4>& V_buffer) {
-      std::string   fname = _base_path + "/" + _chunk_basename + "_" + std::to_string(c_id) + ".h5";
-      h5pp::archive ar(fname);
-      ar["/" + std::to_string(c_id)] >> reinterpret_cast<double*>(V_buffer.data());
-      ar.close();
+    void read_integrals(size_t k1, size_t k2){
+      _vij_Q.read_integrals(momenta_to_red_key(k1,k2));
     }
 
     void Complex_DoubleToType(const std::complex<double>* in, std::complex<double>* out, size_t size) {
@@ -104,7 +58,7 @@ namespace green::mbpt {
      * @param k - k-point
      */
     void read_correction(int k) {
-      auto shape = _vij_Q->object().shape();
+      auto shape = _vij_Q()->object().shape();
       _v0ij_Q.resize(shape[1], shape[2], shape[3]);
       _v_bar_ij_Q.resize(shape[1], shape[2], shape[3]);
       // avoid unnecessary reading
@@ -113,7 +67,6 @@ namespace green::mbpt {
         return;
       }
       _k0                 = k;
-      std::string   inner = std::to_string(_current_chunk * _chunk_size);
       std::string   fname = _base_path + "/" + _corr_path;
       h5pp::archive ar(fname);
       // Construct integral dataset name
@@ -135,7 +88,7 @@ namespace green::mbpt {
      * @return A pair of sign and type of applied symmetry
      */
     std::pair<int, integral_symmetry_type_e> v_type(size_t k1, size_t k2) {
-      size_t idx  = (k1 >= k2) ? k1 * (k1 + 1) / 2 + k2 : k2 * (k2 + 1) / 2 + k1;  // k-pair = (k1, k2) or (k2, k1)
+      size_t idx  = momenta_to_key(k1,k2);
       // determine sign
       int    sign = (k1 >= k2) ? 1 : -1;
       // determine applied symmetry type
@@ -158,11 +111,11 @@ namespace green::mbpt {
      */
     template <typename prec>
     void symmetrize(tensor<prec, 3>& vij_Q_k1k2, size_t k1, size_t k2, size_t NQ_offset = 0, size_t NQ_local = 0) {
-      int                                      k1k2_wrap = wrap(k1, k2);
+      int                                      k1k2_wrap = momenta_to_red_key_in_chunk(k1, k2);
       std::pair<int, integral_symmetry_type_e> vtype     = v_type(k1, k2);
       int                                      NQ        = _NQ;
       NQ_local                                           = (NQ_local == 0) ? NQ : NQ_local;
-      auto& vij_Q                                        = _vij_Q->object();
+      auto& vij_Q                                        = _vij_Q()->object();
       if (vtype.first < 0) {
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
           matrix(vij_Q_k1k2(Q_loc)) = matrix(vij_Q(k1k2_wrap, Q)).transpose().conjugate().cast<prec>();
@@ -183,12 +136,16 @@ namespace green::mbpt {
       }
     }
 
-    const ztensor<4>& vij_Q() const { return _vij_Q->object(); }
+    const ztensor<4>& vij_Q() const { return _vij_Q()->object(); }
     const ztensor<3>& v0ij_Q() const { return _v0ij_Q; }
     const ztensor<3>& v_bar_ij_Q() const { return _v_bar_ij_Q; }
 
-    int               wrap(int k1, int k2) {
+    int momenta_to_key(int k1, int k2) const{
       size_t idx = (k1 >= k2) ? k1 * (k1 + 1) / 2 + k2 : k2 * (k2 + 1) / 2 + k1;  // k-pair = (k1, k2) or (k2, k1)
+      return idx;
+    }
+    int momenta_to_red_key(int k1, int k2){
+      int idx=momenta_to_key(k1,k2);
       // determine type
       if (_bz_utils.symmetry().conj_kpair_list()[idx] != idx) {
         idx = _bz_utils.symmetry().conj_kpair_list()[idx];
@@ -196,17 +153,17 @@ namespace green::mbpt {
         idx = _bz_utils.symmetry().trans_kpair_list()[idx];
       }
       int idx_red = _bz_utils.symmetry().irre_pos_kpair(idx);
-      return idx_red % _chunk_size;
+      return idx_red;
+    }
+    int momenta_to_red_key_in_chunk(int k1, int k2){
+      return momenta_to_red_key(k1, k2)%_vij_Q.chunk_size();
     }
 
     void reset() {
-      _current_chunk = -1;
-      _k0            = -1;
+      _vij_Q.reset();
     }
-
   private:
-    // Coulomb integrals stored in density fitting format
-    std::shared_ptr<int_data> _vij_Q;
+    df_legacy_reader _vij_Q;
     // G=0 correction to coulomb integral stored in density fitting format for second-order e3xchange diagram
     ztensor<3>                _v0ij_Q;
     ztensor<3>                _v_bar_ij_Q;
@@ -214,8 +171,6 @@ namespace green::mbpt {
     bool                      _exch;
     // current leading index
     int                       _k0;
-    long                      _current_chunk;
-    long                      _chunk_size;
     long                      _NQ;
     const bz_utils_t&         _bz_utils;
 
