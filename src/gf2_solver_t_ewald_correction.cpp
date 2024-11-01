@@ -212,6 +212,8 @@ namespace green::mbpt {
     CMMatrixXcd vc_bar_1(_coul_int_c_1->v_bar_ij_Q().data(), _NQ, _nao * _nao);
     CMMatrixXcd vc_bar_2(_coul_int_c_2->v_bar_ij_Q().data(), _NQ, _nao * _nao);
     // exchange
+    /*CMMatrixXcd vx_3(_coul_int_x_3->vij_Q(k2,k1), _NQ, _nao * _nao);
+    CMMatrixXcd vx_4(_coul_int_x_4->vij_Q(k1,k2), _NQ, _nao * _nao);*/
     CMMatrixXcd vx_3(_coul_int_x_3->vij_Q().data() + kx3 * _nao * _nao * _NQ, _NQ, _nao * _nao);
     CMMatrixXcd vx_4(_coul_int_x_4->vij_Q().data() + kx4 * _nao * _nao * _NQ, _NQ, _nao * _nao);
     MMatrixXcd  v(vijkl.data(), _nao * _nao, _nao * _nao);
@@ -243,6 +245,8 @@ namespace green::mbpt {
     // direct
     CMMatrixXcd vc_1(_coul_int_c_1->vij_Q().data() + k1_w * _nao * _nao * _NQ, _NQ, _nao * _nao);
     CMMatrixXcd vc_2(_coul_int_c_2->vij_Q().data() + k2_w * _nao * _nao * _NQ, _NQ, _nao * _nao);
+    /*CMMatrixXcd vc_1(_coul_int_c_1->vij_Q(k1,k2), _NQ, _nao * _nao);
+    CMMatrixXcd vc_2(_coul_int_c_2->vij_Q(k2,k1), _NQ, _nao * _nao);*/
     // exchange
     CMMatrixXcd vx_3(_coul_int_x_3->v0ij_Q().data(), _NQ, _nao * _nao);
     CMMatrixXcd vx_4(_coul_int_x_4->v0ij_Q().data(), _NQ, _nao * _nao);

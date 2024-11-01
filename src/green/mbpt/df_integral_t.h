@@ -104,6 +104,8 @@ namespace green::mbpt {
 
     /**
      * Extract V(Q, i, j) with given (k1, k2) from chunks of integrals (_vij_Q)
+     * Note that Q here denotes the auxiliary basis index, not the transfer momentum
+     * Also apply conjugate transpose, conjugate, or transpose.
      * @tparam prec
      * @param vij_Q_k1k2
      * @param k1
@@ -136,15 +138,16 @@ namespace green::mbpt {
       }
     }
 
-    const ztensor<4>& vij_Q() const { return _vij_Q()->object(); }
+    //const ztensor<4>& vij_Q() const { return _vij_Q()->object(); }
     const ztensor<3>& v0ij_Q() const { return _v0ij_Q; }
     const ztensor<3>& v_bar_ij_Q() const { return _v_bar_ij_Q; }
+    const std::complex<double> *vij_Q(int k1, int k2) const { return _vij_Q(momenta_to_red_key_in_chunk(k1,k2)); } 
 
     int momenta_to_key(int k1, int k2) const{
       size_t idx = (k1 >= k2) ? k1 * (k1 + 1) / 2 + k2 : k2 * (k2 + 1) / 2 + k1;  // k-pair = (k1, k2) or (k2, k1)
       return idx;
     }
-    int momenta_to_red_key(int k1, int k2){
+    int momenta_to_red_key(int k1, int k2) const{
       int idx=momenta_to_key(k1,k2);
       // determine type
       if (_bz_utils.symmetry().conj_kpair_list()[idx] != idx) {
@@ -155,7 +158,7 @@ namespace green::mbpt {
       int idx_red = _bz_utils.symmetry().irre_pos_kpair(idx);
       return idx_red;
     }
-    int momenta_to_red_key_in_chunk(int k1, int k2){
+    int momenta_to_red_key_in_chunk(int k1, int k2) const{
       return momenta_to_red_key(k1, k2)%_vij_Q.chunk_size();
     }
 
