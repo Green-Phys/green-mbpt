@@ -141,7 +141,10 @@ namespace green::mbpt {
     //const ztensor<4>& vij_Q() const { return _vij_Q()->object(); }
     const ztensor<3>& v0ij_Q() const { return _v0ij_Q; }
     const ztensor<3>& v_bar_ij_Q() const { return _v_bar_ij_Q; }
-    const std::complex<double> *vij_Q(int k1, int k2) const { return _vij_Q(momenta_to_red_key_in_chunk(k1,k2)); } 
+    const std::complex<double> *vij_Q(int k1, int k2) const 
+    { 
+      return _vij_Q(momenta_to_red_key_in_chunk(k1,k2)); 
+    } 
 
     int momenta_to_key(int k1, int k2) const{
       size_t idx = (k1 >= k2) ? k1 * (k1 + 1) / 2 + k2 : k2 * (k2 + 1) / 2 + k1;  // k-pair = (k1, k2) or (k2, k1)

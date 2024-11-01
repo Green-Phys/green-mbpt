@@ -63,7 +63,11 @@ namespace green::mbpt {
       _k0            = -1;
     }
     const std::shared_ptr<int_data> operator()() const{ return _vij_Q; }
-    const std::complex<double> *operator()(int red_key_in_chunk) const{ return _vij_Q->object().data()+red_key_in_chunk*_chunk_size; }
+    const std::complex<double> *operator()(int red_key_in_chunk) const{ 
+      auto shape = _vij_Q->object().shape();
+      std::size_t extent=shape[1]*shape[2]*shape[3];
+      return _vij_Q->object().data()+red_key_in_chunk*extent; 
+    }
     int current_chunk() const{ return _current_chunk;}
     int chunk_size() const{ return _chunk_size;}
 

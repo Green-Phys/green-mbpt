@@ -11,6 +11,7 @@ endif ()
 set(GREEN_RELEASE origin/main)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS "-O3 -g -fsanitize=address -fno-omit-frame-pointer")
 
 execute_process(
         COMMAND git log -1 --format=%h
