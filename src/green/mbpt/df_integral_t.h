@@ -13,6 +13,7 @@
 #include <green/mbpt/except.h>
 
 #include "df_legacy_reader.h"
+#include "df_buffered_reader.h"
 
 namespace green::mbpt {
   enum integral_symmetry_type_e { direct, conjugated, transposed };
@@ -32,7 +33,9 @@ namespace green::mbpt {
   public:
     df_integral_t(const std::string& path, int nao, int NQ, const bz_utils_t& bz_utils) :
       _base_path(path),
-      _vij_Q(path, nao, NQ, bz_utils), //initialize legacy reader
+      _number_of_keys(bz_utils.symmetry().num_kpair_stored()),
+      _vij_Q(path, nao, NQ), //initialize legacy reader
+      _vij_Q_buffer(path, nao, NQ, _number_of_keys), //initialize buffered reader
         _k0(-1), _NQ(NQ), _bz_utils(bz_utils) {
     }
 
@@ -172,7 +175,9 @@ namespace green::mbpt {
     }
 
   private:
+    int                       _number_of_keys;
     df_legacy_reader _vij_Q;
+    df_buffered_reader _vij_Q_buffer;
     // G=0 correction to coulomb integral stored in density fitting format for second-order e3xchange diagram
     ztensor<3>                _v0ij_Q;
     ztensor<3>                _v_bar_ij_Q;

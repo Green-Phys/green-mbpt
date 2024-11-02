@@ -20,12 +20,11 @@ namespace green::mbpt {
 
     const std::string _chunk_basename    = "VQ";
 
-    using bz_utils_t                     = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
     using int_data                       = utils::shared_object<ztensor<4>>;
 
   public:
-    df_legacy_reader(const std::string& path, int nao, int NQ, const bz_utils_t& bz_utils) :
-        _base_path(path), _k0(-1), _current_chunk(-1), _chunk_size(0), _NQ(NQ), _bz_utils(bz_utils) {
+    df_legacy_reader(const std::string& path, int nao, int NQ) :
+        _base_path(path), _k0(-1), _current_chunk(-1), _chunk_size(0), _NQ(NQ) {
       h5pp::archive ar(path + "/meta.h5");
       if(ar.has_attribute("__green_version__")) {
         std::string int_version = ar.get_attribute<std::string>("__green_version__");
@@ -97,7 +96,6 @@ namespace green::mbpt {
     long                      _current_chunk;
     long                      _chunk_size;
     long                      _NQ;
-    const bz_utils_t&         _bz_utils;
 
     // base path to integral files
     std::string               _base_path;

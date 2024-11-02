@@ -38,14 +38,15 @@ set(mpi_readlock_test_src
 add_executable(mpi_readlock_test
   ${mpi_readlock_test_src}
 )
+target_include_directories(mpi_readlock_test PRIVATE "${CMAKE_SOURCE_DIR}/src/green/mbpt/buffered_reader")
 
 target_compile_definitions(mpi_readlock_test PRIVATE TEST_PATH="${CMAKE_CURRENT_SOURCE_DIR}/data"
         GRID_PATH="${grids_SOURCE_DIR}/data")
 target_link_libraries(mpi_readlock_test
         PRIVATE
         Catch2::Catch2)
-target_link_libraries(mpi_readlock_test PRIVATE mpi_read_lock)
-target_link_libraries(mpi_readlock_test PUBLIC BLAS::BLAS)
+target_link_libraries(mpi_readlock_test PRIVATE buffered_reader)
+target_link_libraries(mpi_readlock_test PUBLIC BLAS::BLAS Eigen3::Eigen hdf5::hdf5)
 target_link_libraries(mpi_readlock_test PUBLIC MPI::MPI_CXX)
 target_link_libraries(mpi_readlock_test PUBLIC OpenSSL::Crypto)
 target_compile_definitions(mpi_readlock_test PRIVATE HDF5_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/../hdf5/")
