@@ -14,7 +14,10 @@
 
 namespace green::mbpt {
   class df_legacy_reader{
-    // prefixes for hdf5
+  /**
+   * @brief Integral class to read 3-central integrals using legacy reading of an entire chunk.
+   */
+
     const std::string _chunk_basename    = "VQ";
 
     using bz_utils_t                     = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
@@ -50,6 +53,30 @@ namespace green::mbpt {
       (*_vij_Q).fence();
     }
 
+    void reset() {
+      _current_chunk = -1;
+      _k0            = -1;
+    }
+
+    const std::complex<double> *operator()(int key) const{ 
+      int key_in_chunk=red_key_in_chunk(key);
+      std::array<size_t, 4> shp = shape();
+      std::size_t extent=shp[1]*shp[2]*shp[3];
+      return _vij_Q->object().data()+key_in_chunk*extent; 
+    }
+    const std::complex<double> *operator()(int key, int Q) const{
+      int key_in_chunk=red_key_in_chunk(key);
+      std::array<size_t, 4> shp = shape();
+      std::size_t extent1=shp[1]*shp[2]*shp[3];
+      std::size_t extent2=shp[2]*shp[3];
+      return _vij_Q->object().data()+key_in_chunk*extent1+Q*extent2;
+    }
+    int current_chunk() const{ return _current_chunk;}
+    int chunk_size() const{ return _chunk_size;}
+    const std::array<size_t, 4> &shape() const{ return _vij_Q->object().shape();}
+    
+
+  private:
 
     void read_a_chunk(size_t c_id, ztensor<4>& V_buffer) {
       std::string   fname = _base_path + "/" + _chunk_basename + "_" + std::to_string(c_id) + ".h5";
@@ -57,21 +84,12 @@ namespace green::mbpt {
       ar["/" + std::to_string(c_id)] >> reinterpret_cast<double*>(V_buffer.data());
       ar.close();
     }
-
-    void reset() {
-      _current_chunk = -1;
-      _k0            = -1;
+    int red_key_in_chunk(int red_key) const{
+      return red_key%chunk_size();
     }
-    const std::shared_ptr<int_data> operator()() const{ return _vij_Q; }
-    const std::complex<double> *operator()(int red_key_in_chunk) const{ 
-      auto shape = _vij_Q->object().shape();
-      std::size_t extent=shape[1]*shape[2]*shape[3];
-      return _vij_Q->object().data()+red_key_in_chunk*extent; 
-    }
-    int current_chunk() const{ return _current_chunk;}
-    int chunk_size() const{ return _chunk_size;}
 
-  private:
+
+
     // Coulomb integrals stored in density fitting format
     std::shared_ptr<int_data> _vij_Q;
     // current leading index

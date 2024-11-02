@@ -39,7 +39,7 @@ namespace green::mbpt {
     virtual ~df_integral_t() {}
 
     void read_integrals(size_t k1, size_t k2){
-      _vij_Q.read_integrals(momenta_to_red_key(k1,k2));
+      _vij_Q.read_integrals(momenta_to_symmred_key(k1,k2));
     }
 
     void Complex_DoubleToType(const std::complex<double>* in, std::complex<double>* out, size_t size) {
@@ -58,7 +58,7 @@ namespace green::mbpt {
      * @param k - k-point
      */
     void read_correction(int k) {
-      auto shape = _vij_Q()->object().shape();
+      auto shape = _vij_Q.shape();
       _v0ij_Q.resize(shape[1], shape[2], shape[3]);
       _v_bar_ij_Q.resize(shape[1], shape[2], shape[3]);
       // avoid unnecessary reading
@@ -113,23 +113,28 @@ namespace green::mbpt {
      */
     template <typename prec>
     void symmetrize(tensor<prec, 3>& vij_Q_k1k2, size_t k1, size_t k2, size_t NQ_offset = 0, size_t NQ_local = 0) {
-      int                                      k1k2_wrap = momenta_to_red_key_in_chunk(k1, k2);
       std::pair<int, integral_symmetry_type_e> vtype     = v_type(k1, k2);
       int                                      NQ        = _NQ;
       NQ_local                                           = (NQ_local == 0) ? NQ : NQ_local;
-      auto& vij_Q                                        = _vij_Q()->object();
+      int nao=_vij_Q.shape()[2]; 
+      typedef Eigen::Map<const Eigen::Matrix<std::complex<double>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> map_t;
       if (vtype.first < 0) {
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
-          matrix(vij_Q_k1k2(Q_loc)) = matrix(vij_Q(k1k2_wrap, Q)).transpose().conjugate().cast<prec>();
+          int key=momenta_to_symmred_key(k1,k2);
+          map_t vij_map(_vij_Q(key, Q),nao,nao);
+          matrix(vij_Q_k1k2(Q_loc)) = vij_map.transpose().conjugate().cast<prec>();
         }
       } else {
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
-          matrix(vij_Q_k1k2(Q_loc)) = matrix(vij_Q(k1k2_wrap, Q)).cast<prec>();
+          int key=momenta_to_symmred_key(k1,k2);
+          map_t vij_map(_vij_Q(key, Q),nao,nao);
+          matrix(vij_Q_k1k2(Q_loc)) = vij_map.cast<prec>();
         }
       }
-      if (vtype.second == conjugated) {  // conjugate
+      if (vtype.second == conjugated) {  // conjugate 
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
           matrix(vij_Q_k1k2(Q_loc)) = matrix(vij_Q_k1k2(Q_loc)).conjugate();
+
         }
       } else if (vtype.second == transposed) {  // transpose
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
@@ -143,14 +148,14 @@ namespace green::mbpt {
     const ztensor<3>& v_bar_ij_Q() const { return _v_bar_ij_Q; }
     const std::complex<double> *vij_Q(int k1, int k2) const 
     { 
-      return _vij_Q(momenta_to_red_key_in_chunk(k1,k2)); 
+      return _vij_Q(momenta_to_symmred_key(k1,k2)); 
     } 
 
     int momenta_to_key(int k1, int k2) const{
       size_t idx = (k1 >= k2) ? k1 * (k1 + 1) / 2 + k2 : k2 * (k2 + 1) / 2 + k1;  // k-pair = (k1, k2) or (k2, k1)
       return idx;
     }
-    int momenta_to_red_key(int k1, int k2) const{
+    int momenta_to_symmred_key(int k1, int k2) const{
       int idx=momenta_to_key(k1,k2);
       // determine type
       if (_bz_utils.symmetry().conj_kpair_list()[idx] != idx) {
@@ -161,13 +166,11 @@ namespace green::mbpt {
       int idx_red = _bz_utils.symmetry().irre_pos_kpair(idx);
       return idx_red;
     }
-    int momenta_to_red_key_in_chunk(int k1, int k2) const{
-      return momenta_to_red_key(k1, k2)%_vij_Q.chunk_size();
-    }
 
     void reset() {
       _vij_Q.reset();
     }
+
   private:
     df_legacy_reader _vij_Q;
     // G=0 correction to coulomb integral stored in density fitting format for second-order e3xchange diagram
