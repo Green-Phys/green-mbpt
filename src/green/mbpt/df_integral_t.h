@@ -127,13 +127,15 @@ namespace green::mbpt {
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
           map_t vij_map(_vij_Q(key, Q),nao,nao);
           map_t vijb_map(elem_ptr+Q*nao*nao,nao,nao);
-          //std::cout<<"reader difference: "<<(vij_map-vijb_map).norm()<<std::endl;
-          matrix(vij_Q_k1k2(Q_loc)) = vij_map.transpose().conjugate().cast<prec>();
+          if((vij_map-vijb_map).norm()>1.e-7) throw std::runtime_error("conj: the two readers gave different answers");
+          matrix(vij_Q_k1k2(Q_loc)) = vijb_map.transpose().conjugate().cast<prec>();
         }
       } else {
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
           map_t vij_map(_vij_Q(key, Q),nao,nao);
-          matrix(vij_Q_k1k2(Q_loc)) = vij_map.cast<prec>();
+          map_t vijb_map(elem_ptr+Q*nao*nao,nao,nao);
+          if((vij_map-vijb_map).norm()>1.e-7) throw std::runtime_error("the two readers gave different answers");
+          matrix(vij_Q_k1k2(Q_loc)) = vijb_map.cast<prec>();
         }
       }
       _vij_Q_buffer.release_element(key);
