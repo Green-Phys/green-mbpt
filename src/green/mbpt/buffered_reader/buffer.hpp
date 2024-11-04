@@ -21,8 +21,8 @@ enum{
 
 class buffer{
 public:
-  buffer(int element_size, int number_of_keys, int number_of_buffered_elements, reader *reader_ptr, bool verbose=false, bool single_thread_read=false):
-    element_size_(element_size),
+  buffer(int element_size_in_doubles, int number_of_keys, int number_of_buffered_elements, reader *reader_ptr, bool verbose=false, bool single_thread_read=false):
+    element_size_(element_size_in_doubles),
     number_of_keys_(number_of_keys),
     number_of_buffered_elements_(number_of_buffered_elements),
     verbose_(verbose),
@@ -49,7 +49,7 @@ public:
   std::size_t number_of_keys() const{return number_of_keys_;}
 
   //memory heuristics for figuring out how many elements we should allocate, as function of total memory size
-  static int n_buffer_elem_heuristics(double ratio, int element_size, int total_num_elem) ;
+  static int n_buffer_elem_heuristics(double ratio, int element_size_in_bytes, int total_num_elem) ;
 
   int element_status(int key) const{ return element_status_[key];}
 

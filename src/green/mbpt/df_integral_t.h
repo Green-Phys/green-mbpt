@@ -120,20 +120,23 @@ namespace green::mbpt {
       int                                      NQ        = _NQ;
       NQ_local                                           = (NQ_local == 0) ? NQ : NQ_local;
       int nao=_vij_Q.shape()[2]; 
+      int key=momenta_to_symmred_key(k1,k2);
       typedef Eigen::Map<const Eigen::Matrix<std::complex<double>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> map_t;
+      const std::complex<double> *elem_ptr=_vij_Q_buffer.access_element(key);
       if (vtype.first < 0) {
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
-          int key=momenta_to_symmred_key(k1,k2);
           map_t vij_map(_vij_Q(key, Q),nao,nao);
+          map_t vijb_map(elem_ptr+Q*nao*nao,nao,nao);
+          //std::cout<<"reader difference: "<<(vij_map-vijb_map).norm()<<std::endl;
           matrix(vij_Q_k1k2(Q_loc)) = vij_map.transpose().conjugate().cast<prec>();
         }
       } else {
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
-          int key=momenta_to_symmred_key(k1,k2);
           map_t vij_map(_vij_Q(key, Q),nao,nao);
           matrix(vij_Q_k1k2(Q_loc)) = vij_map.cast<prec>();
         }
       }
+      _vij_Q_buffer.release_element(key);
       if (vtype.second == conjugated) {  // conjugate 
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
           matrix(vij_Q_k1k2(Q_loc)) = matrix(vij_Q_k1k2(Q_loc)).conjugate();
