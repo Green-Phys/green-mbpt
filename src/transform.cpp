@@ -165,7 +165,7 @@ namespace green::transform {
 
     int         NQ       = 0;
     int         nao      = 0;
-    {
+    if(!myid) {
       std::string   V0 = basename + "/VQ_0.h5";
       h5pp::archive v0_file(V0, "r");
       dtensor<4>    buffer_in_d;
@@ -175,6 +175,8 @@ namespace green::transform {
       nao = buffer_in.shape()[2];
       v0_file.close();
     }
+    MPI_Bcast(&NQ, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&nao, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     // Read impurity information
     int                     nimp = 0;
