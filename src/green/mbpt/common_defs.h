@@ -129,11 +129,11 @@ namespace green::mbpt {
     return result;
   }
 
-  enum scf_type { HF, GF2, GW, SEET };
+  enum scf_type { HF, GF2, GW };
 
   enum sigma_q0_treatment_e { ignore_G0, ewald_int, extrapolate };
 
-  enum job_type { SC, WINTER, THERMODYNAMICS };
+  enum job_type { SC, SEET, WINTER, THERMODYNAMICS };
 
   enum kernel_type {
     CPU
@@ -177,6 +177,13 @@ namespace green::mbpt {
 #ifdef GREEN_CUSTOM_KERNEL_HEADER_3
     GREEN_CUSTOM_KERNEL_NS_3::custom_kernel_parameters(p);
 #endif
+    p.define<std::string>("seet_input", "Input file with SEET transformations.", "transform.h5");
+    p.define<std::string>("bath_file", "Input file with initial bath parameters.", "bath.txt");
+    p.define<std::string>("impurity_solver_exec", "Path to an impurity solver executable.");
+    p.define<std::string>("impurity_solver_params", "Impurity solver parameters.");
+    p.define<std::string>("dc_solver_exec", "Path to a double counting solver executable.");
+    p.define<std::string>("dc_solver_param", "Double counting solver's parameters.");
+    p.define<std::string>("seet_root_dir", "Directory to put output for impurity solvers.", "");
   }
 }  // namespace green::mbpt
 #endif  // MBPT_COMMON_DEFS_H
