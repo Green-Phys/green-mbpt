@@ -77,7 +77,7 @@ namespace green::mbpt {
       ar["params/nso"] >> _nso;
       ar["params/ns"] >> _ns;
       ar.close();
-      ar.open(p["seet_file"]);
+      ar.open(p["seet_input"]);
       ztensor<3> x_;
       ar["nimp"] >> _nimp;
       ar["X_k"] >> x_;
