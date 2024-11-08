@@ -99,18 +99,19 @@ namespace green::mbpt {
     seet_solver seet(p, dyson.ft(), dyson.bz_utils(), dyson.H_k(), dyson.S_k(), dyson.mu());
     switch (type) {
       case HF: {
-        sc.solve(hf, dyson.H_k(), dyson.S_k(), G_tau, Sigma1, Sigma_tau);
+        sc::composition_solver cs(/*hf, gw,*/ seet);
+        sc.solve(cs, dyson.H_k(), dyson.S_k(), G_tau, Sigma1, Sigma_tau);
         break;
       }
       case GW: {
         gw_solver              gw(p, dyson.ft(), dyson.bz_utils(), dyson.S_k());
-        sc::composition_solver cs(hf, gw, seet);
+        sc::composition_solver cs(/*hf, gw,*/ seet);
         sc.solve(cs, dyson.H_k(), dyson.S_k(), G_tau, Sigma1, Sigma_tau);
         break;
       }
       case GF2: {
         gf2_solver             gf2(p, dyson.ft(), dyson.bz_utils());
-        sc::composition_solver cs(hf, gf2, seet);
+        sc::composition_solver cs(/*hf, gf2,*/ seet);
         sc.solve(cs, dyson.H_k(), dyson.S_k(), G_tau, Sigma1, Sigma_tau);
         break;
       }
