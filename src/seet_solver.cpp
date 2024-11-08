@@ -63,20 +63,28 @@ namespace green::mbpt {
   }
 
   void seet_solver::solve(G_type& g, S1_type& sigma_inf, St_type& sigma_tau) {
-    ztensor<4> g_loc                        = compute_local_obj(g.object(), _x_inv_k);
-    ztensor<4> sigma_loc                    = compute_local_obj(sigma_tau.object(), _x_k);
-    ztensor<3> sigma_inf_loc                = compute_local_obj(sigma_inf, _x_k);
-    ztensor<3> ovlp_loc                     = compute_local_obj(_ovlp_k, _x_k);
-    ztensor<3> h_core_loc                   = compute_local_obj(_h_core_k, _x_k);
+    ztensor<4> g_loc         = compute_local_obj(g.object(), _x_inv_k);
+    ztensor<4> sigma_loc     = compute_local_obj(sigma_tau.object(), _x_k);
+    ztensor<3> sigma_inf_loc = compute_local_obj(sigma_inf, _x_k);
+    ztensor<3> ovlp_loc      = compute_local_obj(_ovlp_k, _x_k);
+    ztensor<3> h_core_loc    = compute_local_obj(_h_core_k, _x_k);
+    ztensor<3> sigma_inf_loc_new(sigma_inf_loc.shape());
+    ztensor<4> sigma_loc_new(sigma_loc.shape());
     // loop over all impurities
-    auto [sigma_inf_loc_new, sigma_loc_new] = _solver.solve(_mu, ovlp_loc, h_core_loc, sigma_inf_loc, sigma_loc, g_loc);
-    for(size_t is = 0; is < g.object().shape()[1]; ++is) {
-      for(size_t ik = 0; ik < g.object().shape()[2]; ++ik) {
+    if (!utils::context.global_rank) {
+      auto [sigma_inf_loc_new_, sigma_loc_new_] = _solver.solve(_mu, ovlp_loc, h_core_loc, sigma_inf_loc, sigma_loc, g_loc);
+      sigma_inf_loc_new << sigma_inf_loc_new_;
+      sigma_loc_new << sigma_loc;
+    }
+    MPI_Bcast(sigma_inf_loc_new.data(), sigma_inf_loc_new.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
+    MPI_Bcast(sigma_loc_new.data(), sigma_loc_new.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
+    for (size_t is = 0; is < g.object().shape()[1]; ++is) {
+      for (size_t ik = 0; ik < g.object().shape()[2]; ++ik) {
         auto x_k = matrix(_x_inv_k(is, ik));
         matrix(sigma_inf(is, ik)) += x_k * matrix(sigma_inf_loc_new(is)) * x_k.adjoint();
         sigma_tau.fence();
-        for(size_t it = utils::context.internode_rank; it < g.object().shape()[2]; it+= utils::context.internode_size) {
-          matrix(sigma_tau.object()(it, is, ik)) += x_k * matrix(sigma_loc_new(it,is)) * x_k.adjoint();
+        for (size_t it = utils::context.internode_rank; it < g.object().shape()[2]; it += utils::context.internode_size) {
+          matrix(sigma_tau.object()(it, is, ik)) += x_k * matrix(sigma_loc_new(it, is)) * x_k.adjoint();
         }
         sigma_tau.fence();
       }
