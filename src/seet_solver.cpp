@@ -32,7 +32,7 @@ namespace green::mbpt {
     for (size_t it = 0; it < obj.shape()[0]; ++it) {
       for (size_t is = 0; is < obj.shape()[1]; ++is) {
         auto obj_full = _bz_utils.ibz_to_full(obj(it, is));
-        auto x_k_full = _bz_utils.ibz_to_full(x_k(is));
+        auto x_k_full = x_k.shape()[1] == _bz_utils.nk() ? x_k(is).copy() : _bz_utils.ibz_to_full(x_k(is));
         for (size_t ik = 0; ik < obj_full.shape()[0]; ++ik) {
           matrix(obj_loc(it, is)) += matrix(x_k_full(ik)) * matrix(obj_full(ik)) * matrix(x_k_full(ik)).adjoint();
         }
@@ -46,20 +46,13 @@ namespace green::mbpt {
     ztensor<3> obj_loc(_ns, _nso, _nso);
     for (size_t is = 0; is < obj.shape()[0]; ++is) {
       auto obj_full = _bz_utils.ibz_to_full(obj(is));
-      auto x_k_full = _bz_utils.ibz_to_full(x_k(is));
+      auto x_k_full = x_k.shape()[1] == _bz_utils.nk() ? x_k(is).copy() : _bz_utils.ibz_to_full(x_k(is));
       for (size_t ik = 0; ik < obj_full.shape()[0]; ++ik) {
         matrix(obj_loc(is)) += matrix(x_k_full(ik)) * matrix(obj_full(ik)) * matrix(x_k_full(ik)).adjoint();
       }
     }
     obj_loc /= _bz_utils.nk();
     return obj_loc;
-  }
-
-  std::tuple<ztensor<3>, ztensor<4>> seet_solver::solve_impurity(size_t imp_n, const ztensor<3>& ovlp, const ztensor<3>& h_core,
-                                                                 const ztensor<3>& sigma_inf, const ztensor<4>& sigma,
-                                                                 const ztensor<4>& g_w) const {
-    // return std::make_tuple(sigma_inf_new, sigma_new);
-    return std::make_tuple(ztensor<3>(), ztensor<4>());
   }
 
   void seet_solver::solve(G_type& g, S1_type& sigma_inf, St_type& sigma_tau) {
@@ -74,17 +67,25 @@ namespace green::mbpt {
     if (!utils::context.global_rank) {
       auto [sigma_inf_loc_new_, sigma_loc_new_] = _solver.solve(_mu, ovlp_loc, h_core_loc, sigma_inf_loc, sigma_loc, g_loc);
       sigma_inf_loc_new << sigma_inf_loc_new_;
-      sigma_loc_new << sigma_loc;
+      sigma_loc_new << sigma_loc_new_;
+{
+h5pp::archive ar("crap.h5", "w");
+ar["Sigma_t"]<<sigma_loc_new;
+ar["Sigma_i"]<<sigma_inf_loc_new;
+ar.close();
+}
     }
     MPI_Bcast(sigma_inf_loc_new.data(), sigma_inf_loc_new.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
     MPI_Bcast(sigma_loc_new.data(), sigma_loc_new.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
+
     for (size_t is = 0; is < g.object().shape()[1]; ++is) {
+      auto x_k = _x_inv_k.shape()[1] == _bz_utils.nk() ? _bz_utils.full_to_ibz(_x_inv_k(is)) : _x_inv_k(is).copy();
       for (size_t ik = 0; ik < g.object().shape()[2]; ++ik) {
-        auto x_k = matrix(_x_inv_k(is, ik));
-        matrix(sigma_inf(is, ik)) += x_k * matrix(sigma_inf_loc_new(is)) * x_k.adjoint();
+        auto x_k_m = matrix(x_k(ik));
+        matrix(sigma_inf(is, ik)) += x_k_m * matrix(sigma_inf_loc_new(is)) * x_k_m.adjoint();
         sigma_tau.fence();
-        for (size_t it = utils::context.internode_rank; it < g.object().shape()[2]; it += utils::context.internode_size) {
-          matrix(sigma_tau.object()(it, is, ik)) += x_k * matrix(sigma_loc_new(it, is)) * x_k.adjoint();
+        for (size_t it = utils::context.node_rank; it < g.object().shape()[0]; it += utils::context.node_size) {
+          matrix(sigma_tau.object()(it, is, ik)) += x_k_m * matrix(sigma_loc_new(it, is)) * x_k_m.adjoint();
         }
         sigma_tau.fence();
       }

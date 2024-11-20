@@ -70,8 +70,7 @@ namespace green::mbpt {
     seet_solver(const params::params& p, const grids::transformer_t& ft, const bz_utils_t& bz_utils, const ztensor<4>& H_k,
                 const ztensor<4>& S_k, const double& mu) :
         _ft(ft), _bz_utils(bz_utils), _ovlp_k(S_k), _h_core_k(H_k), _mu(mu),
-        _solver(p["seet_input"], p["bath_file"], p["impurity_solver_exec"], p["impurity_solver_params"], p["dc_solver_exec"],
-                p["dc_solver_param"], p["seet_root_dir"], ft, bz_utils) {
+        _solver(p, ft, bz_utils) {
       h5pp::archive ar(p["input_file"]);
       ar["params/nao"] >> _nao;
       ar["params/nso"] >> _nso;
@@ -111,14 +110,6 @@ namespace green::mbpt {
                                                                                          const ztensor<4>& G,
                                                                                          const ztensor<4>& Sigma,
                                                                                          const ztensor<2>& UU) const;
-
-    std::tuple<ztensor<3>, ztensor<4>> extract_delta(const ztensor<3>& ovlp, const ztensor<3>& h_core,
-                                                     const ztensor<3>& sigma_inf, const ztensor<4>& sigma,
-                                                     const ztensor<4>& g_w) const;
-
-    std::tuple<ztensor<3>, ztensor<4>> solve_impurity(size_t imp_n, const ztensor<3>& ovlp, const ztensor<3>& h_core,
-                                                      const ztensor<3>& sigma_inf, const ztensor<4>& sigma,
-                                                      const ztensor<4>& g_w) const;
 
     const grids::transformer_t&        _ft;
     const bz_utils_t&                  _bz_utils;
