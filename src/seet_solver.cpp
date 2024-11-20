@@ -68,12 +68,6 @@ namespace green::mbpt {
       auto [sigma_inf_loc_new_, sigma_loc_new_] = _solver.solve(_mu, ovlp_loc, h_core_loc, sigma_inf_loc, sigma_loc, g_loc);
       sigma_inf_loc_new << sigma_inf_loc_new_;
       sigma_loc_new << sigma_loc_new_;
-{
-h5pp::archive ar("crap.h5", "w");
-ar["Sigma_t"]<<sigma_loc_new;
-ar["Sigma_i"]<<sigma_inf_loc_new;
-ar.close();
-}
     }
     MPI_Bcast(sigma_inf_loc_new.data(), sigma_inf_loc_new.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
     MPI_Bcast(sigma_loc_new.data(), sigma_loc_new.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
