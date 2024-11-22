@@ -220,7 +220,6 @@ namespace green::mbpt {
     vx2 = vx_3.transpose() * vx_4;
     _coul_int_x_3->release_vij_Q(k2,k1);
     _coul_int_x_4->release_vij_Q(k1,k2);
-
 //#pragma omp parallel for
     for (size_t i = 0; i < _nao; ++i) {
       for (size_t j = 0; j < _nao; ++j) {
