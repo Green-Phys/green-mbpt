@@ -19,7 +19,7 @@
 #include <Eigen/Core>
 
 #include "common_defs.h"
-#include "df_integral_t.h"
+#include <green/integrals/df_integral_t.h>
 
 namespace green::mbpt {
   /**

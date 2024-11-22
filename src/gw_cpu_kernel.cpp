@@ -21,7 +21,7 @@
 
 #include <green/mbpt/common_defs.h>
 #include <green/mbpt/common_utils.h>
-#include <green/mbpt/df_integral_t.h>
+#include <green/integrals/df_integral_t.h>
 #include <green/mbpt/kernels.h>
 #include <green/utils/mpi_shared.h>
 #include <green/utils/mpi_utils.h>

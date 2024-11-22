@@ -19,7 +19,7 @@
 // #include "gscf/gscf_cuhf_solver_t.h"
 // #include "transformer_t.h"
 #include "common_defs.h"
-#include "df_integral_t.h"
+#include <green/integrals/df_integral_t.h>
 #include "mbpt_q0_utils_t.h"
 
 #include "kernels.h"
