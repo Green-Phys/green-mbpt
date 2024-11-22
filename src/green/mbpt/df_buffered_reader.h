@@ -34,7 +34,7 @@ namespace green::mbpt {
         _number_of_keys(number_of_keys),
         _number_of_buffered_elements(buffer::n_buffer_elem_heuristics(buffer_mem_ratio, nao*nao*NQ*sizeof(std::complex<double>), number_of_keys)),
         _reader(path, number_of_keys, NQ, nao),
-        _buffer(nao*nao*NQ*2, number_of_keys, _number_of_buffered_elements, &_reader, true, false){ //'*2' for double storage inside buffer
+        _buffer(nao*nao*NQ*2, number_of_keys, _number_of_buffered_elements, &_reader, true, false){ //'*2' for double storage inside buffer. also 'true' for single thread read which otherwise causes problems if multiple instances want to read.
       h5pp::archive ar(path + "/meta.h5");
       if(ar.has_attribute("__green_version__")) {
         std::string int_version = ar.get_attribute<std::string>("__green_version__");
@@ -73,6 +73,8 @@ namespace green::mbpt {
     const std::array<size_t, 4> shape() const{ 
       return _shape;
     }
+
+    const long nao() const{ return _nao;}
 
 
   private:

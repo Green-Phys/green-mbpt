@@ -94,18 +94,20 @@ void buffer::release_element(int key){
   buffer_access_counter_.release_exclusive_lock();
 }
 const double *buffer::access_element(int key){
-  //std::cout<<"node: "<<shmem_rank_<<" trying to access key: "<<key<<std::endl;
+  ctr_total_access_++;
+
   //lock status
   element_status_.acquire_exclusive_lock();
 
-  //check if we are currently reading. If so just wait until the data has arrived.
-  while(element_status_[key]==status_elem_reading){
-    //std::cout<<"node: "<<shmem_rank_<<" pining for access to: "<<key<<std::endl;
-    element_status_.release_exclusive_lock();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1)); //go to sleep for one millisecond, then check again
-    //std::cout<<"node: "<<shmem_rank_<<" trying to get lock: "<<key<<std::endl;
-    element_status_.acquire_exclusive_lock();
-    //std::cout<<"node: "<<shmem_rank_<<" got lock: "<<key<<" el stat is is: "<<element_status_[key]<<std::endl;
+  //check if another thread is reading this element. If so just wait until the data has arrived.
+  if(element_status_[key]==status_elem_reading){
+    ctr_read_delay_++;
+    while(element_status_[key]==status_elem_reading){
+      element_status_.release_exclusive_lock();
+      //should sleep for 1 millisecond to wait for data to arrive
+      std::this_thread::sleep_for(std::chrono::milliseconds(1)); //go to sleep for one millisecond, then check again
+      element_status_.acquire_exclusive_lock();
+    }
   }
   if(element_status_[key]==status_elem_available){
     //find corresponding buffer
@@ -116,35 +118,29 @@ const double *buffer::access_element(int key){
     buffer_access_counter_.release_exclusive_lock();
 
     //mark that buffer as recently accessed
-    //std::cout<<"node: "<<shmem_rank_<<" promoting to top: "<<std::endl;
     aob_.promote_to_top(buffer);
-    //buffer_last_access_.acquire_exclusive_lock();
-    //buffer_last_access_[buffer]=ctr_(); //note access# and increase counter
-    //buffer_last_access_.release_exclusive_lock();
 
     //release status lock, return buffer index
-    //std::cout<<"node: "<<shmem_rank_<<" accessed: "<<key<<" releasing lock and moving on: "<<std::endl;
     element_status_.release_exclusive_lock();
     return &(buffer_data_[buffer][0]);
   }
-  //otherwise status is unavailable.
+
+  //otherwise status is unavailable and we need to read from file system.
+  ctr_fs_read_++; 
   if(element_status_[key]!=status_elem_unavailable) throw std::runtime_error("unknown element status");
-  //std::cout<<"node: "<<shmem_rank_<<" trying to read key: "<<key<<std::endl;
 
   //set status to reading
   element_status_[key]=status_elem_reading;
 
   //find key of oldest unused buffer 
-  //std::cout<<"rank: "<<shmem_rank_<<" key: "<<key<<std::endl;
-  //std::pair<int, int> oldunused_buffer_and_key=find_oldest_unused_buffer_key();
-  //int buffer=oldunused_buffer_and_key.first;
-  //int old_key=oldunused_buffer_and_key.second;
   int buffer=aob_.oldest_entry();
   int old_key=buffer_key_[buffer];
-  //std::cout<<"node: "<<shmem_rank_<<" reusing buffer: "<<buffer<<"currently belonging to key: "<<old_key<<" for: "<<key<<std::endl;
   {
     //set data for old key to unavailable
-    if(old_key!=key_index_nowhere) element_status_[old_key]=status_elem_unavailable;
+    if(old_key!=key_index_nowhere){
+      ctr_buffer_eviction_++;
+      element_status_[old_key]=status_elem_unavailable;
+    }
     //sanity check
     if(buffer_access_counter_[buffer]!=0) throw std::logic_error("freeing buffer still in use");
     
@@ -157,9 +153,6 @@ const double *buffer::access_element(int key){
 
     //age out the oldest buffer and move it to the top
     aob_.replace_oldest_entry(buffer);
-    //buffer_last_access_.acquire_exclusive_lock();
-    //buffer_last_access_[buffer]=ctr_(); //note access# and increase counter
-    //buffer_last_access_.release_exclusive_lock();
 
     buffer_key_.acquire_exclusive_lock();
     buffer_key_[buffer]=key;
@@ -173,6 +166,7 @@ const double *buffer::access_element(int key){
   double *read_buffer= &(buffer_data_[buffer][0]);
   if(single_thread_read_)
     single_thread_readlock_.acquire_exclusive_lock();
+  //std::cout<<"rank: "<<shmem_rank()<<" reading key: "<<key<<" into buffer: "<<buffer<<std::endl;
   reader_ptr_->read_key(key, read_buffer);
   if(single_thread_read_)
     single_thread_readlock_.release_exclusive_lock();
@@ -182,48 +176,5 @@ const double *buffer::access_element(int key){
   element_status_[key]=status_elem_available;
   element_status_.release_exclusive_lock();
 
-  //std::cout<<"node: "<<shmem_rank_<<" moving on"<<std::endl;
-
   return  read_buffer;
 }
-struct last_access_sorter{
-  int key;
-  int buffer;
-  unsigned long long last_access;
-  bool operator<(const last_access_sorter &second) const{ return last_access<second.last_access; }
-};
-/*std::pair<int, int> buffer::find_oldest_unused_buffer_key() const{
-  //form a list of all the keys and when we last accessed them
-  std::vector<last_access_sorter> key_and_last_access(number_of_buffered_elements_);
-  for(int i=0;i<number_of_buffered_elements_;++i){
-    key_and_last_access[i].key=buffer_key_[i];
-    key_and_last_access[i].buffer=i;
-    key_and_last_access[i].last_access=buffer_last_access_[i];
-  }
-  //sort them by the last access
-  std::sort(key_and_last_access.begin(), key_and_last_access.end());
-
-  //return the first element that is not currently in use
-  int key, buffer;
-  for(int i=0;i<number_of_buffered_elements_;++i){
-    key=key_and_last_access[i].key;
-    buffer=key_and_last_access[i].buffer;
-    int current_access=buffer_access_counter_[buffer];
-    if(current_access==0){
-      //std::cerr<<"on: "<<shmem_rank_<<" buffer: "<<buffer<<" for key: "<<key<<" is idle"<<std::endl; 
-      break; //otherwise continue because despite being old, this buffer is busy
-    }
-    if(i==number_of_buffered_elements_-1){
-      std::cerr<<"all buffers are currently in use. Should have many more buffers than concurrent access requests!"<<std::endl;
-      MPI_Abort(MPI_COMM_WORLD, 1);
-    }
-    //std::cerr<<"on "<<shmem_rank_<<" buffer: "<<buffer<<" for key: "<<key<<" is busy, accessed by: "<<current_access<<std::endl;
-  }
-  //consistency checks. should never fail
-  if(buffer_key_[buffer]!=key_index_nowhere){
-    if(buffer_key_[buffer]!=key) throw std::logic_error("buffer_key points to wrong key");
-    if(element_buffer_index_[key]!=buffer) throw std::logic_error("element_index points to wrong buffer");
-  }
-
-  return std::make_pair(buffer, key);
-}*/

@@ -210,14 +210,16 @@ namespace green::mbpt {
     CMMatrixXcd vc_bar_1(_coul_int_c_1->v_bar_ij_Q().data(), _NQ, _nao * _nao);
     CMMatrixXcd vc_bar_2(_coul_int_c_2->v_bar_ij_Q().data(), _NQ, _nao * _nao);
     // exchange
-    CMMatrixXcd vx_3(_coul_int_x_3->vij_Q(k2,k1), _NQ, _nao * _nao);
-    CMMatrixXcd vx_4(_coul_int_x_4->vij_Q(k1,k2), _NQ, _nao * _nao);
+    CMMatrixXcd vx_3(_coul_int_x_3->access_vij_Q(k2,k1), _NQ, _nao * _nao);
+    CMMatrixXcd vx_4(_coul_int_x_4->access_vij_Q(k1,k2), _NQ, _nao * _nao);
     MMatrixXcd  v(vijkl.data(), _nao * _nao, _nao * _nao);
     MMatrixXcd  vx2(vijkl.data(), _nao * _nao, _nao * _nao);
     vijkl.set_zero();
     vcijkl.set_zero();
 
     vx2 = vx_3.transpose() * vx_4;
+    _coul_int_x_3->release_vij_Q(k2,k1);
+    _coul_int_x_4->release_vij_Q(k1,k2);
 //#pragma omp parallel for
     for (size_t i = 0; i < _nao; ++i) {
       for (size_t j = 0; j < _nao; ++j) {
@@ -237,8 +239,8 @@ namespace green::mbpt {
     _coul_int_x_3->read_correction(k1);
     _coul_int_x_4->read_correction(k2);
     // direct
-    CMMatrixXcd vc_1(_coul_int_c_1->vij_Q(k1,k2), _NQ, _nao * _nao);
-    CMMatrixXcd vc_2(_coul_int_c_2->vij_Q(k2,k1), _NQ, _nao * _nao);
+    CMMatrixXcd vc_1(_coul_int_c_1->access_vij_Q(k1,k2), _NQ, _nao * _nao);
+    CMMatrixXcd vc_2(_coul_int_c_2->access_vij_Q(k2,k1), _NQ, _nao * _nao);
     // exchange
     CMMatrixXcd vx_3(_coul_int_x_3->v0ij_Q().data(), _NQ, _nao * _nao);
     CMMatrixXcd vx_4(_coul_int_x_4->v0ij_Q().data(), _NQ, _nao * _nao);
@@ -261,5 +263,7 @@ namespace green::mbpt {
       }
     }
     v = vc_1.transpose() * vc_2;
+    _coul_int_c_1->release_vij_Q(k1,k2);
+    _coul_int_c_2->release_vij_Q(k2,k1);
   }
 }  // namespace green::mbpt

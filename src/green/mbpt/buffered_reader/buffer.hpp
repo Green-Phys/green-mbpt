@@ -28,8 +28,15 @@ public:
     verbose_(verbose),
     aob_(number_of_buffered_elements_),
     reader_ptr_(reader_ptr),
-    single_thread_read_(single_thread_read)
-  { 
+    single_thread_read_(single_thread_read),
+    ctr_total_access_(0),
+    ctr_fs_read_(0),
+    ctr_read_delay_(0),
+    ctr_buffer_eviction_(0)
+  {
+    if(shmem_rank()==0){
+      std::cout<<"element size: "<<element_size_<<" number of keys: "<<number_of_keys_<<" number of buffered elements: "<<number_of_buffered_elements_<<std::endl;
+    } 
     setup_mpi_shmem();
   }
   ~buffer(){
@@ -42,6 +49,16 @@ public:
     }
     MPI_Barrier(shmem_comm_);
     release_mpi_shmem();
+    if(shmem_rank()==0){
+      std::cout<<"****Node zero file system buffer statistics: ***"<<std::endl;
+      std::cout<<"****: number of elements: "<<number_of_keys_<<std::endl;
+      std::cout<<"****: number of buffered elements: "<<number_of_buffered_elements_<<" (ratio: "<<number_of_buffered_elements_/(double)number_of_keys_<<" )"<<std::endl;
+      std::cout<<"****total element access: "<<ctr_total_access_<<std::endl;
+      std::cout<<"****total file system reads: "<<ctr_fs_read_<<" (ratio: "<<ctr_fs_read_/(double)ctr_total_access_<<" )"<<std::endl;
+      std::cout<<"****total file read delays: "<<ctr_read_delay_<<" (ratio: "<<ctr_read_delay_/(double)ctr_total_access_<<" per access, "<<ctr_read_delay_/(double)ctr_fs_read_<<" per read)"<<std::endl;
+      std::cout<<"****total buffer evictions: "<<ctr_buffer_eviction_<<" (ratio: "<<ctr_buffer_eviction_/(double)ctr_total_access_<<" per access, "<<ctr_buffer_eviction_/(double)ctr_fs_read_<<" per read)"<<std::endl;
+      std::cout<<"*************************************"<<std::endl;
+    }
   }
   //getter function for size of each buffer element
   std::size_t element_size() const{return element_size_;}
@@ -100,6 +117,16 @@ private:
   //MPI shared memory auxiliaries
   MPI_Comm shmem_comm_;
   int shmem_size_, shmem_rank_;
+
+  //counters for keeping track of statistics
+  //# of times we access an element
+  std::size_t ctr_total_access_;
+  //# of times we read from the file system
+  std::size_t ctr_fs_read_;
+  //# of times we try to access but it's currently being read
+  std::size_t ctr_read_delay_;
+  //# of times we have to kick out an existing element to free up buffer space
+  std::size_t ctr_buffer_eviction_;
 
 
   //pointer to the object that does the actual reading

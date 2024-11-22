@@ -74,6 +74,12 @@ void chunk_reader::read_key_at_offset(const std::string &filepath, int chunk_nam
     hsize_t start[4] = {offset, 0    , 0   , 0     }; // Starting index for the slice
     hsize_t count[4] = {1     , naux_, nao_, 2*nao_}; // Number of elements to read along each dimension
 
+    /*{
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t t_c = std::chrono::system_clock::to_time_t(now);
+    std::cout << "buffer read start at: " << std::ctime(&t_c);
+    }*/
+
     file_id = H5Fopen(filepath.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     if (file_id < 0) {
       throw std::runtime_error("Error opening file: "+filepath);
@@ -93,13 +99,25 @@ void chunk_reader::read_key_at_offset(const std::string &filepath, int chunk_nam
     }
 
     memspace_id = H5Screate_simple(rank, count, NULL);
-    status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, memspace_id, dataspace_id, H5P_DEFAULT, buffer);
-    if (status < 0) {
-      throw std::runtime_error("Error reading data: "+hdf5_path.str()+" for file: "+filepath);
+    { //we have an unstable network file system. Attempt to read this multiple times if it fails
+      int nattempt=0;
+      do{
+        status = H5Dread(dataset_id, H5T_NATIVE_DOUBLE, memspace_id, dataspace_id, H5P_DEFAULT, buffer);
+        if (status < 0) {
+          std::cerr<<"Error reading data: "+hdf5_path.str()+" for file: "+filepath<<" attempt: "<<nattempt;
+          if(nattempt>=3) throw std::runtime_error("aborting after repeated file read error");
+        }
+        nattempt++;
+      }while(status>0);
     }
-
     H5Sclose(memspace_id);
     H5Sclose(dataspace_id);
     H5Dclose(dataset_id);
     H5Fclose(file_id);
+
+    /*{
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t t_c = std::chrono::system_clock::to_time_t(now);
+    std::cout << "buffer read end at " << std::ctime(&t_c);
+    }*/
 }

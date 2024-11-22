@@ -12,7 +12,7 @@
 
 #include <green/mbpt/except.h>
 
-#include "df_legacy_reader.h"
+//#include "df_legacy_reader.h"
 #include "df_buffered_reader.h"
 
 namespace green::mbpt {
@@ -34,7 +34,7 @@ namespace green::mbpt {
     df_integral_t(const std::string& path, int nao, int NQ, const bz_utils_t& bz_utils) :
       _base_path(path),
       _number_of_keys(bz_utils.symmetry().num_kpair_stored()),
-      _vij_Q(path, nao, NQ), //initialize legacy reader
+//      _vij_Q(path, nao, NQ), //initialize legacy reader
       _vij_Q_buffer(path, nao, NQ, _number_of_keys), //initialize buffered reader
         _k0(-1), _NQ(NQ), _bz_utils(bz_utils) {
     }
@@ -42,7 +42,8 @@ namespace green::mbpt {
     virtual ~df_integral_t() {}
 
     void read_integrals(size_t k1, size_t k2){
-      _vij_Q.read_integrals(momenta_to_symmred_key(k1,k2));
+//      _vij_Q.read_integrals(momenta_to_symmred_key(k1,k2));
+        ;
     }
 
     void Complex_DoubleToType(const std::complex<double>* in, std::complex<double>* out, size_t size) {
@@ -61,7 +62,8 @@ namespace green::mbpt {
      * @param k - k-point
      */
     void read_correction(int k) {
-      auto shape = _vij_Q.shape();
+      //auto shape = _vij_Q.shape();
+      auto shape = _vij_Q_buffer.shape();
       _v0ij_Q.resize(shape[1], shape[2], shape[3]);
       _v_bar_ij_Q.resize(shape[1], shape[2], shape[3]);
       // avoid unnecessary reading
@@ -119,27 +121,28 @@ namespace green::mbpt {
       std::pair<int, integral_symmetry_type_e> vtype     = v_type(k1, k2);
       int                                      NQ        = _NQ;
       NQ_local                                           = (NQ_local == 0) ? NQ : NQ_local;
-      int nao=_vij_Q.shape()[2]; 
+      int nao=_vij_Q_buffer.nao();
+      //int nao=_vij_Q.shape()[2];
       int key=momenta_to_symmred_key(k1,k2);
       typedef Eigen::Map<const Eigen::Matrix<std::complex<double>,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>> map_t;
       const std::complex<double> *elem_ptr=_vij_Q_buffer.access_element(key);
       if (vtype.first < 0) {
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
-          map_t vij_map(_vij_Q(key, Q),nao,nao);
+          //map_t vij_map(_vij_Q(key, Q),nao,nao);
           map_t vijb_map(elem_ptr+Q*nao*nao,nao,nao);
-          if((vij_map-vijb_map).norm()>1.e-7) throw std::runtime_error("conj: the two readers gave different answers");
+          //if((vij_map-vijb_map).norm()>1.e-7) throw std::runtime_error("conj: the two readers gave different answers");
           matrix(vij_Q_k1k2(Q_loc)) = vijb_map.transpose().conjugate().cast<prec>();
         }
       } else {
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
-          map_t vij_map(_vij_Q(key, Q),nao,nao);
+          //map_t vij_map(_vij_Q(key, Q),nao,nao);
           map_t vijb_map(elem_ptr+Q*nao*nao,nao,nao);
-          if((vij_map-vijb_map).norm()>1.e-7) throw std::runtime_error("the two readers gave different answers");
+          //if((vij_map-vijb_map).norm()>1.e-7) throw std::runtime_error("the two readers gave different answers");
           matrix(vij_Q_k1k2(Q_loc)) = vijb_map.cast<prec>();
         }
       }
       _vij_Q_buffer.release_element(key);
-      if (vtype.second == conjugated) {  // conjugate 
+      if (vtype.second == conjugated) {  // conjugate
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
           matrix(vij_Q_k1k2(Q_loc)) = matrix(vij_Q_k1k2(Q_loc)).conjugate();
 
@@ -154,10 +157,15 @@ namespace green::mbpt {
     //const ztensor<4>& vij_Q() const { return _vij_Q()->object(); }
     const ztensor<3>& v0ij_Q() const { return _v0ij_Q; }
     const ztensor<3>& v_bar_ij_Q() const { return _v_bar_ij_Q; }
-    const std::complex<double> *vij_Q(int k1, int k2) const 
-    { 
-      return _vij_Q(momenta_to_symmred_key(k1,k2)); 
-    } 
+    const std::complex<double> *access_vij_Q(int k1, int k2) //not const because we're modifying buffers inside vij
+    {
+      int key=momenta_to_symmred_key(k1,k2);
+      return _vij_Q_buffer.access_element(key);
+    }
+    void release_vij_Q(int k1, int k2){
+      int key=momenta_to_symmred_key(k1,k2);
+      _vij_Q_buffer.release_element(key);
+    }
 
     int momenta_to_key(int k1, int k2) const{
       size_t idx = (k1 >= k2) ? k1 * (k1 + 1) / 2 + k2 : k2 * (k2 + 1) / 2 + k1;  // k-pair = (k1, k2) or (k2, k1)
@@ -176,12 +184,12 @@ namespace green::mbpt {
     }
 
     void reset() {
-      _vij_Q.reset();
+      _vij_Q_buffer.reset();
     }
 
   private:
     int                       _number_of_keys;
-    df_legacy_reader _vij_Q;
+    //df_legacy_reader _vij_Q;
     df_buffered_reader _vij_Q_buffer;
     // G=0 correction to coulomb integral stored in density fitting format for second-order e3xchange diagram
     ztensor<3>                _v0ij_Q;
