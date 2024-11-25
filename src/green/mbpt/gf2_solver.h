@@ -22,6 +22,7 @@
 #include <green/integrals/df_integral_t.h>
 
 namespace green::mbpt {
+  using green::integrals::df_integral_t;
   /**
    * @brief This class performs self-energy calculation by means of second-order PT using density fitting
    */

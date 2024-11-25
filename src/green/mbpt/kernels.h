@@ -33,6 +33,8 @@
 #include "mbpt_q0_utils_t.h"
 
 namespace green::mbpt::kernels {
+  using green::integrals::df_integral_t;
+
   class gw_cpu_kernel {
     using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
     using G_type     = utils::shared_object<ztensor<5>>;

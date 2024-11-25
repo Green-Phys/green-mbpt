@@ -215,10 +215,10 @@ TEST_CASE("MBPT Solver") {
     green::mbpt::define_parameters(p);
     p.parse(args);
     green::symmetry::brillouin_zone_utils<green::symmetry::inv_symm_op> bz_utils(p);
-    REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_1, 2, 36, bz_utils), green::mbpt::mbpt_outdated_input);
-    REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_2, 2, 36, bz_utils), green::mbpt::mbpt_outdated_input);
+    REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_1, 2, 36, bz_utils), green::integrals::integrals_outdated_input);
+    REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_2, 2, 36, bz_utils), green::integrals::integrals_outdated_input);
     REQUIRE_NOTHROW(green::mbpt::df_integral_t(df_int_path_3, 2, 36, bz_utils));
-    REQUIRE_THROWS_AS(green::mbpt::check_input(p), green::mbpt::mbpt_outdated_input);
+    REQUIRE_THROWS_AS(green::mbpt::check_input(p), green::integrals::integrals_outdated_input);
   }
 
   SECTION("Init real Dyson") {
