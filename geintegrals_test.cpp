@@ -39,7 +39,10 @@ int main(int argc, char** argv) {
   if (!rank) {
     std::cout << "chunk reader initialized" << std::endl;
   }
-  buffer b(c.element_size(), number_of_keys, 1000, &c);
+  double mem_ratio=0.5;
+  std::size_t proposed_buffer_size=buffer::n_buffer_elem_heuristics(mem_ratio, c.element_size()*sizeof(std::complex<double>), number_of_keys);
+
+  buffer b(c.element_size(), number_of_keys, proposed_buffer_size, &c);
   const double* val=b.access_element(0);
   if (!rank) {
     std::cout << "check value 0: " << val[0] << std::endl;
