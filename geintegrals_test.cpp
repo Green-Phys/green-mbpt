@@ -6,6 +6,11 @@
 #include <filesystem>
 
 int main(int argc, char** argv) {
+  std::string hashes = std::string(GIT_HASHES);
+  int         pos;
+  while ((pos = hashes.find("**")) != std::string::npos) hashes.replace(pos, 2, "\n");
+  std::cout<<"=====================================\nGit hashes:\n"<<hashes << "\n====================================="<<std::endl;
+
 
   // initialize mpi
   MPI_Init(&argc, &argv);
