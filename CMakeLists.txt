@@ -95,6 +95,14 @@ if (BLAS_FOUND)
 endif (BLAS_FOUND)
 target_compile_definitions(mbpt.exe PRIVATE GIT_HASHES="${GIT_HASH}")
 
+add_executable(geint.exe geintegrals_test.cpp)
+target_link_libraries(geint.exe PUBLIC GREEN::MBPT)
+if (BLAS_FOUND)
+    target_link_libraries(geint.exe PUBLIC BLAS::BLAS)
+endif (BLAS_FOUND)
+target_compile_definitions(geint.exe PRIVATE GIT_HASHES="${GIT_HASH}")
+
+
 option(Build_Tests "Build tests" ON)
 if (Build_Tests)
     enable_testing()
