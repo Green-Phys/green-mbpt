@@ -153,7 +153,7 @@ namespace green::mbpt {
 
   inline void define_parameters(params::params& p) {
     p.define<std::string>("dfintegral_hf_file", "Path to Hartree-Fock integrals", "df_hf_int");
-    p.define<std::string>("dfintegral_file", "Path to integrals for high orfer theories", "df_int");
+    p.define<std::string>("dfintegral_file", "Path to integrals for high order theories", "df_int");
     p.define<int>("verbose", "Print verbose output.", 0);
     p.define<double>("tolerance,tol", "Double precision tolerance for chemical potential search.", 1e-9);
     p.define<double>("BETA,beta", "Inverse temperature.");
