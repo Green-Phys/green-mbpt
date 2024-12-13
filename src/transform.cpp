@@ -234,7 +234,7 @@ namespace green::transform {
         std::filesystem::create_directory(dir_name);
         std::string   fname = dir_name + "/VQ_0.h5";
         h5pp::archive ar(fname, "w");
-        ar["/" + std::to_string(chunkid)] << VijQ_imp;
+        ar["/" + std::to_string(chunkid)] << ndarray::transpose(VijQ_imp, "ijQ->Qij").reshape({1,VijQ_imp.shape()[2],size_t(nno),size_t(nno)}).astype<std::complex<double>>();
         ar.close();
 
         int           nq        = VijQ_imp.shape()[2];
@@ -243,7 +243,7 @@ namespace green::transform {
         h5pp::archive meta(metaname, "w");
         meta["/chunk_indices"] << chunkid;
         meta["/chunk_size"] << chunksize;
-        ar.close();
+        meta.close();
       }
     }
     if (myid == 0) {
