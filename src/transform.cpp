@@ -233,8 +233,7 @@ namespace green::transform {
         std::string dir_name = _params.dc_path + std::to_string(nimp);
         std::filesystem::create_directory(dir_name);
         std::string   fname = dir_name + "/VQ_0.h5";
-        hid_t         file  = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
-        h5pp::archive ar(fname);
+        h5pp::archive ar(fname, "w");
         ar["/" + std::to_string(chunkid)] << VijQ_imp;
         ar.close();
 
