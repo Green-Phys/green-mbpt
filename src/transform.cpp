@@ -240,8 +240,7 @@ namespace green::transform {
         int           nq        = VijQ_imp.shape()[2];
         int           chunksize = nao * nao * nq * 16;
         std::string   metaname  = dir_name + "/meta.h5";
-        hid_t         metafile  = H5Fopen(metaname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
-        h5pp::archive meta(metaname);
+        h5pp::archive meta(metaname, "w");
         meta["/chunk_indices"] << chunkid;
         meta["/chunk_size"] << chunksize;
         ar.close();
