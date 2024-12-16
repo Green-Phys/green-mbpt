@@ -153,7 +153,7 @@ namespace green::mbpt {
 
   inline void define_parameters(params::params& p) {
     p.define<std::string>("dfintegral_hf_file", "Path to Hartree-Fock integrals", "df_hf_int");
-    p.define<std::string>("dfintegral_file", "Path to integrals for high orfer theories", "df_int");
+    p.define<std::string>("dfintegral_file", "Path to integrals for high order theories", "df_int");
     p.define<int>("verbose", "Print verbose output.", 0);
     p.define<double>("tolerance,tol", "Double precision tolerance for chemical potential search.", 1e-9);
     p.define<double>("BETA,beta", "Inverse temperature.");
@@ -182,8 +182,9 @@ namespace green::mbpt {
     p.define<std::string>("impurity_solver_exec", "Path to an impurity solver executable.");
     p.define<std::string>("impurity_solver_params", "Impurity solver parameters.");
     p.define<std::string>("dc_solver_exec", "Path to a double counting solver executable.");
-    p.define<std::string>("dc_solver_param", "Double counting solver's parameters.");
+    p.define<std::string>("dc_solver_params", "Double counting solver's parameters.");
     p.define<std::string>("seet_root_dir", "Directory to put output for impurity solvers.", "");
+    p.define<bool>("spin_symm", "Apply spin symmetrization to hybridization function", false);
   }
 }  // namespace green::mbpt
 #endif  // MBPT_COMMON_DEFS_H

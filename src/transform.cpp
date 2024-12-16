@@ -21,7 +21,11 @@
 
 #include "green/transform/transform.h"
 
+#include <green/mbpt/common_defs.h>
 #include <math.h>
+
+#include <filesystem>
+#include <iostream>
 
 namespace green::transform {
   int int_transformer::find_pos(const tensor<double, 1>& k, const tensor<double, 2>& kmesh) {
@@ -165,14 +169,14 @@ namespace green::transform {
 
     int         NQ       = 0;
     int         nao      = 0;
-    if(!myid) {
+    if (!myid) {
       std::string   V0 = basename + "/VQ_0.h5";
       h5pp::archive v0_file(V0, "r");
       dtensor<4>    buffer_in_d;
       v0_file[std::to_string(0)] >> buffer_in_d;
       ztensor<4> buffer_in = buffer_in_d.view<std::complex<double>>();
-      NQ  = buffer_in.shape()[1];
-      nao = buffer_in.shape()[2];
+      NQ                   = buffer_in.shape()[1];
+      nao                  = buffer_in.shape()[2];
       v0_file.close();
     }
     MPI_Bcast(&NQ, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -220,8 +224,27 @@ namespace green::transform {
       ztensor<4> zERI(nno, nno, nno, nno);
       extract_impurity_interaction(myid, nprocs, int_file, VijQ1, VijQ2, dERI, zERI, nno, NQ);
 
+      // Compute decomposed local VijQ_imp
+      auto VijQ_imp = decomp_interaction(dERI);
+
       if (myid == 0) {
         out_file[std::to_string(i) + "/interaction"] << dERI;
+        int         chunkid  = 0;
+        std::string dir_name = _params.dc_path + std::to_string(nimp);
+        std::filesystem::create_directory(dir_name);
+        std::string   fname = dir_name + "/VQ_0.h5";
+        h5pp::archive ar(fname, "w");
+        auto VijQ =  ndarray::transpose(VijQ_imp, "ijQ->Qij").astype<std::complex<double>>();
+        ar["/" + std::to_string(chunkid)] << VijQ.reshape({1,VijQ_imp.shape()[2],VijQ_imp.shape()[0],VijQ_imp.shape()[0]});
+        ar.close();
+
+        int           nq        = VijQ_imp.shape()[2];
+        int           chunksize = nao * nao * nq * 16;
+        std::string   metaname  = dir_name + "/meta.h5";
+        h5pp::archive meta(metaname, "w");
+        meta["/chunk_indices"] << chunkid;
+        meta["/chunk_size"] << chunksize;
+        meta.close();
       }
     }
     if (myid == 0) {
@@ -338,4 +361,47 @@ namespace green::transform {
     }
     MPI_Barrier(MPI_COMM_WORLD);
   }
-}  // namespace green::transform
+
+  dtensor<3> decomp_interaction(const dtensor<4>& dERI, double atol) {
+    int nao = dERI.shape()[0];
+
+    for (int i = 1; i < 4; i++) {
+      if (dERI.shape()[i] != (size_t)nao) throw std::runtime_error("[decomp] full tensor dimension mismatch");
+    }
+
+    int        nao2 = nao * nao;
+    CMMatrixXd Umap(dERI.data(), nao2, nao2);
+
+    if ((Umap - Umap.transpose()).norm() > 1e-12) throw std::runtime_error("[decomp] full tensor is not symmetric");
+
+    Eigen::SelfAdjointEigenSolver<MatrixXd> eigen_solver(Umap);
+    if (eigen_solver.info() != Eigen::Success) throw std::runtime_error("[decomp] eigen decomposition failed");
+
+    int ncut = 0;
+    for (int i = 0; i < nao2; i++) {
+      double val = eigen_solver.eigenvalues()(i);
+      if (std::abs(val) >= atol) {
+        if (val < 0)
+          throw std::runtime_error("[decomp] negative eigenvalue " + std::to_string(val) + " encountered with tolarance " +
+                                   std::to_string(val));
+        break;
+      }
+      ncut++;
+    }
+
+    int        nq = nao2 - ncut;
+
+    dtensor<3> VijQ_imp(nao, nao, nq);
+
+    for (int i = 0; i < nao; i++) {
+      for (int j = 0; j < nao; j++) {
+        for (int alpha = 0; alpha < nq; alpha++) {
+          VijQ_imp(i, j, alpha) =
+              std::sqrt(eigen_solver.eigenvalues()(alpha + ncut)) * eigen_solver.eigenvectors()(i * nao + j, alpha + ncut);
+        }
+      }
+    }
+    return VijQ_imp;
+  }
+};  // namespace green::transform
+// namespace green::transform

@@ -109,14 +109,6 @@ namespace green::embedding {
                                                                                          const ztensor<4>& Sigma,
                                                                                          const ztensor<2>& UU) const;
 
-    std::tuple<ztensor<3>, ztensor<4>> extract_delta(const ztensor<3>& ovlp, const ztensor<3>& h_core,
-                                                     const ztensor<3>& sigma_inf, const ztensor<4>& sigma,
-                                                     const ztensor<4>& g_w) const;
-
-    std::tuple<ztensor<3>, ztensor<4>> solve_impurity(size_t imp_n, const ztensor<3>& ovlp, const ztensor<3>& h_core,
-                                                      const ztensor<3>& sigma_inf, const ztensor<4>& sigma,
-                                                      const ztensor<4>& g_w) const;
-
     const grids::transformer_t&        _ft;
     const bz_utils_t&                  _bz_utils;
     const ztensor<4>&                  _ovlp_k;
