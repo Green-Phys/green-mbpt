@@ -19,22 +19,22 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#include "green/mbpt/seet_solver.h"
+#include "green/embedding/seet_solver.h"
 
 #include "green/impurity/impurity_solver.h"
 #include "green/mbpt/orth.h"
 
-namespace green::mbpt {
+namespace green::embedding {
 
   template <>
-  ztensor<4> seet_solver::compute_local_obj(const ztensor<5>& obj, const ztensor<4>& x_k) const {
+  mbpt::ztensor<4> seet_solver::compute_local_obj(const ztensor<5>& obj, const ztensor<4>& x_k) const {
     ztensor<4> obj_loc(_ft.sd().repn_fermi().nts(), _ns, _nso, _nso);
     for (size_t it = 0; it < obj.shape()[0]; ++it) {
       for (size_t is = 0; is < obj.shape()[1]; ++is) {
         auto obj_full = _bz_utils.ibz_to_full(obj(it, is));
         auto x_k_full = _bz_utils.ibz_to_full(x_k(is));
         for (size_t ik = 0; ik < obj_full.shape()[0]; ++ik) {
-          matrix(obj_loc(it, is)) += matrix(x_k_full(ik)) * matrix(obj_full(ik)) * matrix(x_k_full(ik)).adjoint();
+          mbpt::matrix(obj_loc(it, is)) += mbpt::matrix(x_k_full(ik)) * mbpt::matrix(obj_full(ik)) * mbpt::matrix(x_k_full(ik)).adjoint();
         }
       }
     }
@@ -48,7 +48,7 @@ namespace green::mbpt {
       auto obj_full = _bz_utils.ibz_to_full(obj(is));
       auto x_k_full = _bz_utils.ibz_to_full(x_k(is));
       for (size_t ik = 0; ik < obj_full.shape()[0]; ++ik) {
-        matrix(obj_loc(is)) += matrix(x_k_full(ik)) * matrix(obj_full(ik)) * matrix(x_k_full(ik)).adjoint();
+        mbpt::matrix(obj_loc(is)) += mbpt::matrix(x_k_full(ik)) * mbpt::matrix(obj_full(ik)) * mbpt::matrix(x_k_full(ik)).adjoint();
       }
     }
     obj_loc /= _bz_utils.nk();
@@ -80,14 +80,25 @@ namespace green::mbpt {
     MPI_Bcast(sigma_loc_new.data(), sigma_loc_new.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
     for (size_t is = 0; is < g.object().shape()[1]; ++is) {
       for (size_t ik = 0; ik < g.object().shape()[2]; ++ik) {
-        auto x_k = matrix(_x_inv_k(is, ik));
-        matrix(sigma_inf(is, ik)) += x_k * matrix(sigma_inf_loc_new(is)) * x_k.adjoint();
+        auto x_k = mbpt::matrix(_x_inv_k(is, ik));
+        mbpt::matrix(sigma_inf(is, ik)) += x_k * mbpt::matrix(sigma_inf_loc_new(is)) * x_k.adjoint();
         sigma_tau.fence();
         for (size_t it = utils::context.internode_rank; it < g.object().shape()[2]; it += utils::context.internode_size) {
-          matrix(sigma_tau.object()(it, is, ik)) += x_k * matrix(sigma_loc_new(it, is)) * x_k.adjoint();
+          mbpt::matrix(sigma_tau.object()(it, is, ik)) += x_k * mbpt::matrix(sigma_loc_new(it, is)) * x_k.adjoint();
         }
         sigma_tau.fence();
       }
     }
+  }
+
+  void seet_inner_solver::solve(G_type& g, S1_type& sigma_inf, St_type& sigma_tau) {
+    h5pp::archive ar(_weak_results_file, "r");
+    ar[_base_path + "/Sigma1"] >> sigma_inf;
+    ar.close();
+    sigma_tau.fence();
+    if (!utils::context.node_rank) {
+      ar[_base_path + "/Selfenergy/data"] >> sigma_tau.object();
+    }
+    sigma_tau.fence();
   }
 }

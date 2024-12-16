@@ -133,7 +133,7 @@ namespace green::mbpt {
 
   enum sigma_q0_treatment_e { ignore_G0, ewald_int, extrapolate };
 
-  enum job_type { SC, SEET, WINTER, THERMODYNAMICS };
+  enum job_type { SC, WINTER, THERMODYNAMICS };
 
   enum kernel_type {
     CPU

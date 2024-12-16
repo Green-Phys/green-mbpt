@@ -1,26 +1,28 @@
 /*
-* Copyright (c) 2023 University of Michigan
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy of this
-* software and associated documentation files (the “Software”), to deal in the Software
-* without restriction, including without limitation the rights to use, copy, modify,
-* merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
-* permit persons to whom the Software is furnished to do so, subject to the following
-* conditions:
-*
-* The above copyright notice and this permission notice shall be included in all copies or
-* substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
-* INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
-* PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
-* FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-* OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-* DEALINGS IN THE SOFTWARE.
-*/
+ * Copyright (c) 2023 University of Michigan
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this
+ * software and associated documentation files (the “Software”), to deal in the Software
+ * without restriction, including without limitation the rights to use, copy, modify,
+ * merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+ * PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+ * FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
+ */
 
 #ifndef MBPT_ORTH_H
 #define MBPT_ORTH_H
+
+#include <green/mbpt/except.h>
 
 #include "common_defs.h"
 
@@ -52,16 +54,17 @@ namespace green::mbpt {
    * @param Sigma_1_k
    * @param X_k
    */
-  inline void orth(const std::string& orth_type, const ztensor<4>& Sk, const ztensor<4>& Hk, const ztensor<4>& Sigma_1_k, ztensor<4>& X_k) {
-    if(orth_type == "symm") {
+  inline void orth(const std::string& orth_type, const ztensor<4>& Sk, const ztensor<4>& Hk, const ztensor<4>& Sigma_1_k,
+                   ztensor<4>& X_k) {
+    if (orth_type == "symm") {
       compute_S_sqrt(Sk(0), X_k(0));
-      for(size_t is(1); is<X_k.shape()[0]; ++is) {
+      for (size_t is(1); is < X_k.shape()[0]; ++is) {
         X_k(is) << X_k(0);
       }
     } else {
       throw mbpt_orth_error("Unknown orthogonalization type");
     }
   }
-}
+}  // namespace green::mbpt
 
 #endif  // MBPT_ORTH_H

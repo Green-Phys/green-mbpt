@@ -30,7 +30,6 @@
 #include "gf2_solver.h"
 #include "gw_solver.h"
 #include "hf_solver.h"
-#include "seet_solver.h"
 #include "kinter.h"
 
 namespace green::mbpt {
@@ -85,42 +84,6 @@ namespace green::mbpt {
     }
   }
 
-  inline void seet_job(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p, scf_type type, shared_mem_dyson& dyson,
-                     utils::shared_object<ztensor<5>>& G_tau, utils::shared_object<ztensor<5>>& Sigma_tau, ztensor<4>& Sigma1) {
-    read_hartree_fock_selfenergy(p, dyson.bz_utils(), Sigma1);
-    G_tau.fence();
-    if (!utils::context.node_rank) G_tau.object().set_zero();
-    G_tau.fence();
-    Sigma_tau.fence();
-    if (!utils::context.node_rank) Sigma_tau.object().set_zero();
-    Sigma_tau.fence();
-    // Hartree-Fock solver is used by all perturbation solvers.
-    hf_solver hf(p, dyson.bz_utils(), dyson.S_k());
-    seet_solver seet(p, dyson.ft(), dyson.bz_utils(), dyson.H_k(), dyson.S_k(), dyson.mu());
-    switch (type) {
-      case HF: {
-        sc::composition_solver cs(/*hf, gw,*/ seet);
-        sc.solve(cs, dyson.H_k(), dyson.S_k(), G_tau, Sigma1, Sigma_tau);
-        break;
-      }
-      case GW: {
-        gw_solver              gw(p, dyson.ft(), dyson.bz_utils(), dyson.S_k());
-        sc::composition_solver cs(/*hf, gw,*/ seet);
-        sc.solve(cs, dyson.H_k(), dyson.S_k(), G_tau, Sigma1, Sigma_tau);
-        break;
-      }
-      case GF2: {
-        gf2_solver             gf2(p, dyson.ft(), dyson.bz_utils());
-        sc::composition_solver cs(/*hf, gf2,*/ seet);
-        sc.solve(cs, dyson.H_k(), dyson.S_k(), G_tau, Sigma1, Sigma_tau);
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  }
-
   inline void winter_job(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p, shared_mem_dyson& dyson,
                          utils::shared_object<ztensor<5>>& g0_tau, utils::shared_object<ztensor<5>>& sigma_tau,
                          ztensor<4>& sigma1) {
@@ -163,8 +126,6 @@ namespace green::mbpt {
         sc_job(sc, p, type, dyson, G_tau, Sigma_tau, Sigma1);
       } else if (job == WINTER) {
         winter_job(sc, p, dyson, G_tau, Sigma_tau, Sigma1);
-      } else if (job == SEET) {
-        seet_job(sc, p, type, dyson, G_tau, Sigma_tau, Sigma1);
       }
       if (!utils::context.global_rank) std::cout << "Job " << magic_enum::enum_name(job) << " is finished." << std::endl;
     }

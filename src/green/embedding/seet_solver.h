@@ -22,8 +22,10 @@
 #ifndef MBPT_SEET_SOLVER_H
 #define MBPT_SEET_SOLVER_H
 
+#include <green/embedding/embedding_defs.h>
 #include <green/grids/transformer_t.h>
 #include <green/impurity/impurity_solver.h>
+#include <green/mbpt/common_defs.h>
 #include <green/ndarray/ndarray.h>
 #include <green/ndarray/ndarray_math.h>
 #include <green/params/params.h>
@@ -33,18 +35,15 @@
 #include <green/utils/timing.h>
 #include <mpi.h>
 
-#include "common_defs.h"
-#include "df_integral_t.h"
-#include "kernel_factory.h"
-#include "kernels.h"
-#include "mbpt_q0_utils_t.h"
-
-namespace green::mbpt {
+namespace green::embedding {
 
   class impurity_params {
   private:
     size_t _orb_start;
   };
+
+  template <size_t N>
+  using ztensor = mbpt::ztensor<N>;
 
   /**
    * @brief Self-energy embedding solver class. Computes contribution into a self-energy
@@ -69,9 +68,7 @@ namespace green::mbpt {
      */
     seet_solver(const params::params& p, const grids::transformer_t& ft, const bz_utils_t& bz_utils, const ztensor<4>& H_k,
                 const ztensor<4>& S_k, const double& mu) :
-        _ft(ft), _bz_utils(bz_utils), _ovlp_k(S_k), _h_core_k(H_k), _mu(mu),
-        _solver(p["seet_input"], p["bath_file"], p["impurity_solver_exec"], p["impurity_solver_params"], p["dc_solver_exec"],
-                p["dc_solver_param"], p["seet_root_dir"], ft, bz_utils) {
+        _ft(ft), _bz_utils(bz_utils), _ovlp_k(S_k), _h_core_k(H_k), _mu(mu), _solver(p, ft, bz_utils) {
       h5pp::archive ar(p["input_file"]);
       ar["params/nao"] >> _nao;
       ar["params/nso"] >> _nso;
@@ -134,6 +131,47 @@ namespace green::mbpt {
     impurity::impurity_solver          _solver;
   };
 
-}  // namespace green::mbpt
+  /**
+   * @brief Self-energy embedding inner loop solver class. Reads the contribution into the self-energy from the perviously solved
+   * weak coupling problem
+   */
+  class seet_inner_solver {
+    using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using G_type     = utils::shared_object<ztensor<5>>;
+    using S1_type    = ztensor<4>;
+    using St_type    = utils::shared_object<ztensor<5>>;
+
+  public:
+    /**
+     * Class constructor
+     *
+     * @param p           -- simulation parameters
+     * @param ft          -- imaginary time transformer
+     * @param Gk          -- Green's function in (tau, kcell, nao, nao) domain
+     * @param Sigma       -- Self-energy in (tau, kcell, nao, nao) domain
+     * @param bz_utils    -- Brillouin zone utilities
+     * @param second_only -- Whether do GW or only second-order direct diagram
+     */
+    seet_inner_solver(const params::params& p) :
+        _weak_results_file(p["weak_results"]) {
+      int last_iter;
+      h5pp::archive ar(_weak_results_file, "r");
+      ar["iter"] >> last_iter;
+      _base_path = "iter" + std::to_string(last_iter);
+      ar.close();
+    }
+
+    /**
+     * Get weak coupling solution from the file
+     */
+    void solve(G_type& g, S1_type&, St_type& sigma_tau);
+
+  private:
+
+    std::string _weak_results_file;
+    std::string _base_path;
+  };
+
+}  // namespace green::embedding
 
 #endif  // MBPT_SEET_SOLVER_H
