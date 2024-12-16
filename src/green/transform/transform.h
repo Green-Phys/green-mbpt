@@ -46,11 +46,14 @@ namespace green::transform {
   using CMMatrixXd  = Eigen::Map<const Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>;
   using column      = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1, Eigen::ColMajor>;
 
+  dtensor<3> decomp_interaction(const dtensor<4>& dERI, double atol = 1e-9);
+
   struct int_transform {
     std::string input_file;
     std::string in_file;
     std::string in_int_file;
     std::string out_int_file;
+    std::string dc_path;
     int         transform;
   };
 
@@ -59,13 +62,13 @@ namespace green::transform {
     int_transformer(const int_transform& params) : _params(params) {
       int myid;
       MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-      dtensor<2>  kgrid(0ul, 0ul);
-      std::string grid     = "/grid/k_mesh";
+      dtensor<2>    kgrid(0ul, 0ul);
+      std::string   grid     = "/grid/k_mesh";
 
-      std::string basename = _params.in_int_file;
-      std::string meta     = basename + "/meta.h5";
-      h5pp::archive       meta_file(meta, "r");
-      meta_file["chunk_size"] >>_chunk_size;
+      std::string   basename = _params.in_int_file;
+      std::string   meta     = basename + "/meta.h5";
+      h5pp::archive meta_file(meta, "r");
+      meta_file["chunk_size"] >> _chunk_size;
       meta_file.close();
 
       h5pp::archive ar(_params.in_file, "r");
@@ -116,7 +119,7 @@ namespace green::transform {
     int                  mom_cons(int k1, int k2, int k3) const;
 
     // utilities for inverse k-symmetry
-    void                 read_integrals( h5pp::archive& file, int current_chunk, int chunk_size, ztensor<4>& vij_Q);
+    void                 read_integrals(h5pp::archive& file, int current_chunk, int chunk_size, ztensor<4>& vij_Q);
 
     int                  irre_pos_kpair(int idx, std::vector<int>& kpair_irre_list);
 
@@ -143,9 +146,10 @@ namespace green::transform {
     void orthogonalize_Vij_Q(int myid, const std::string& basename, ztensor<3>& X_k, dtensor<2>& UU, int i, int nao, int nno,
                              int NQ);
 
-    void compute_local_VijQ(int myid, int nprocs, int NQ, int nno, h5pp::archive& int_file, ztensor<4>& VijQ1, ztensor<3>& VijQ_loc);
+    void compute_local_VijQ(int myid, int nprocs, int NQ, int nno, h5pp::archive& int_file, ztensor<4>& VijQ1,
+                            ztensor<3>& VijQ_loc);
 
-    void extract_impurity_interaction(int myid, int nprocs,  h5pp::archive& int_file, ztensor<4>& VijQ1, ztensor<4>& VijQ2,
+    void extract_impurity_interaction(int myid, int nprocs, h5pp::archive& int_file, ztensor<4>& VijQ1, ztensor<4>& VijQ2,
                                       dtensor<4>& dERI, ztensor<4>& zERI, int nno, int NQ);
   };
 }  // namespace green::transform
