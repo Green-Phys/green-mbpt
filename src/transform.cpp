@@ -234,7 +234,8 @@ namespace green::transform {
         std::filesystem::create_directory(dir_name);
         std::string   fname = dir_name + "/VQ_0.h5";
         h5pp::archive ar(fname, "w");
-        ar["/" + std::to_string(chunkid)] << ndarray::transpose(VijQ_imp, "ijQ->Qij").reshape({1,VijQ_imp.shape()[2],size_t(nno),size_t(nno)}).astype<std::complex<double>>();
+        auto VijQ =  ndarray::transpose(VijQ_imp, "ijQ->Qij").astype<std::complex<double>>();
+        ar["/" + std::to_string(chunkid)] << VijQ.reshape({1,VijQ_imp.shape()[2],VijQ_imp.shape()[0],VijQ_imp.shape()[0]});
         ar.close();
 
         int           nq        = VijQ_imp.shape()[2];
