@@ -206,7 +206,7 @@ namespace green::transform {
     std::vector<std::complex<double>> zERI_imp1;
 
     for (int i = 0; i < nimp; ++i) {
-      if (!myid) std::cout << "Process impurity " << i << std::endl;
+      if (!myid && _params.verbosity > 0) std::cout << "Process impurity " << i << std::endl;
       dtensor<2>& UU  = UUs[i];
       int         nno = UU.shape()[0];
 
@@ -230,21 +230,54 @@ namespace green::transform {
       if (myid == 0) {
         out_file[std::to_string(i) + "/interaction"] << dERI;
         int         chunkid  = 0;
-        std::string dir_name = _params.dc_path + std::to_string(nimp);
+        std::string dir_name = _params.dc_path + "." + std::to_string(i);
         std::filesystem::create_directory(dir_name);
         std::string   fname = dir_name + "/VQ_0.h5";
         h5pp::archive ar(fname, "w");
-        auto VijQ =  ndarray::transpose(VijQ_imp, "ijQ->Qij").astype<std::complex<double>>();
-        ar["/" + std::to_string(chunkid)] << VijQ.reshape({1,VijQ_imp.shape()[2],VijQ_imp.shape()[0],VijQ_imp.shape()[0]});
+        auto VijQ = ndarray::transpose(VijQ_imp, "ijQ->Qij").astype<std::complex<double>>();
+        auto tmp  = VijQ.reshape(std::array<size_t, 4>{1,VijQ_imp.shape()[2],VijQ_imp.shape()[0],VijQ_imp.shape()[0]});
+        ar["/" + std::to_string(chunkid)] << tmp.view<double>();
         ar.close();
 
         int           nq        = VijQ_imp.shape()[2];
         int           chunksize = nao * nao * nq * 16;
         std::string   metaname  = dir_name + "/meta.h5";
+        std::string   version   = "0.2.4";
         h5pp::archive meta(metaname, "w");
         meta["/chunk_indices"] << chunkid;
         meta["/chunk_size"] << chunksize;
+        meta.set_attribute("__green_version__", version);
         meta.close();
+
+        ar.open(dir_name + "/dummy.h5", "w");
+        ar["params/nao"] << nao;
+        ar["params/nso"] << nao;
+        ar["params/NQ"] << NQ;
+        ar["params/ns"] << 2;
+        ar["params/nk"] << 1;
+
+        dtensor<2> kgrid(1,3);
+        kgrid(0,0) = kgrid(0,1) = kgrid(0,2) = 0.0;
+        grids::itensor<1> list(1), conj_list(1), ir_list(1), conj_pairs_list(1), kpair_irre_list(1), trans_pairs_list(1), index(1);
+        grids::itensor<2> kpair_idx(1,2);
+        kpair_idx(0,0) = kpair_idx(0,1) = 0;
+        dtensor<1> weight(1);
+        weight(0) = 1.0;
+        ar["grid/ink"] << 1;
+        ar["grid/nk"] << 1;
+        ar["grid/num_kpair_stored"] << 1;
+
+        ar["grid/conj_list"] << list;
+        ar["grid/conj_pairs_list"] << list;
+        ar["grid/index"] << list;
+        ar["grid/ir_list"] << list;
+        ar["grid/k_mesh"] << kgrid;
+        ar["grid/k_mesh_scaled"] << kgrid;
+        ar["grid/kpair_idx"] <<kpair_idx;
+        ar["grid/kpair_irre_list"] << list;
+        ar["grid/trans_pairs_list"] << list;
+        ar["grid/weight"] << weight;
+        ar.close();
       }
     }
     if (myid == 0) {
@@ -259,11 +292,11 @@ namespace green::transform {
     MMatrixXd  dERI_m(dERI.data(), nno * nno, nno * nno);
     int        current_chunk1 = -1;
     int        current_chunk2 = -1;
-    if (myid == 0) std::cout << "Compute local Vijkl ..." << std::endl;
+    if (myid == 0  && _params.verbosity > 0) std::cout << "Compute local Vijkl ..." << std::endl;
     for (int k1k2 = myid; k1k2 < _nkpts * _nkpts; k1k2 += nprocs) {
       int k1 = k1k2 / _nkpts;
       int k2 = k1k2 % _nkpts;
-      std::cout << k1k2 + 1 << " of " << _nkpts * _nkpts << std::endl;
+      if(_params.verbosity > 1)std::cout << k1k2 + 1 << " of " << _nkpts * _nkpts << std::endl;
 
       int idx_red    = get_idx_red(k1, k2, _conj_kpair_list, _trans_kpair_list, _kpair_irre_list);
       int v_type     = get_vtype(k1, k2, _conj_kpair_list, _trans_kpair_list);
@@ -327,7 +360,7 @@ namespace green::transform {
       ztensor<4> buffer_out(_chunk_size, NQ, nno, nno);
       int_file.open("reduced.int." + std::to_string(i) + ".h5", "w");
       for (int ic = 0; ic < _nchunks; ++ic) {
-        std::cout << "Chunk " << ic + 1 << " out of " << _nchunks << std::endl;
+        if(_params.verbosity > 1)std::cout << "Chunk " << ic + 1 << " out of " << _nchunks << std::endl;
         int           flat_index   = ic * _chunk_size;
         std::string   name         = "VQ/" + std::to_string(flat_index);
         std::string   vq_file_path = basename + "/VQ_" + std::to_string(flat_index) + ".h5";
