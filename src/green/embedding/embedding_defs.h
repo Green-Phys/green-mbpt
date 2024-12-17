@@ -59,6 +59,7 @@ namespace green::embedding {
     p.define<std::string>("dc_solver_exec", "Path to a double counting solver executable.");
     p.define<std::string>("dc_solver_param", "Double counting solver's parameters.");
     p.define<std::string>("seet_root_dir", "Directory to put output for impurity solvers.", "");
+    p.define<bool>("spin_symm", "Apply spin symmetrization to hybridization function", false);
   }
 }
 #endif //GREEN_EMBEDDING_DEFS_H
