@@ -41,6 +41,7 @@ green::transform::int_transform parse_input(int argc, char** argv) {
   p.define<std::string>("in_file", "Path to input HDF5 file with Weak Coupling input", "input.h5");
   p.define<std::string>("in_int_file", "Path to input HDF5 files with Coulomb integrals", "df_int");
   p.define<std::string>("dc_int_path", "Name for double counting integral-files", "dc_int");
+  p.define<int>("verbose", "Verbosity level", 0);
   p.define<bool>("transform", "Evaluate transformed three-center integrals", false);
   p.parse(argc, argv);
   if (!p.parse(argc, argv)) {
@@ -50,7 +51,7 @@ green::transform::int_transform parse_input(int argc, char** argv) {
   }
   if (!green::utils::context.global_rank) p.print();
 
-  return green::transform::int_transform{p["input_file"], p["in_file"], p["in_int_file"], p["input_file"], p["dc_int_path"], static_cast<int>(p["transform"].as<bool>())};
+  return green::transform::int_transform{p["input_file"], p["in_file"], p["in_int_file"], p["input_file"], p["dc_int_path"], static_cast<int>(p["transform"].as<bool>()), p["verbose"]};
 }
 
 int main(int argc, char** argv) {
