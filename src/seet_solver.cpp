@@ -89,11 +89,11 @@ namespace green::embedding {
   void seet_inner_solver::solve(G_type& g, S1_type& sigma_inf, St_type& sigma_tau) {
     h5pp::archive ar(_weak_results_file, "r");
     ar[_base_path + "/Sigma1"] >> sigma_inf;
-    ar.close();
     sigma_tau.fence();
     if (!utils::context.node_rank) {
       ar[_base_path + "/Selfenergy/data"] >> sigma_tau.object();
     }
     sigma_tau.fence();
+    ar.close();
   }
 }

@@ -277,6 +277,8 @@ namespace green::transform {
         ar["grid/kpair_irre_list"] << list;
         ar["grid/trans_pairs_list"] << list;
         ar["grid/weight"] << weight;
+
+        ar["HF/madelung"] << 0.0;
         ar.close();
       }
     }
