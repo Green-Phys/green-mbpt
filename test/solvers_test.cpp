@@ -313,6 +313,74 @@ TEST_CASE("MBPT Solver") {
   }
 }
 
+TEST_CASE("SEET DC TEST") {
+  auto        p           = green::params::params("DESCR");
+  std::string input_file  = TEST_PATH + "/embedding/dc_int.0/dummy.h5"s;
+  std::string df_int_path = TEST_PATH + "/embedding/dc_int.0"s;
+  std::string grid_file   = GRID_PATH + "/ir/1e4.h5"s;
+  std::string test_file  = TEST_PATH + "/embedding/data.h5"s;
+  std::string args =
+      "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_MIXING --mixing_weight 0.8 --input_file=" + input_file +
+      " --BETA 100 --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path +  " --dfintegral_hf_file=" + df_int_path + 
+      " --q0_treatment IGNORE_G0";
+  green::grids::define_parameters(p);
+  green::mbpt::define_parameters(p);
+  green::symmetry::define_parameters(p);
+  p.define<double>("BETA", "Inverse temperature", 10.0);
+  p.parse(args);
+  green::symmetry::brillouin_zone_utils bz(p);
+  green::grids::transformer_t           ft(p);
+  size_t                                nso = 2, ns = 2, nk = 1, ink = 1, nts;
+  {
+    green::h5pp::archive ar(grid_file);
+    ar["fermi/metadata/ncoeff"] >> nts;
+    ar.close();
+    nts += 2;
+  }
+  auto G_shared     = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+  auto S_shared     = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+  auto S_shared_tst = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+  auto Sigma1       = green::sc::ztensor<4>(ns, ink, nso, nso);
+  auto Sigma1_test  = green::sc::ztensor<4>(ns, ink, nso, nso);
+  auto Sk           = green::sc::ztensor<4>(ns, ink, nso, nso);
+  {
+    green::h5pp::archive ar(test_file);
+    G_shared.fence();
+    ar["g_tau"] >> G_shared.object();
+    G_shared.fence();
+    S_shared_tst.fence();
+    ar["sigma_tau"] >> S_shared_tst.object();
+    S_shared_tst.fence();
+    ar["sigma1"] >> Sigma1_test;
+    ar.close();
+    green::sc::ztensor<5> S_w(ft.sd().repn_fermi().nw(), ns, ink, nso, nso);
+    ft.tau_to_omega(S_shared_tst.object(),S_w);
+    S_shared_tst.fence();
+    ft.omega_to_tau(S_w, S_shared_tst.object());
+    S_shared_tst.fence();
+
+    ft.tau_to_omega(G_shared.object(),S_w);
+    G_shared.fence();
+    ft.omega_to_tau(S_w, G_shared.object());
+    G_shared.fence();
+    
+  }
+
+  for (int is = 0; is < ns; ++is) {
+    for(int i = 0; i < nso; ++i) {
+      Sk(is,0,i,i) = 1.0;
+    }
+  }
+  std::cout<<"create GW solver"<<std::endl;
+  green::mbpt::gw_solver solver(p, ft, bz, Sk);
+  solver.solve(G_shared, Sigma1, S_shared);
+  REQUIRE_THAT(S_shared.object(), IsCloseTo(S_shared_tst.object(), 1e-6));
+  green::mbpt::hf_solver hf(p, bz, Sk);
+  hf.solve(G_shared, Sigma1, S_shared);
+  REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));
+  
+}
+
 int main(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   int result = Catch::Session().run(argc, argv);
