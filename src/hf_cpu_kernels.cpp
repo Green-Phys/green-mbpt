@@ -27,7 +27,7 @@ namespace green::mbpt::kernels {
     ztensor<4> new_Fock(_ns, _ink, _nao, _nao);
     new_Fock.set_zero();
     {
-      df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils);
+      df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils, _verbose);
 
       size_t        NQ_local = _NQ / utils::context.node_size;
       NQ_local += (_NQ % utils::context.node_size > utils::context.node_rank) ? 1 : 0;
@@ -46,9 +46,6 @@ namespace green::mbpt::kernels {
         int is    = ikps % _ns;
         int ikp   = ikps / _ns;
         int kp_ir = _bz_utils.symmetry().full_point(ikp);
-        statistics.start("Read Coulomb Up");
-        coul_int1.read_integrals(kp_ir, kp_ir);
-        statistics.end();
         if(NQ_local > 0) {
           coul_int1.symmetrize(v, kp_ir, kp_ir, NQ_offset, NQ_local);
 
@@ -67,9 +64,6 @@ namespace green::mbpt::kernels {
         int is   = ii / _ink;
         int ik   = ii % _ink;
         int k_ir = _bz_utils.symmetry().full_point(ik);
-        statistics.start("Read Coulomb Low");
-        coul_int1.read_integrals(k_ir, k_ir);
-        statistics.end();
         if(NQ_local > 0) {
           coul_int1.symmetrize(v, k_ir, k_ir, NQ_offset, NQ_local);
 
@@ -104,9 +98,6 @@ namespace green::mbpt::kernels {
         for (int ikp = 0; ikp < _nk; ++ikp) {
           int         kp = _bz_utils.symmetry().reduced_point(ikp);
           CMMatrixXcd dmm(dm.data() + is * _ink * _nao * _nao + kp * _nao * _nao, _nao, _nao);
-          statistics.start("Read Coulomb Exch");
-          coul_int1.read_integrals(k_ir, ikp);
-          statistics.end();
           if(NQ_local > 0) {
             // (Q, i, b) or conj(Q, j, a)
             coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
@@ -152,7 +143,7 @@ namespace green::mbpt::kernels {
     ztensor<4> new_Fock(1, _ink, _nso, _nso);
     new_Fock.set_zero();
     {
-      df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils);
+      df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils, _verbose);
 
       ztensor<3>    dm_spblks[3]{
           {_ink, _nao, _nao},
@@ -190,7 +181,6 @@ namespace green::mbpt::kernels {
         // for (size_t ikp = 0; ikp < _ink; ++ikp) {
           size_t kp_ir = _bz_utils.symmetry().full_point(ikp);
 
-          coul_int1.read_integrals(kp_ir, kp_ir);
           if(NQ_local > 0) {
             coul_int1.symmetrize(v, kp_ir, kp_ir, NQ_offset, NQ_local);
 
@@ -214,7 +204,6 @@ namespace green::mbpt::kernels {
         for (int ik = utils::context.internode_rank; ik < _ink; ik += utils::context.internode_size) {
           int k_ir = _bz_utils.symmetry().full_point(ik);
 
-          coul_int1.read_integrals(k_ir, k_ir);
           if(NQ_local > 0) {
             coul_int1.symmetrize(v, k_ir, k_ir, NQ_offset, NQ_local);
 
@@ -291,7 +280,6 @@ namespace green::mbpt::kernels {
     for (int ikp = 0; ikp < _nk; ++ikp) {
       int kp = _bz_utils.symmetry().reduced_point(ikp);
 
-      coul_int1.read_integrals(k_ir, ikp);
       if(NQ_local > 0) {
         // (Q, i, b) or conj(Q, j, a)
         coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
@@ -325,7 +313,6 @@ namespace green::mbpt::kernels {
     for (int ikp = 0; ikp < _nk; ++ikp) {
       int kp = _bz_utils.symmetry().reduced_point(ikp);
 
-      coul_int1.read_integrals(k_ir, ikp);
       if(NQ_local > 0) {
         // (Q, i, b) or conj(Q, j, a)
         coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);

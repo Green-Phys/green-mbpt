@@ -50,7 +50,7 @@ namespace green::mbpt::kernels {
         _q0_utils(bz_utils.ink(), 0, S_k, _path, p["q0_treatment"]),
         // _P0_tilde(0, 0, 0, 0),
         _eps_inv_wq(ft.wsample_bose().size(), bz_utils.ink()),
-        _coul_int1(nullptr) {
+        _coul_int1(nullptr), _verbose(p["verbose"]) {
       _q0_utils.resize(_NQ);
     }
 
@@ -90,6 +90,7 @@ namespace green::mbpt::kernels {
     // Pre-computed fitted densities
     // This object reads 3-index tensors into Vij_Q
     df_integral_t*              _coul_int1;
+    int                         _verbose;
 
   private:
     /**
@@ -98,12 +99,6 @@ namespace green::mbpt::kernels {
      */
     void selfenergy_innerloop(size_t q_ir, const G_type& G_fermi, St_type& Sigma_fermi_s,
                               utils::shared_object<ztensor<4>>& P0_tilde_s, utils::shared_object<ztensor<4>>& Pw_tilde_s);
-
-    /**
-     * Read next part of Coulomb integrals in terms of 3-index tensors for fixed set of k-points
-     * @param k - [INPUT] (k1, 0, q, k1+q) or (k1, q, 0, k1-q)
-     */
-    void read_next(const std::array<size_t, 4>& k);
 
     /**
      * Evaluate polarization function P for a given job portion (maybe a single k-point or a set of k-points),
@@ -164,7 +159,7 @@ namespace green::mbpt::kernels {
     hf_kernel(const params::params& p, size_t nao, size_t nso, size_t ns, size_t NQ, double madelung, const bz_utils_t& bz_utils,
               const ztensor<4>& S_k) :
         _nao(nao), _nso(nso), _nk(bz_utils.nk()), _ink(bz_utils.ink()), _ns(ns), _NQ(NQ), _madelung(madelung),
-        _bz_utils(bz_utils), _S_k(S_k), _hf_path(p["dfintegral_hf_file"]), statistics("Hartree Fock"){};
+        _bz_utils(bz_utils), _S_k(S_k), _hf_path(p["dfintegral_hf_file"]), statistics("Hartree Fock"), _verbose(p["verbose"]) {};
     virtual ~hf_kernel() = default;
 
   protected:
@@ -186,6 +181,7 @@ namespace green::mbpt::kernels {
     const ztensor<4>& _S_k;
     const std::string _hf_path;
     utils::timing     statistics;
+    int               _verbose;
   };
 
   class hf_scalar_cpu_kernel final : public hf_kernel {

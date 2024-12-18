@@ -202,8 +202,6 @@ namespace green::mbpt {
   void gf2_solver::read_next_correction_0_1(size_t k1, size_t k2) {
     _coul_int_c_1->read_correction(k1);
     _coul_int_c_2->read_correction(k2);
-    _coul_int_x_3->read_integrals(k2, k1);
-    _coul_int_x_4->read_integrals(k1, k2);
     // direct
     CMMatrixXcd vc_1(_coul_int_c_1->v0ij_Q().data(), _NQ, _nao * _nao);
     CMMatrixXcd vc_2(_coul_int_c_2->v0ij_Q().data(), _NQ, _nao * _nao);
@@ -234,8 +232,6 @@ namespace green::mbpt {
   }
 
   void gf2_solver::read_next_correction_1_0(size_t k1, size_t k2) {
-    _coul_int_c_1->read_integrals(k1, k2);
-    _coul_int_c_2->read_integrals(k2, k1);
     _coul_int_x_3->read_correction(k1);
     _coul_int_x_4->read_correction(k2);
     // direct

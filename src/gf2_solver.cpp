@@ -40,12 +40,12 @@ namespace green::mbpt {
     //
     MPI_Datatype dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
     MPI_Op       matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
-    _coul_int_c_1              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    _coul_int_c_2              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    _coul_int_c_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    _coul_int_c_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    _coul_int_x_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    _coul_int_x_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
+    _coul_int_c_1              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
+    _coul_int_c_2              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
+    _coul_int_c_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
+    _coul_int_c_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
+    _coul_int_x_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
+    _coul_int_x_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
     auto& Sigma_tau            = sigma_tau.object();
     // clean self_energy array
     Sigma_local                = Sigma_tau;
@@ -63,10 +63,6 @@ namespace green::mbpt {
       size_t                k3     = (k1k3k2 / _nk) % _nk;
       size_t                k2     = k1k3k2 % _nk;
       std::array<size_t, 4> k      = _bz_utils.momentum_conservation({k1_red, k2, k3});
-      statistics.start("read");
-      // read next part of integrals
-      read_next(k);
-      statistics.end();
       statistics.start("setup");
       setup_integrals(k);
       statistics.end();
@@ -197,18 +193,6 @@ namespace green::mbpt {
     if (eq_spin and !ew_correct) {
       Sm.noalias() += Xm * Vxm;
     }
-  }
-
-  void gf2_solver::read_next(const std::array<size_t, 4>& k) {
-    // k = (k1_red, k2, k3, k1_red+k3-k2)
-    // Read integral for the 2nd-order direct diagram
-    _coul_int_c_1->read_integrals(k[0], k[1]);
-    _coul_int_c_2->read_integrals(k[2], k[3]);
-    // Read integral for the 2nd-order exchange diagram
-    _coul_int_c_3->read_integrals(k[0], k[1]);
-    _coul_int_c_4->read_integrals(k[2], k[3]);
-    _coul_int_x_3->read_integrals(k[0], k[3]);
-    _coul_int_x_4->read_integrals(k[2], k[1]);
   }
 
   void gf2_solver::setup_integrals(const std::array<size_t, 4>& kpts) {
