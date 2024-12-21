@@ -29,7 +29,8 @@
 namespace green::mbpt::kernels {
 
   void gw_cpu_kernel::solve(G_type& g, St_type& sigma_tau) {
-    _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils);
+    int verbose_ints = (!utils::context.internode_rank) ? 1 : 0;
+    _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils, verbose_ints);
     utils::shared_object<ztensor<4>> P0_tilde_s(_nts, 1, _NQ, _NQ);
     utils::shared_object<ztensor<4>> Pw_tilde_s(_nw_b, 1, _NQ, _NQ);
     MPI_Datatype                     dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
@@ -87,9 +88,6 @@ namespace green::mbpt::kernels {
       std::array<size_t, 4> k = _bz_utils.momentum_conservation({
           {k1, 0, q_ir}
       });
-      statistics.start("read");
-      read_next(k);
-      statistics.end();
       statistics.start("eval_P0_tilde");
       if (_p_sp) {  // Single-precision run
         eval_P0_tilde<std::complex<float>>(k, G, P0_tilde_s.object(), local_tau, tau_offset);
@@ -120,9 +118,6 @@ namespace green::mbpt::kernels {
         std::array<size_t, 4> k = _bz_utils.momentum_conservation({
             {k1_ir, q_deg, 0}
         });
-        statistics.start("read");
-        read_next(k);
-        statistics.end();
         statistics.start("eval_S");
         if (_sigma_sp) {
           eval_selfenergy<std::complex<float>>(k, G, Sigma, P0_tilde_s.object());
@@ -135,13 +130,6 @@ namespace green::mbpt::kernels {
     MPI_Win_sync(Sigma.win());
     MPI_Barrier(utils::context.node_comm);
     MPI_Win_unlock_all(Sigma.win());
-  }
-
-  void gw_cpu_kernel::read_next(const std::array<size_t, 4>& k) {
-    // k = (k1, 0, q, k1+q) or (k1, q, 0, k1-q)
-    size_t k1  = k[0];
-    size_t k1q = k[3];
-    _coul_int1->read_integrals(k1, k1q);
   }
 
   template <typename prec>

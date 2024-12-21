@@ -43,7 +43,7 @@ namespace green::mbpt {
     gf2_solver(const params::params& p, const grids::transformer_t& tr, const bz_utils_t& bz) :
         _nts(tr.sd().repn_fermi().nts()), _nk(bz.nk()), _ink(bz.ink()), _path(p["dfintegral_file"]),
         _ewald(std::filesystem::exists(_path + "/df_ewald.h5")), _bz_utils(bz),
-        statistics("GF2") {
+        statistics("GF2"), _verbose(p["verbose"]) {
       h5pp::archive ar(p["input_file"]);
       ar["params/nao"] >> _nao;
       ar["params/nso"] >> _nso;
@@ -86,11 +86,6 @@ namespace green::mbpt {
     Eigen::MatrixXcd  _Gb_k2_tmp;
     // Current time step Green's function matrix for k3
     Eigen::MatrixXcd  _G_k3_tmp;
-
-    /**
-     * Read next part of Coulomb integrals for fixed set of k-points
-     */
-    void              read_next(const std::array<size_t, 4>& k);
 
     // Compute correction into second-order from the divergent G=0 part of the interaction
     void              compute_2nd_exch_correction(size_t tau_offset, size_t ntau_local, const ztensor<5>& Gr_full_tau);
@@ -173,6 +168,7 @@ namespace green::mbpt {
 
     //
     utils::timing     statistics;
+    int               _verbose;
   };
 }  // namespace green::mbpt
 
