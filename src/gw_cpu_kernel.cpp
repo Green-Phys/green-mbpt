@@ -29,7 +29,8 @@
 namespace green::mbpt::kernels {
 
   void gw_cpu_kernel::solve(G_type& g, St_type& sigma_tau) {
-    _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
+    int verbose_ints = (!utils::context.internode_rank) ? 1 : 0;
+    _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils, verbose_ints);
     utils::shared_object<ztensor<4>> P0_tilde_s(_nts, 1, _NQ, _NQ);
     utils::shared_object<ztensor<4>> Pw_tilde_s(_nw_b, 1, _NQ, _NQ);
     MPI_Datatype                     dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);

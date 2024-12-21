@@ -40,12 +40,16 @@ namespace green::mbpt {
     //
     MPI_Datatype dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
     MPI_Op       matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
-    _coul_int_c_1              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
-    _coul_int_c_2              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
-    _coul_int_c_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
-    _coul_int_c_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
-    _coul_int_x_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
-    _coul_int_x_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _verbose);
+    // TODO: REVISIT! Possible source of out-of-memory segmentation faults
+    // There are several shared memory integral objects being formed here and by default,
+    // each integral occupies at-most 50% of memory (should be tunable). For large realistic jobs, this will cause problems.
+    int verbose_ints = (!utils::context.internode_rank) ? 1 : 0;
+    _coul_int_c_1              = new df_integral_t(_path, _nao, _NQ, _bz_utils, verbose_ints);
+    _coul_int_c_2              = new df_integral_t(_path, _nao, _NQ, _bz_utils, 0);
+    _coul_int_c_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils, 0);
+    _coul_int_c_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils, 0);
+    _coul_int_x_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils, 0);
+    _coul_int_x_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils, 0);
     auto& Sigma_tau            = sigma_tau.object();
     // clean self_energy array
     Sigma_local                = Sigma_tau;
