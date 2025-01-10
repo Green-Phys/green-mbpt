@@ -11,7 +11,7 @@ endif ()
 set(GREEN_RELEASE origin/main)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "-O3 -g -fno-omit-frame-pointer")
+set(CMAKE_CXX_FLAGS "-g -fno-omit-frame-pointer")
 
 execute_process(
         COMMAND git log -1 --format=%h
@@ -35,12 +35,6 @@ if (BLAS_FOUND)
     endif ()
     add_compile_definitions(EIGEN_USE_BLAS)
 endif ()
-find_package(Eigen3 REQUIRED)
-find_package(BLAS REQUIRED)
-find_package(MPI REQUIRED)
-find_package(OpenSSL REQUIRED)
-find_package(HDF5 REQUIRED)
-
 
 include(GreenDeps)
 
@@ -94,14 +88,6 @@ if (BLAS_FOUND)
     target_link_libraries(mbpt.exe PUBLIC BLAS::BLAS)
 endif (BLAS_FOUND)
 target_compile_definitions(mbpt.exe PRIVATE GIT_HASHES="${GIT_HASH}")
-
-add_executable(geint.exe geintegrals_test.cpp)
-target_link_libraries(geint.exe PUBLIC GREEN::MBPT)
-if (BLAS_FOUND)
-    target_link_libraries(geint.exe PUBLIC BLAS::BLAS)
-endif (BLAS_FOUND)
-target_compile_definitions(geint.exe PRIVATE GIT_HASHES="${GIT_HASH}")
-
 
 option(Build_Tests "Build tests" ON)
 if (Build_Tests)
