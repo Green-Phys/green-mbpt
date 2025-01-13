@@ -27,8 +27,7 @@ namespace green::mbpt::kernels {
     ztensor<4> new_Fock(_ns, _ink, _nao, _nao);
     new_Fock.set_zero();
     {
-      int verbose_ints = (!utils::context.internode_rank) ? 1 : 0;
-      df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils, verbose_ints);
+      df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils, _verbose_ints);
 
       size_t        NQ_local = _NQ / utils::context.node_size;
       NQ_local += (_NQ % utils::context.node_size > utils::context.node_rank) ? 1 : 0;
@@ -144,8 +143,7 @@ namespace green::mbpt::kernels {
     ztensor<4> new_Fock(1, _ink, _nso, _nso);
     new_Fock.set_zero();
     {
-      int verbose_ints = (!utils::context.internode_rank) ? 1 : 0;
-      df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils, verbose_ints);
+      df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils, _verbose_ints);
 
       ztensor<3>    dm_spblks[3]{
           {_ink, _nao, _nao},
