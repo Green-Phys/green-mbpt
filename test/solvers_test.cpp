@@ -199,27 +199,19 @@ TEST_CASE("MBPT Solver") {
   }
 
   SECTION("Input Data Version") {
-    SKIP("Input version test is disabled until all integral data and throw statement is updated");
     auto        p             = green::params::params("DESCR");
     std::string input_file    = TEST_PATH + "/Input/input.h5"s;
-    std::string df_int_path_1 = TEST_PATH + "/Input/df_int"s;
-    std::string df_int_path_2 = TEST_PATH + "/Input/df_int_x"s;
-    std::string df_int_path_3 = TEST_PATH + "/Input/df_int_y"s;
     std::string grid_file     = GRID_PATH + "/ir/1e4.h5"s;
     std::string args =
         "test --restart 0 --itermax 2 --E_thr 1e-13 --mixing_type G_MIXING --mixing_weight 0.8 --input_file=" + input_file +
-        " --BETA 100 --verbose=1 --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path_1 +
-        " --dfintegral_hf_file=" + df_int_path_2;
+        " --BETA 100 --verbose=1 --grid_file=" + grid_file;
     green::sc::define_parameters(p);
     green::symmetry::define_parameters(p);
     green::grids::define_parameters(p);
     green::mbpt::define_parameters(p);
     p.parse(args);
     green::symmetry::brillouin_zone_utils<green::symmetry::inv_symm_op> bz_utils(p);
-    REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_1, 2, 36, bz_utils, p["verbose"]), green::integrals::integrals_outdated_input);
-    REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_2, 2, 36, bz_utils, p["verbose"]), green::integrals::integrals_outdated_input);
-    REQUIRE_NOTHROW(green::mbpt::df_integral_t(df_int_path_3, 2, 36, bz_utils, p["verbose"]));
-    REQUIRE_THROWS_AS(green::mbpt::check_input(p), green::integrals::integrals_outdated_input);
+    REQUIRE_THROWS_AS(green::mbpt::check_input(p), green::mbpt::mbpt_outdated_input);
   }
 
   SECTION("Init real Dyson") {

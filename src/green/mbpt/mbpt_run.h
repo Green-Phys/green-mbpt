@@ -231,17 +231,15 @@ namespace green::mbpt {
   }
 
   inline void check_input(const params::params&p) {
-    using green::integrals::INPUT_VERSION;
-    using green::integrals::integrals_outdated_input;
     std::string path = p["input_file"];
     h5pp::archive ar(path, "r");
     if(ar.has_attribute("__green_version__")) {
       std::string int_version = ar.get_attribute<std::string>("__green_version__");
       if (int_version.rfind(INPUT_VERSION, 0) != 0) {
-        throw integrals_outdated_input("Input file at '" + path +"' is outdated, please run migration script python/migrate.py");
+        throw mbpt_outdated_input("Input file at '" + path +"' is outdated, please run migration script python/migrate.py");
       }
     } else {
-      throw integrals_outdated_input("Input file at '" + path +"' is outdated, please run migration script python/migrate.py");
+      throw mbpt_outdated_input("Input file at '" + path +"' is outdated, please run migration script python/migrate.py");
     }
     ar.close();
   }

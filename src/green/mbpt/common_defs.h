@@ -31,6 +31,7 @@
 
 namespace green::mbpt {
 
+  static const std::string INPUT_VERSION = "0.2.4";
 
   // Matrix types
   template <typename prec>
