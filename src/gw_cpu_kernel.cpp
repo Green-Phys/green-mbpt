@@ -88,7 +88,7 @@ namespace green::mbpt::kernels {
     if (!cntx.node_rank) P0_tilde_s.object().set_zero();
     P0_tilde_s.fence();
 
-    auto [local_tau, tau_offset] = compute_local_and_offset_node_comm(_nts / 2);
+    auto [local_tau, tau_offset] = compute_local_and_offset_node_comm(_nts / 2, cntx);
     MPI_Win_lock_all(MPI_MODE_NOCHECK, P0_tilde_s.win());
     for (size_t k1 = 0; k1 < _nk; ++k1) {
       std::array<size_t, 4> k = _bz_utils.momentum_conservation({
@@ -273,8 +273,8 @@ namespace green::mbpt::kernels {
 
   void gw_cpu_kernel::eval_P_tilde(int q_ir, utils::shared_object<ztensor<4>>& P0_tilde, utils::shared_object<ztensor<4>>& Pw_s) {
     // Transform P0_tilde from Fermionic tau to Bonsonic Matsubara grid
-    auto [nw_local, w_offset] = compute_local_and_offset_node_comm(_nw_b);
-    auto [nt_local, t_offset] = compute_local_and_offset_node_comm(_nts);
+    auto [nw_local, w_offset] = compute_local_and_offset_node_comm(_nw_b, Pw_s.cntx());
+    auto [nt_local, t_offset] = compute_local_and_offset_node_comm(_nts, P0_tilde.cntx());
     MPI_Win_lock_all(MPI_MODE_NOCHECK, Pw_s.win());
     auto & P0_w = Pw_s.object();
     statistics.start("P0(t) -> P0(w)");
@@ -331,7 +331,7 @@ namespace green::mbpt::kernels {
     // k = (k1_ir, q_deg, 0, k1_ir-q_deg)
     // Link to corresponding irreducible k-point
     size_t k1q_pos               = _bz_utils.symmetry().reduced_point(k[3]);
-    auto [tau_local, tau_offset] = compute_local_and_offset_node_comm(_nts);
+    auto [tau_local, tau_offset] = compute_local_and_offset_node_comm(_nts, Sigma_fermi_s.cntx());
     auto&           Sigma_fermi  = Sigma_fermi_s.object();
 
     size_t          k1_pos       = _bz_utils.symmetry().reduced_point(k[0]);
