@@ -393,7 +393,80 @@ TEST_CASE("SEET DC TEST") {
   green::mbpt::hf_solver hf(p, bz, Sk);
   hf.solve(G_tau, Sigma1, Sigma_t);
   REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));
-  
+
+}
+
+TEST_CASE("Context TEST") {
+  if(green::utils::mpi_context::context.global_rank > 1) {
+    return;
+  }
+  green::utils::mpi_context cntx(MPI_COMM_SELF);
+  auto        p           = green::params::params("DESCR");
+  std::string input_file  = TEST_PATH + "/embedding/dc_int.0/dummy.h5"s;
+  std::string df_int_path = TEST_PATH + "/embedding/dc_int.0"s;
+  std::string grid_file   = GRID_PATH + "/ir/1e4.h5"s;
+  std::string test_file  = TEST_PATH + "/embedding/data.h5"s;
+  std::string args =
+      "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_MIXING --mixing_weight 0.8 --input_file=" + input_file +
+      " --BETA 100 --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path +  " --dfintegral_hf_file=" + df_int_path +
+      " --q0_treatment IGNORE_G0";
+  green::grids::define_parameters(p);
+  green::mbpt::define_parameters(p);
+  green::symmetry::define_parameters(p);
+  p.define<double>("BETA", "Inverse temperature", 100.0);
+  p.parse(args);
+  green::symmetry::brillouin_zone_utils bz(p);
+  green::grids::transformer_t           ft(p);
+  size_t                                nso = 2, ns = 2, nk = 1, ink = 1, nts;
+  {
+    green::h5pp::archive ar(grid_file);
+    ar["fermi/metadata/ncoeff"] >> nts;
+    ar.close();
+    nts += 2;
+  }
+  auto G_tau     = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso), cntx);
+  auto Sigma_t     = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso), cntx);
+  auto Sigma_t_tst = green::sc::ztensor<5>(nts, ns, ink, nso, nso);
+  auto Sigma1       = green::sc::ztensor<4>(ns, ink, nso, nso);
+  auto Sigma1_test  = green::sc::ztensor<4>(ns, ink, nso, nso);
+  auto Sk           = green::sc::ztensor<4>(ns, ink, nso, nso);
+  {
+    green::h5pp::archive ar(test_file, "r");
+    G_tau.fence();
+    G_tau.object().set_zero();
+    ar["g_tau"] >> G_tau.object();
+    G_tau.fence();
+    ar["sigma_tau"] >> Sigma_t_tst;
+    ar["sigma1"] >> Sigma1_test;
+    ar.close();
+    green::sc::ztensor<5> S_w(ft.sd().repn_fermi().nw(), ns, ink, nso, nso);
+    ft.tau_to_omega(Sigma_t_tst,S_w);
+    ft.omega_to_tau(S_w, Sigma_t_tst);
+
+    ft.tau_to_omega(G_tau.object(),S_w);
+    G_tau.fence();
+    G_tau.object().set_zero();
+    ft.omega_to_tau(S_w, G_tau.object());
+    G_tau.fence();
+
+    Sigma_t.fence();
+    Sigma_t.object().set_zero();
+    Sigma_t.fence();
+
+  }
+
+  Sk.set_zero();
+  for (int is = 0; is < ns; ++is) {
+    for(int i = 0; i < nso; ++i) {
+      Sk(is,0,i,i) = 1.0;
+    }
+  }
+  green::mbpt::gw_solver solver(p, ft, bz, Sk);
+  solver.solve(G_tau, Sigma1, Sigma_t);
+  REQUIRE_THAT(Sigma_t.object(), IsCloseTo(Sigma_t_tst, 1e-6));
+  green::mbpt::hf_solver hf(p, bz, Sk);
+  hf.solve(G_tau, Sigma1, Sigma_t);
+  REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));
 }
 
 int main(int argc, char** argv) {

@@ -35,7 +35,7 @@ namespace green::mbpt::kernels {
     assert(g.cntx().node_comm == sigma_tau.cntx().node_comm);
     assert(g.cntx().internode_comm == sigma_tau.cntx().internode_comm);
 #endif
-    _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils);
+    _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils, cntx);
     utils::shared_object<ztensor<4>> P0_tilde_s(std::array<size_t, 4>{_nts, 1, _NQ, _NQ}, cntx);
     utils::shared_object<ztensor<4>> Pw_tilde_s(std::array<size_t, 4>{_nw_b, 1, _NQ, _NQ}, cntx);
     MPI_Datatype                     dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
