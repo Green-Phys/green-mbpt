@@ -191,7 +191,7 @@ namespace green::mbpt::kernels {
     hf_scalar_cpu_kernel(const params::params& p, size_t nao, size_t nso, size_t ns, size_t NQ, double madelung,
                          const bz_utils_t& bz_utils, const ztensor<4>& S_k) :
         hf_kernel(p, nao, nso, ns, NQ, madelung, bz_utils, S_k) {}
-    S1_type solve(const dm_type& dm);
+    S1_type solve(const dm_type& dm, const utils::mpi_context& ctx = utils::mpi_context::context);
   };
 
   class hf_x2c_cpu_kernel : public hf_kernel {
@@ -199,7 +199,7 @@ namespace green::mbpt::kernels {
     hf_x2c_cpu_kernel(const params::params& p, size_t nao, size_t nso, size_t ns, size_t NQ, double madelung,
                       const bz_utils_t& bz_utils, const ztensor<4>& S_k) :
         hf_kernel(p, nao, nso, ns, NQ, madelung, bz_utils, S_k) {}
-    S1_type solve(const dm_type& dm);
+    S1_type solve(const dm_type& dm, const utils::mpi_context& ctx = utils::mpi_context::context);
 
   private:
     MatrixXcd compute_exchange(int ik, ztensor<3>& dm_s1_s2, ztensor<3>& dm_ms1_ms2, ztensor<3>& v, df_integral_t& coul_int1,

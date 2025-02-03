@@ -326,7 +326,7 @@ TEST_CASE("SEET DC TEST") {
   green::grids::define_parameters(p);
   green::mbpt::define_parameters(p);
   green::symmetry::define_parameters(p);
-  p.define<double>("BETA", "Inverse temperature", 10.0);
+  p.define<double>("BETA", "Inverse temperature", 100.0);
   p.parse(args);
   green::symmetry::brillouin_zone_utils bz(p);
   green::grids::transformer_t           ft(p);
@@ -337,46 +337,61 @@ TEST_CASE("SEET DC TEST") {
     ar.close();
     nts += 2;
   }
-  auto G_shared     = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
-  auto S_shared     = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
-  auto S_shared_tst = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+  auto G_tau     = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+  auto Sigma_t     = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+  auto Sigma_t_tst = green::sc::ztensor<5>(nts, ns, ink, nso, nso);
   auto Sigma1       = green::sc::ztensor<4>(ns, ink, nso, nso);
   auto Sigma1_test  = green::sc::ztensor<4>(ns, ink, nso, nso);
   auto Sk           = green::sc::ztensor<4>(ns, ink, nso, nso);
   {
-    green::h5pp::archive ar(test_file);
-    G_shared.fence();
-    ar["g_tau"] >> G_shared.object();
-    G_shared.fence();
-    S_shared_tst.fence();
-    ar["sigma_tau"] >> S_shared_tst.object();
-    S_shared_tst.fence();
+    green::h5pp::archive ar(test_file, "r");
+    G_tau.fence();
+    G_tau.object().set_zero();
+    ar["g_tau"] >> G_tau.object();
+    G_tau.fence();
+    ar["sigma_tau"] >> Sigma_t_tst;
     ar["sigma1"] >> Sigma1_test;
     ar.close();
     green::sc::ztensor<5> S_w(ft.sd().repn_fermi().nw(), ns, ink, nso, nso);
-    ft.tau_to_omega(S_shared_tst.object(),S_w);
-    S_shared_tst.fence();
-    ft.omega_to_tau(S_w, S_shared_tst.object());
-    S_shared_tst.fence();
+    ft.tau_to_omega(Sigma_t_tst,S_w);
+    ft.omega_to_tau(S_w, Sigma_t_tst);
 
-    ft.tau_to_omega(G_shared.object(),S_w);
-    G_shared.fence();
-    ft.omega_to_tau(S_w, G_shared.object());
-    G_shared.fence();
-    
+    ft.tau_to_omega(G_tau.object(),S_w);
+    G_tau.fence();
+    G_tau.object().set_zero();
+    ft.omega_to_tau(S_w, G_tau.object());
+    G_tau.fence();
+
+    Sigma_t.fence();
+    Sigma_t.object().set_zero();
+    Sigma_t.fence();
+
   }
 
+  Sk.set_zero();
   for (int is = 0; is < ns; ++is) {
     for(int i = 0; i < nso; ++i) {
       Sk(is,0,i,i) = 1.0;
     }
   }
+
+  for(int t = 0; t < nts ; ++ t) {
+    std::cout << t<< " "<< G_tau.object()(t,0,0,0,0).real()<< " "<< G_tau.object()(t,0,0,0,1).real()<< " "<< G_tau.object()(t,0,0,1,0).real()<< " "<< G_tau.object()(t,0,0,1,1).real()<<std::endl;
+  }
+
+  for(int t = 0; t < nts ; ++ t) {
+    std::cout << t<< " "<< G_tau.object()(t,1,0,0,0).real()<< " "<< G_tau.object()(t,1,0,0,1).real()<< " "<< G_tau.object()(t,1,0,1,0).real()<< " "<< G_tau.object()(t,1,0,1,1).real()<<std::endl;
+  }
+
   std::cout<<"create GW solver"<<std::endl;
   green::mbpt::gw_solver solver(p, ft, bz, Sk);
-  solver.solve(G_shared, Sigma1, S_shared);
-  REQUIRE_THAT(S_shared.object(), IsCloseTo(S_shared_tst.object(), 1e-6));
+  solver.solve(G_tau, Sigma1, Sigma_t);
+  for(int t = 0; t < nts ; ++ t) {
+    std::cout << t<< " "<< Sigma_t.object()(t,0,0,0,0).real()<< " "<< Sigma_t_tst(t,0,0,0,0).real()<<std::endl;
+  }
+  REQUIRE_THAT(Sigma_t.object(), IsCloseTo(Sigma_t_tst, 1e-6));
   green::mbpt::hf_solver hf(p, bz, Sk);
-  hf.solve(G_shared, Sigma1, S_shared);
+  hf.solve(G_tau, Sigma1, Sigma_t);
   REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));
   
 }
