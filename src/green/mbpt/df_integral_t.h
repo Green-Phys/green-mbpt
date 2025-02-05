@@ -35,7 +35,7 @@ namespace green::mbpt {
     using MatrixXcd = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
     using MatrixXcf = Eigen::Matrix<std::complex<float>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
     using MatrixXd  = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
-    df_integral_t(const std::string& path, int nao, int NQ, const bz_utils_t& bz_utils) :
+    df_integral_t(const std::string& path, int nao, int NQ, const bz_utils_t& bz_utils, const utils::mpi_context & cntx = utils::mpi_context::context) :
         _base_path(path), _k0(-1), _current_chunk(-1), _chunk_size(0), _NQ(NQ), _bz_utils(bz_utils) {
       h5pp::archive ar(path + "/meta.h5");
       if(ar.has_attribute("__green_version__")) {
@@ -49,7 +49,7 @@ namespace green::mbpt {
       hid_t         file = H5Fopen((path + "/meta.h5").c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
       ar["chunk_size"] >> _chunk_size;
       ar.close();
-      _vij_Q = std::make_shared<int_data>(_chunk_size, NQ, nao, nao);
+      _vij_Q = std::make_shared<int_data>(std::array<size_t, 4>{size_t(_chunk_size), size_t(NQ), size_t(nao), size_t(nao)}, cntx);
     }
 
     virtual ~df_integral_t() {}
@@ -78,7 +78,7 @@ namespace green::mbpt {
 
       size_t c_id    = _current_chunk * _chunk_size;
       (*_vij_Q).fence();
-      if (!utils::context.node_rank) read_a_chunk(c_id, _vij_Q->object());
+      if (!_vij_Q->cntx().node_rank) read_a_chunk(c_id, _vij_Q->object());
       (*_vij_Q).fence();
     }
 

@@ -29,41 +29,47 @@
 namespace green::mbpt::kernels {
 
   void gw_cpu_kernel::solve(G_type& g, St_type& sigma_tau) {
-    _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    utils::shared_object<ztensor<4>> P0_tilde_s(_nts, 1, _NQ, _NQ);
-    utils::shared_object<ztensor<4>> Pw_tilde_s(_nw_b, 1, _NQ, _NQ);
+    auto cntx = g.cntx();
+#ifndef NDEBUG
+    assert(g.cntx().global == sigma_tau.cntx().global);
+    assert(g.cntx().node_comm == sigma_tau.cntx().node_comm);
+    assert(g.cntx().internode_comm == sigma_tau.cntx().internode_comm);
+#endif
+    _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils, cntx);
+    utils::shared_object<ztensor<4>> P0_tilde_s(std::array<size_t, 4>{_nts, 1, _NQ, _NQ}, cntx);
+    utils::shared_object<ztensor<4>> Pw_tilde_s(std::array<size_t, 4>{_nw_b, 1, _NQ, _NQ}, cntx);
     MPI_Datatype                     dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
     MPI_Op                           matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
     auto&                            sigma_fermi   = sigma_tau.object();
     _eps_inv_wq.set_zero();
     sigma_tau.fence();
-    if (!utils::context.node_rank) sigma_fermi.set_zero();
+    if (!cntx.node_rank) sigma_fermi.set_zero();
     sigma_tau.fence();
     statistics.start("total");
     statistics.start("Main loop");
-    for (size_t q = utils::context.internode_rank; q < _ink; q += utils::context.internode_size) {
+    for (size_t q = cntx.internode_rank; q < _ink; q += cntx.internode_size) {
       size_t q_ir = _bz_utils.symmetry().full_point(q);
       selfenergy_innerloop(q_ir, g, sigma_tau, P0_tilde_s, Pw_tilde_s);
     }
     statistics.end();
     statistics.start("selfenergy_reduce");
     sigma_tau.fence();
-    if (!utils::context.node_rank) {
+    if (!cntx.node_rank) {
       utils::allreduce(MPI_IN_PLACE, sigma_fermi.data(), sigma_fermi.size() / (_nso * _nso), dt_matrix, matrix_sum_op,
-                       utils::context.internode_comm);
+                       cntx.internode_comm);
       sigma_fermi /= _nk;
     }
     sigma_tau.fence();
     statistics.end();
     statistics.start("q0_correction");
     if (_q0_utils.q0_treatment() == extrapolate) {
-      MPI_Allreduce(MPI_IN_PLACE, _eps_inv_wq.data(), _eps_inv_wq.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, utils::context.global);
-      _q0_utils.GW_q0_correction(_eps_inv_wq, sigma_fermi, g.object(), _ft, _X2C, utils::context.global_rank,
-                                 utils::context.node_rank, utils::context.node_size, sigma_tau.win());
+      MPI_Allreduce(MPI_IN_PLACE, _eps_inv_wq.data(), _eps_inv_wq.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, cntx.global);
+      _q0_utils.GW_q0_correction(_eps_inv_wq, sigma_fermi, g.object(), _ft, _X2C, cntx.global_rank,
+                                 cntx.node_rank, cntx.node_size, sigma_tau.win());
     }
     statistics.end();
     statistics.end();
-    statistics.print(utils::context.global);
+    statistics.print(cntx.global);
     MPI_Type_free(&dt_matrix);
     MPI_Op_free(&matrix_sum_op);
     delete _coul_int1;
@@ -72,16 +78,17 @@ namespace green::mbpt::kernels {
   void gw_cpu_kernel::selfenergy_innerloop(size_t q_ir, const G_type& G, St_type& Sigma,
                                            utils::shared_object<ztensor<4>>& P0_tilde_s,
                                            utils::shared_object<ztensor<4>>& Pw_tilde_s) {
+    auto cntx = P0_tilde_s.cntx();
 #ifndef NDEBUG
     if (_nts % 2 != 0) {
       throw mbpt_wrong_grid("Number of tau points should be even!!!");
     }
 #endif
     P0_tilde_s.fence();
-    if (!utils::context.node_rank) P0_tilde_s.object().set_zero();
+    if (!cntx.node_rank) P0_tilde_s.object().set_zero();
     P0_tilde_s.fence();
 
-    auto [local_tau, tau_offset] = compute_local_and_offset_node_comm(_nts / 2);
+    auto [local_tau, tau_offset] = compute_local_and_offset_node_comm(_nts / 2, cntx);
     MPI_Win_lock_all(MPI_MODE_NOCHECK, P0_tilde_s.win());
     for (size_t k1 = 0; k1 < _nk; ++k1) {
       std::array<size_t, 4> k = _bz_utils.momentum_conservation({
@@ -100,14 +107,9 @@ namespace green::mbpt::kernels {
     }
     symmetrize_P0(P0_tilde_s.object(), local_tau, tau_offset);
     MPI_Win_sync(P0_tilde_s.win());
-    MPI_Barrier(utils::context.node_comm);
+    MPI_Barrier(cntx.node_comm);
     MPI_Win_unlock_all(P0_tilde_s.win());
 
-    // statistics.start("P0_reduce");  // Reduction for different Q-Q'
-    // if (!utils::context.internode_rank)
-    //   utils::allreduce(MPI_IN_PLACE, P0_tilde_s.object().data(), P0_tilde_s.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM,
-    //   utils::context.internode_comm);
-    // statistics.end();
     statistics.start("eval_P_tilde");
     // Solve Dyson-like eqn of P(iOmega_{n})
     eval_P_tilde(q_ir, P0_tilde_s, Pw_tilde_s);
@@ -133,7 +135,7 @@ namespace green::mbpt::kernels {
       }
     }
     MPI_Win_sync(Sigma.win());
-    MPI_Barrier(utils::context.node_comm);
+    MPI_Barrier(cntx.node_comm);
     MPI_Win_unlock_all(Sigma.win());
   }
 
@@ -271,15 +273,15 @@ namespace green::mbpt::kernels {
 
   void gw_cpu_kernel::eval_P_tilde(int q_ir, utils::shared_object<ztensor<4>>& P0_tilde, utils::shared_object<ztensor<4>>& Pw_s) {
     // Transform P0_tilde from Fermionic tau to Bonsonic Matsubara grid
-    auto [nw_local, w_offset] = compute_local_and_offset_node_comm(_nw_b);
-    auto [nt_local, t_offset] = compute_local_and_offset_node_comm(_nts);
+    auto [nw_local, w_offset] = compute_local_and_offset_node_comm(_nw_b, Pw_s.cntx());
+    auto [nt_local, t_offset] = compute_local_and_offset_node_comm(_nts, P0_tilde.cntx());
     MPI_Win_lock_all(MPI_MODE_NOCHECK, Pw_s.win());
     auto & P0_w = Pw_s.object();
     statistics.start("P0(t) -> P0(w)");
     _ft.tau_f_to_w_b(P0_tilde.object(), P0_w, w_offset, nw_local, true);
     statistics.end();
 
-    if (utils::context.global_rank == 0 && q_ir == 0) {
+    if (P0_tilde.cntx().global_rank == 0 && q_ir == 0) {
       print_leakage(_ft.check_chebyshev(P0_tilde.object()), "P0");
     }
 
@@ -297,7 +299,7 @@ namespace green::mbpt::kernels {
     }
     statistics.start("P reduce");
     MPI_Win_sync(Pw_s.win());
-    MPI_Barrier(utils::context.node_comm);
+    MPI_Barrier(P0_tilde.cntx().node_comm);
     MPI_Win_unlock_all(Pw_s.win());
     statistics.end();
     statistics.end();
@@ -309,16 +311,16 @@ namespace green::mbpt::kernels {
     _ft.w_b_to_tau_f(P0_w, P0_tilde.object(), t_offset, nt_local, true);
     //P0_tilde.fence();
     // for G0W0 correction
-    if (_q0_utils.q0_treatment() == extrapolate and utils::context.node_rank == 0) {
+    if (_q0_utils.q0_treatment() == extrapolate and P0_tilde.cntx().node_rank == 0) {
       size_t iq = _bz_utils.symmetry().reduced_point(q_ir);
       _q0_utils.aux_to_PW_00(P0_w, _eps_inv_wq, iq);
     }
     MPI_Win_sync(P0_tilde.win());
-    MPI_Barrier(utils::context.node_comm);
+    MPI_Barrier(P0_tilde.cntx().node_comm);
     MPI_Win_unlock_all(P0_tilde.win());
     statistics.end();
     // Transform back to intermediate Chebyshev representation for P_tilde
-    if (utils::context.global_rank == 0 && q_ir == 0) {
+    if (P0_tilde.cntx().global_rank == 0 && q_ir == 0) {
       print_leakage(_ft.check_chebyshev(P0_tilde.object()), "P");
     }
   }
@@ -329,7 +331,7 @@ namespace green::mbpt::kernels {
     // k = (k1_ir, q_deg, 0, k1_ir-q_deg)
     // Link to corresponding irreducible k-point
     size_t k1q_pos               = _bz_utils.symmetry().reduced_point(k[3]);
-    auto [tau_local, tau_offset] = compute_local_and_offset_node_comm(_nts);
+    auto [tau_local, tau_offset] = compute_local_and_offset_node_comm(_nts, Sigma_fermi_s.cntx());
     auto&           Sigma_fermi  = Sigma_fermi_s.object();
 
     size_t          k1_pos       = _bz_utils.symmetry().reduced_point(k[0]);
