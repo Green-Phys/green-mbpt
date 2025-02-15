@@ -13,7 +13,7 @@
 #include <green/utils/timing.h>
 
 #include "common_defs.h"
-#include "df_integral_t.h"
+#include <green/integrals/df_integral_t.h>
 #include "kernel_factory.h"
 #include "kernels.h"
 

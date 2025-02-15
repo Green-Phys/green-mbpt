@@ -44,5 +44,6 @@ namespace green::mbpt {
   public:
     explicit mbpt_outdated_input(const std::string& what) : std::runtime_error(what) {}
   };
+
 }  // namespace green::mbpt
 #endif  // GREEN_MBPT_EXCEPT_H

@@ -7,7 +7,7 @@
 
 #include <green/utils/timing.h>
 #include <green/grids.h>
-#include "df_integral_t.h"
+#include <green/integrals/df_integral_t.h>
 
 namespace green::mbpt {
 

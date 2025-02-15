@@ -11,6 +11,7 @@ endif ()
 set(GREEN_RELEASE origin/main)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -fno-omit-frame-pointer")
 
 execute_process(
         COMMAND git log -1 --format=%h
@@ -44,6 +45,7 @@ add_green_dependency(green-params)
 add_green_dependency(green-sc)
 add_green_dependency(green-symmetry)
 add_green_dependency(green-utils)
+add_green_dependency(green-integrals)
 
 if (CUSTOM_KERNELS)
     include(AddGreenKernel)
@@ -92,5 +94,6 @@ if (Build_Tests)
     enable_testing()
     add_subdirectory(test)
 endif ()
+
 install(TARGETS mbpt.exe DESTINATION bin)
 install(DIRECTORY python DESTINATION . FILES_MATCHING PATTERN "*.py")
