@@ -31,6 +31,9 @@
 
 namespace green::embedding {
 
+  using dc_solver_functype = std::function<void(std::string, int, utils::shared_object<mbpt::ztensor<5>>&,
+                                                mbpt::ztensor<4>&, utils::shared_object<mbpt::ztensor<5>>&)>;
+
   inline void read_hartree_fock_selfenergy(const params::params&                                        p,
                                            const symmetry::brillouin_zone_utils<symmetry::inv_symm_op>& bz,
                                            sc::ztensor<4>&                                              Sigma1) {
@@ -47,6 +50,45 @@ namespace green::embedding {
     }
   }
 
+  dc_solver_functype get_dc_solver(params::params& p2) {
+    return [&p2](std::string dc_data_path, int imp, utils::shared_object<mbpt::ztensor<5>>& G, 
+                                                                   mbpt::ztensor<4>& Sigma1, utils::shared_object<mbpt::ztensor<5>>& Sigma_t) {
+      p2["input_file"]         = dc_data_path + "." + std::to_string(imp) + "/dummy.h5";
+      p2["dfintegral_file"]    = dc_data_path + "." + std::to_string(imp);
+      p2["dfintegral_hf_file"] = dc_data_path + "." + std::to_string(imp);
+      green::symmetry::brillouin_zone_utils bz(p2);
+      green::grids::transformer_t           ft(p2);
+      size_t                                nso = 2, ns = 2, nk = 1, ink = 1, nts;
+      {
+        green::h5pp::archive ar(p2["grid_file"].as<std::string>());
+        ar["fermi/metadata/ncoeff"] >> nts;
+        ar.close();
+        nts += 2;
+      }
+      auto                 Sk   = green::sc::ztensor<4>(ns, ink, nso, nso);
+
+      const mbpt::scf_type type = p2["scf_type"];
+      switch (type) {
+        case mbpt::HF: {
+          green::mbpt::hf_solver hf(p2, bz, Sk);
+          hf.solve(G, Sigma1, Sigma_t);
+          break;
+        }
+        case mbpt::GW: {
+          green::mbpt::hf_solver hf(p2, bz, Sk);
+          green::mbpt::gw_solver gw(p2, ft, bz, Sk);
+          green::sc::composition_solver<green::mbpt::hf_solver, green::mbpt::gw_solver> solver(hf, gw);
+          solver.solve(G, Sigma1, Sigma_t);
+          break;
+        }
+        default: {
+          std::cout << "scf type not implemented." << std::endl;
+          break;
+        }
+      }
+    };
+  }
+
   inline void seet_job(sc::sc_loop<mbpt::shared_mem_dyson>& sc, const params::params& p, mbpt::scf_type type,
                        mbpt::shared_mem_dyson& dyson, utils::shared_object<mbpt::ztensor<5>>& G_tau,
                        utils::shared_object<mbpt::ztensor<5>>& Sigma_tau, mbpt::ztensor<4>& Sigma1) {
@@ -59,7 +101,10 @@ namespace green::embedding {
     Sigma_tau.fence();
     // Hartree-Fock solver is used by all perturbation solvers.
     mbpt::hf_solver hf(p, dyson.bz_utils(), dyson.S_k());
-    seet_solver     seet(p, dyson.ft(), dyson.bz_utils(), dyson.H_k(), dyson.S_k(), dyson.mu());
+    params::params p2           = p;
+    std::string    dc_data_path = p["dc_data_path_prefix"].as<std::string>();
+    auto dc_solver = get_dc_solver(p2);
+    seet_solver            seet(p, dyson.ft(), dyson.bz_utils(), dyson.H_k(), dyson.S_k(), dyson.mu(), dc_solver);
     switch (type) {
       case mbpt::HF: {
         sc::composition_solver cs(hf, seet);
@@ -95,44 +140,11 @@ namespace green::embedding {
     if (!utils::context.node_rank) Sigma_tau.object().set_zero();
     Sigma_tau.fence();
 
-    params::params p2           = p;
-    std::string    dc_data_path = p["dc_data_path_prefix"].as<std::string>();
-    std::string    grid_file    = p["grid_file"].as<std::string>();
+    params::params         p2           = p;
+    std::string            dc_data_path = p["dc_data_path_prefix"].as<std::string>();
+    std::string            grid_file    = p["grid_file"].as<std::string>();
 
-    auto           dc_solver    = [&dc_data_path, &p2, &grid_file](std::string dc_data_path, int imp, mbpt::ztensor<4>& Sigma1, utils::shared_object<mbpt::ztensor<5>>& Sigma_t) {
-      p2["input_file"]         = dc_data_path + "." + std::to_string(imp) + "/dummy.h5";
-      p2["dfintegral_file"]    = dc_data_path + "." + std::to_string(imp);
-      p2["dfintegral_hf_file"] = dc_data_path + "." + std::to_string(imp);
-      green::symmetry::brillouin_zone_utils bz(p2);
-      green::grids::transformer_t           ft(p2);
-      size_t                                nso = 2, ns = 2, nk = 1, ink = 1, nts;
-      {
-        green::h5pp::archive ar(grid_file);
-        ar["fermi/metadata/ncoeff"] >> nts;
-        ar.close();
-        nts += 2;
-      }
-      auto                 G    = utils::shared_object<ztensor<5>>(nts, ns, ink, nso, nso);
-      // auto Sigma_t = green::sc::ztensor<5>(nts, ns, ink, nso, nso);
-      // auto Sigma1  = green::sc::ztensor<4>(ns, ink, nso, nso);
-      auto                 Sk   = green::sc::ztensor<4>(ns, ink, nso, nso);
-
-      const mbpt::scf_type type = p2["scf_type"];
-      switch (type) {
-        case mbpt::HF: {
-          green::mbpt::hf_solver hf(p2, bz, Sk);
-          hf.solve(G, Sigma1, Sigma_t);
-        }
-        case mbpt::GW: {
-          green::mbpt::gw_solver solver(p2, ft, bz, Sk);
-          solver.solve(G, Sigma1, Sigma_t);
-        }
-        default: {
-          std::cout << "scf type not implemented." << std::endl;
-        }
-      }
-    };
-
+    auto                   dc_solver    = get_dc_solver(p2);
     seet_solver            seet(p, dyson.ft(), dyson.bz_utils(), dyson.H_k(), dyson.S_k(), dyson.mu(), dc_solver);
     seet_inner_solver      seet_weak(p);
     sc::composition_solver cs(seet_weak, seet);

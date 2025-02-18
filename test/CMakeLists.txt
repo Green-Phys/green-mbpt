@@ -17,7 +17,7 @@ target_compile_definitions(solvers_test PRIVATE TEST_PATH="${CMAKE_CURRENT_SOURC
 target_link_libraries(solvers_test
         PRIVATE
         Catch2::Catch2
-        GREEN::MBPT GREEN::SC BLAS::BLAS)
+        GREEN::MBPT GREEN::SC BLAS::BLAS transform)
 
 add_executable(decomp_test decomp_test.cpp)
 target_compile_definitions(decomp_test PRIVATE TEST_PATH="${CMAKE_CURRENT_SOURCE_DIR}/data"
