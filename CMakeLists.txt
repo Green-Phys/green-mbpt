@@ -44,7 +44,7 @@ add_green_dependency(green-params)
 add_green_dependency(green-sc)
 add_green_dependency(green-symmetry)
 add_green_dependency(green-utils)
-add_green_dependency(green-impurity https://github.com/Green-Phys/green-impurity.git seet)
+add_green_dependency(green-impurity)
 
 if (CUSTOM_KERNELS)
     include(AddGreenKernel)
