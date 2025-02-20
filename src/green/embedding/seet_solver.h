@@ -67,8 +67,9 @@ namespace green::embedding {
      * @param second_only -- Whether do GW or only second-order direct diagram
      */
     seet_solver(const params::params& p, const grids::transformer_t& ft, const bz_utils_t& bz_utils, const ztensor<4>& H_k,
-                const ztensor<4>& S_k, const double& mu) :
-        _ft(ft), _bz_utils(bz_utils), _ovlp_k(S_k), _h_core_k(H_k), _mu(mu), _solver(p, ft, bz_utils) {
+                const ztensor<4>& S_k, const double& mu,
+                std::function<void(std::string, int, utils::shared_object<ztensor<5>> &,ztensor<4>&, utils::shared_object<ztensor<5>>&)>& dc_solver) :
+        _ft(ft), _bz_utils(bz_utils), _ovlp_k(S_k), _h_core_k(H_k), _mu(mu), _solver(p, ft, bz_utils, dc_solver) {
       h5pp::archive ar(p["input_file"]);
       ar["params/nao"] >> _nao;
       ar["params/nso"] >> _nso;
@@ -109,18 +110,18 @@ namespace green::embedding {
                                                                                          const ztensor<4>& Sigma,
                                                                                          const ztensor<2>& UU) const;
 
-    const grids::transformer_t&        _ft;
-    const bz_utils_t&                  _bz_utils;
-    const ztensor<4>&                  _ovlp_k;
-    const ztensor<4>&                  _h_core_k;
-    const double&                      _mu;
-    ztensor<4>                         _x_k;
-    ztensor<4>                         _x_inv_k;
-    size_t                             _nao;
-    size_t                             _nso;
-    size_t                             _ns;
-    size_t                             _nimp;
-    impurity::impurity_solver          _solver;
+    const grids::transformer_t&                                            _ft;
+    const bz_utils_t&                                                      _bz_utils;
+    const ztensor<4>&                                                      _ovlp_k;
+    const ztensor<4>&                                                      _h_core_k;
+    const double&                                                          _mu;
+    ztensor<4>                                                             _x_k;
+    ztensor<4>                                                             _x_inv_k;
+    size_t                                                                 _nao;
+    size_t                                                                 _nso;
+    size_t                                                                 _ns;
+    size_t                                                                 _nimp;
+    impurity::impurity_solver                                              _solver;
   };
 
   /**
@@ -144,9 +145,8 @@ namespace green::embedding {
      * @param bz_utils    -- Brillouin zone utilities
      * @param second_only -- Whether do GW or only second-order direct diagram
      */
-    seet_inner_solver(const params::params& p) :
-        _weak_results_file(p["weak_results"]) {
-      int last_iter;
+    seet_inner_solver(const params::params& p) : _weak_results_file(p["weak_results"]) {
+      int           last_iter;
       h5pp::archive ar(_weak_results_file, "r");
       ar["iter"] >> last_iter;
       _base_path = "iter" + std::to_string(last_iter);
@@ -159,7 +159,6 @@ namespace green::embedding {
     void solve(G_type& g, S1_type&, St_type& sigma_tau);
 
   private:
-
     std::string _weak_results_file;
     std::string _base_path;
   };

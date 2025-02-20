@@ -239,8 +239,8 @@ namespace green::transform {
         ar["/" + std::to_string(chunkid)] << tmp.view<double>();
         ar.close();
 
-        int           nq        = VijQ_imp.shape()[2];
-        int           chunksize = nao * nao * nq * 16;
+        int           nq        = VijQ_imp.shape()[1];
+        int           chunksize = nao * nao * nq *16;
         std::string   metaname  = dir_name + "/meta.h5";
         std::string   version   = "0.2.4";
         h5pp::archive meta(metaname, "w");
@@ -252,10 +252,10 @@ namespace green::transform {
         ar.open(dir_name + "/dummy.h5", "w");
         ar["params/nao"] << nao;
         ar["params/nso"] << nao;
-        ar["params/NQ"] << NQ;
+        ar["params/NQ"] << nq;
         ar["params/ns"] << 2;
         ar["params/nk"] << 1;
-
+        
         dtensor<2> kgrid(1,3);
         kgrid(0,0) = kgrid(0,1) = kgrid(0,2) = 0.0;
         grids::itensor<1> list(1), conj_list(1), ir_list(1), conj_pairs_list(1), kpair_irre_list(1), trans_pairs_list(1), index(1);
