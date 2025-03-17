@@ -3,8 +3,8 @@
  *
  */
 
-#ifndef GREEN_DFINTEGRAL_H
-#define GREEN_DFINTEGRAL_H
+#ifndef GREEN_OLD_DFINTEGRAL_H
+#define GREEN_OLD_DFINTEGRAL_H
 
 #include <green/symmetry/symmetry.h>
 #include <green/utils/mpi_shared.h>
@@ -225,4 +225,4 @@ namespace green::mbpt {
 
 }  // namespace green::mbpt
 
-#endif  // GF2_DFINTEGRAL_H
+#endif  // GF2_OLD_DFINTEGRAL_H
