@@ -72,6 +72,8 @@ namespace green::embedding {
     MPI_Bcast(sigma_inf_loc_new.data(), sigma_inf_loc_new.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
     MPI_Bcast(sigma_loc_new.data(), sigma_loc_new.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
 
+    _weak_solver(g, sigma_inf, sigma_tau);
+
     for (size_t is = 0; is < g.object().shape()[1]; ++is) {
       auto x_k = _x_inv_k.shape()[1] == _bz_utils.nk() ? _bz_utils.full_to_ibz(_x_inv_k(is)) : _x_inv_k(is).copy();
       for (size_t ik = 0; ik < g.object().shape()[2]; ++ik) {

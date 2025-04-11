@@ -29,6 +29,7 @@
 #include <green/ndarray/ndarray.h>
 #include <green/ndarray/ndarray_math.h>
 #include <green/params/params.h>
+#include <green/sc/solver.h>
 #include <green/symmetry/symmetry.h>
 #include <green/utils/mpi_shared.h>
 #include <green/utils/mpi_utils.h>
@@ -36,6 +37,8 @@
 #include <mpi.h>
 
 namespace green::embedding {
+  using weak_solver_functype = std::function<void(utils::shared_object<mbpt::ztensor<5>>&, mbpt::ztensor<4>&,
+                                                utils::shared_object<mbpt::ztensor<5>>&)>;
 
   class impurity_params {
   private:
@@ -68,8 +71,9 @@ namespace green::embedding {
      */
     seet_solver(const params::params& p, const grids::transformer_t& ft, const bz_utils_t& bz_utils, const ztensor<4>& H_k,
                 const ztensor<4>& S_k, const double& mu,
-                std::function<void(std::string, int, utils::shared_object<ztensor<5>> &,ztensor<4>&, utils::shared_object<ztensor<5>>&)>& dc_solver) :
-        _ft(ft), _bz_utils(bz_utils), _ovlp_k(S_k), _h_core_k(H_k), _mu(mu), _solver(p, ft, bz_utils, dc_solver) {
+                std::function<void(std::string, int, utils::shared_object<ztensor<5>> &,ztensor<4>&, utils::shared_object<ztensor<5>>&)>& dc_solver,
+                const weak_solver_functype& weak_solver) :
+        _ft(ft), _bz_utils(bz_utils), _ovlp_k(S_k), _h_core_k(H_k), _mu(mu), _solver(p, ft, bz_utils, dc_solver), _weak_solver(weak_solver) {
       h5pp::archive ar(p["input_file"]);
       ar["params/nao"] >> _nao;
       ar["params/nso"] >> _nso;
@@ -122,6 +126,7 @@ namespace green::embedding {
     size_t                                                                 _ns;
     size_t                                                                 _nimp;
     impurity::impurity_solver                                              _solver;
+    const weak_solver_functype&                                            _weak_solver;
   };
 
   /**

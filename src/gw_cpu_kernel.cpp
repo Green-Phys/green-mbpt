@@ -48,6 +48,7 @@ namespace green::mbpt::kernels {
     statistics.start("total");
     statistics.start("Main loop");
     for (size_t q = cntx.internode_rank; q < _ink; q += cntx.internode_size) {
+
       size_t q_ir = _bz_utils.symmetry().full_point(q);
       selfenergy_innerloop(q_ir, g, sigma_tau, P0_tilde_s, Pw_tilde_s);
     }

@@ -169,6 +169,7 @@ namespace green::transform {
 
     int         NQ       = 0;
     int         nao      = 0;
+    int         nso      = 0;
     if (!myid) {
       std::string   V0 = basename + "/VQ_0.h5";
       h5pp::archive v0_file(V0, "r");
@@ -189,14 +190,18 @@ namespace green::transform {
     {
       h5pp::archive tr_file(_params.input_file, "r");
       tr_file["nimp"] >> nimp;
-      std::string trans = "X_k";
+      std::string trans = "X_ERI_k";
       tr_file[trans] >> X_k;
       for (int i = 0; i < nimp; ++i) {
         dtensor<2> uu;
-        trans = std::to_string(i) + "/UU";
+        trans = std::to_string(i) + "/UU_ERI";
         tr_file[trans] >> uu;
         UUs.push_back(uu);
       }
+      dtensor<2> uu;
+      trans = std::to_string(0) + "/UU";
+      tr_file[trans] >> uu;
+      nso = uu.shape()[1];
       tr_file.close();
     }
 
@@ -239,8 +244,8 @@ namespace green::transform {
         ar["/" + std::to_string(chunkid)] << tmp.view<double>();
         ar.close();
 
-        int           nq        = VijQ_imp.shape()[1];
-        int           chunksize = nao * nao * nq *16;
+        int           nq        = VijQ.shape()[0];
+        int           chunksize = 1;
         std::string   metaname  = dir_name + "/meta.h5";
         std::string   version   = "0.2.4";
         h5pp::archive meta(metaname, "w");
@@ -250,10 +255,10 @@ namespace green::transform {
         meta.close();
 
         ar.open(dir_name + "/dummy.h5", "w");
-        ar["params/nao"] << nao;
-        ar["params/nso"] << nao;
+        ar["params/nao"] << nno;
+        ar["params/nso"] << (nso == nao ? nno : 2*nno);
         ar["params/NQ"] << nq;
-        ar["params/ns"] << 2;
+        ar["params/ns"] << (nso == nao ? 2 : 1);
         ar["params/nk"] << 1;
         
         dtensor<2> kgrid(1,3);

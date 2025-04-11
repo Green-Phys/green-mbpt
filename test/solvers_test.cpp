@@ -475,6 +475,7 @@ TEST_CASE("DC comparison to GFmole TEST") {
       " --BETA 100 --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path +  " --dfintegral_hf_file=" + df_int_path + 
       " --q0_treatment IGNORE_G0";
   green::grids::define_parameters(p);
+  green::embedding::define_parameters(p);
   green::mbpt::define_parameters(p);
   green::symmetry::define_parameters(p);
   p.define<double>("BETA", "Inverse temperature", 100.0);
@@ -514,7 +515,7 @@ TEST_CASE("DC comparison to GFmole TEST") {
     ft.omega_to_tau(S_w, G_tau.object());
 
   }
-
+  p["seet_root_dir"] = TEST_PATH;
   auto solver = green::embedding::get_dc_solver(p);
   solver(df_int_path, imp, G_tau, Sigma1, Sigma_t);
 

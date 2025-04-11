@@ -28,7 +28,6 @@ namespace green::mbpt::kernels {
     new_Fock.set_zero();
     {
       df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils, ctx);
-
       size_t        NQ_local = _NQ / ctx.node_size;
       NQ_local += (_NQ % ctx.node_size > ctx.node_rank) ? 1 : 0;
       size_t NQ_offset = NQ_local * ctx.node_rank +
