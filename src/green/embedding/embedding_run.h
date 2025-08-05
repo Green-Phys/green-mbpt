@@ -128,7 +128,7 @@ namespace green::embedding {
     if (!utils::context.node_rank) Sigma_tau.object().set_zero();
     Sigma_tau.fence();*/
     params::params p2           = p;
-    std::string    dc_data_path = p["dc_data_path_prefix"].as<std::string>();
+    std::string    dc_data_path = p["dc_data_prefix"].as<std::string>();
     auto dc_solver              = get_dc_solver(p2);
     auto weak_solver            = get_weak_solver(p, type, dyson);
     seet_solver seet(p, dyson.ft(), dyson.bz_utils(), dyson.H_k(), dyson.S_k(), dyson.mu(), dc_solver, weak_solver);
@@ -146,7 +146,7 @@ namespace green::embedding {
     if (!utils::context.node_rank) Sigma_tau.object().set_zero();
     Sigma_tau.fence();*/
     params::params         p2           = p;
-    std::string            dc_data_path = p["dc_data_path_prefix"].as<std::string>();
+    std::string            dc_data_path = p["dc_data_prefix"].as<std::string>();
     std::string            grid_file    = p["grid_file"].as<std::string>();
     auto                   dc_solver    = get_dc_solver(p2);
     auto                   seet_weak = std::make_shared<seet_inner_solver>(p);
