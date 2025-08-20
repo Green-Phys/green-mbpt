@@ -40,7 +40,7 @@ namespace green::mbpt {
       h5pp::archive ar(path + "/meta.h5");
       if(ar.has_attribute("__green_version__")) {
         std::string int_version = ar.get_attribute<std::string>("__green_version__");
-        if (int_version.rfind(INPUT_VERSION, 0) != 0) {
+        if (!CheckVersion(int_version)) {
           throw mbpt_outdated_input("Integral files at '" + path +"' are outdated, please run migration script python/migrate.py");
         }
       } else {
