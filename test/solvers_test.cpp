@@ -223,6 +223,19 @@ TEST_CASE("MBPT Solver") {
     REQUIRE_THROWS_AS(green::mbpt::check_input(p), green::mbpt::mbpt_outdated_input);
   }
 
+  SECTION("Test Version Strings") {
+    std::vector<std::string> fail_versions = {"0.2.0", "0.2.3"};
+    std::vector<std::string> pass_versions = {
+      "0.2.4", "0.2.4b10", "0.3.0", "0.3.0b8", "0.3.1", "0.3.1b10"
+    };
+    for (int i=0; i < fail_versions.size() - 1; i++) {
+      REQUIRE_FALSE(green::mbpt::CheckVersion(fail_versions[i]));
+    }
+    for (int i=0; i < pass_versions.size() - 1; i++) {
+      REQUIRE(green::mbpt::CheckVersion(pass_versions[i]));
+    }
+  }
+
   SECTION("Init real Dyson") {
     auto        p          = green::params::params("DESCR");
     std::string input_file = TEST_PATH + "/Dyson/input.h5"s;
