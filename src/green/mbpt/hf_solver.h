@@ -21,7 +21,7 @@ namespace green::mbpt {
 
   class hf_solver {
     using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
-    using callback_t = std::function<ztensor<4>(const ztensor<4>&)>;
+    using callback_t = std::function<ztensor<4>(const ztensor<4>&, const utils::mpi_context&)>;
 
   public:
     hf_solver(const params::params& p, const bz_utils_t& bz_utils, const ztensor<4>& S_k) {
