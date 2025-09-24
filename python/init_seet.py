@@ -5,6 +5,8 @@ import green_mbtools.mint as pymb
 import h5py
 import numpy as np
 from green_mbtools.mint import ortho_utils as ou
+from green_mbtools.pesto import orth
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SEET pre-processing")
@@ -53,11 +55,11 @@ if __name__ == "__main__":
         sys.stdout.write("Transforming into the orthogonal basis...")
         sys.stdout.flush()
         for s in range(F.shape[0]):
-            F[s] = ou.transform(F[s], X_k,X_inv_k)
-            S[s] = ou.transform(S[s], X_k,X_inv_k)
-            T[s] = ou.transform(T[s], X_k,X_inv_k)
-            dm_s[s] = ou.transform(dm_s[s], [x_inv_k.conj().T for x_inv_k in X_inv_k], [x_k.conj().T for x_k in X_k])
-        dm = ou.transform(dm, [x_inv_k.conj().T for x_inv_k in X_inv_k],[x_k.conj().T for x_k in X_k])
+            F[s] = orth.transform(F[s], X_k,X_inv_k)
+            S[s] = orth.transform(S[s], X_k,X_inv_k)
+            T[s] = orth.transform(T[s], X_k,X_inv_k)
+            dm_s[s] = orth.transform(dm_s[s], [x_inv_k.conj().T for x_inv_k in X_inv_k], [x_k.conj().T for x_k in X_k])
+        dm = orth.transform(dm, [x_inv_k.conj().T for x_inv_k in X_inv_k],[x_k.conj().T for x_k in X_k])
         if ns == 2:
             dmmmm = np.einsum("kij->ij", dm) / dm.shape[0]
             # check that local DM is pure real
