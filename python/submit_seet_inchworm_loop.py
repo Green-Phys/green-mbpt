@@ -32,7 +32,7 @@ SEET_SCRIPT_TEMPLATE = """#!/bin/bash
 seet_command_here --input input.h5 --itermax 1 --restart true \
   --mixing_type SIGMA_MIXING --mixing_weight {mixing} \
   --results_file {results_filename} --seet_input {transform_filename} \
-  --impurity_solver "inchworm" ...
+  --impurity_solver "INCHWORM" ...
 """
 
 INCHWORM_SCRIPT_TEMPLATE = """#!/bin/bash
