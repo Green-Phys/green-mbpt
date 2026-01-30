@@ -6,6 +6,7 @@ import h5py
 import numpy as np
 from green_mbtools.mint import ortho_utils as ou
 from green_mbtools.pesto import orth
+from green_grids.repn import ir as green_grids_ir
 
 
 if __name__ == "__main__":
@@ -15,9 +16,13 @@ if __name__ == "__main__":
     parser.add_argument("--gf2_input_file", type=str, default="sim.h5", help="Converged GF2 simpulation result file.")
     parser.add_argument("--transform_file", type=str, default="transform.h5", help="Input file name.")
     parser.add_argument("--active_space", type=int, nargs='+', action='append', help="Input file name.", required=True)
-    parser.add_argument("--orth_method", choices=["natural_orbitals", "canonical_orbitals", "symmetrical_orbitals"], default="natural_orbitals", help="Type of the orthogonalization.")
+    parser.add_argument("--orth_method", choices=["natural_orbitals", "canonical_orbitals", "symmetrical_orbitals"],
+                        default="natural_orbitals", help="Type of the orthogonalization.")
     parser.add_argument("--from_ibz", type=lambda x: (str(x).lower() in ['true', '1', 'yes']), default='false',
                         help="Input data is in the reduced BZ.")
+    parser.add_argument("--tau_grid", choices=["even", "ir"], default="ir", help="type of tau grid for impurity solver.")
+    parser.add_argument("--n_tau", type=int, default=1001, help="number of tau points for even grid.")
+    parser.add_argument("--ir_file", type=str, default="1e4.h5", help="IR lambda parameter for even tau grid transformation.")
 
     args = parser.parse_args()
     with h5py.File(args.input_file, "r") as fff:
@@ -37,17 +42,25 @@ if __name__ == "__main__":
         = seet.get_input_data()
     print("done!")
 
+    # Set the orthoganlization method
+    if args.orth_method == "natural_orbitals":
+        orth_method = ou.natural_orbitals
+    elif args.orth_method == "canonical_orbitals":
+        orth_method = ou.canonical_orbitals
+    elif args.orth_method == "symmetrical_orbitals":
+        orth_method = ou.symmetrical_orbitals
+
     nkx, nky, nkz = [nk, nk, nk]
     if args.orth:
         sys.stdout.write("Constructing natural orbital basis...")
         sys.stdout.flush()
-        if ns == 2:
-            X_inv_k, X_k = eval("ou." + args.orth_method)(S[0], dm, F[0], F[1], T[0], T[1], kmesh_sc)
-        else :
-            X_inv_k, X_k = eval("ou." + args.orth_method)(S[0], dm, F[0], F[0], T[0], T[0], kmesh_sc)
-        if nso == nao * 2:
+        if ns == 2:  # unrestricted
+            X_inv_k, X_k = orth_method(S[0], dm, F[0], F[1], T[0], T[1], kmesh_sc)
+        else:  # restricted or x2c
+            X_inv_k, X_k = orth_method(S[0], dm, F[0], F[0], T[0], T[0], kmesh_sc)
+        if nso == nao * 2:  # restricted or unrestricted
             X_ERI_k = np.array(X_k)[:,:nao,:nao].copy()
-        else:
+        else:  # x2c
             X_ERI_k = np.array(X_k)[:,:,:].copy()
         print("done!")
 
@@ -115,3 +128,16 @@ if __name__ == "__main__":
                 tfile["{}/UU_ERI".format(i)] = UU.view(np.float64)
                 tfile["{}/UU".format(i)] = UU.view(np.float64)
     print("Done")
+
+    if args.tau_grid == "even":
+        print("Generating even tau grid transformer with {} points for impurity solver.".format(args.n_tau))
+        # Load IR file data
+        with h5py.File(args.ir_file, "r") as irf:
+            ir_lambda = irf['fermi/metadata/lambda'][()]
+            ir_ncoeff = irf['fermi/metadata/ncoeff'][()]
+        sparse_ir = green_grids_ir.Basis(ir_lambda, ir_ncoeff, 'fermi', trim=True)
+        x_grid = np.linspace(-1.0, 1.0, args.n_tau)
+        uxl_even = np.array([sparse_ir._uxl(None, x) for x in x_grid])
+        with h5py.File(args.transform_file, "a") as tfile:
+            tfile["to_even_tau"] = uxl_even
+        print("Done!")
