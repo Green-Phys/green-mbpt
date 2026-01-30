@@ -6,7 +6,6 @@ import h5py
 import numpy as np
 from green_mbtools.mint import ortho_utils as ou
 from green_mbtools.pesto import orth
-from green_grids.repn import ir as green_grids_ir
 
 
 if __name__ == "__main__":
@@ -130,6 +129,7 @@ if __name__ == "__main__":
     print("Done")
 
     if args.tau_grid == "even":
+        from green_grids.repn import ir as green_grids_ir
         print("Generating even tau grid transformer with {} points for impurity solver.".format(args.n_tau))
         # Load IR file data
         with h5py.File(args.ir_file, "r") as irf:
