@@ -156,12 +156,14 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
     X_k = ftransform['X_k'][()]
     # Projection from active to full orbital space
     uu_trans = []
+    nao_imp = []
     for i in range(nimp):
         uu_i = ftransform[f"{i}/UU"][()] + 0j
         uu_trans.append(uu_i)
+        nao_imp.append(uu_i.shape[0])
     ftransform.close()
     
-    # PLACEHOLDER: To be added by Orit, Guy and Eitan
+    # PLACEHOLDER: 
     # 1. Read inchworm output files
     # 2. Extract new local self-energy
     #       NOTE: Separate static and dynamic contributions not needed, but highly appreciated
@@ -170,35 +172,43 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
     #       nao_imp is the number of impurity orbitals
 
     ntau = 100  # Placeholder -- remove if needed
-    nao_imp = 10  # Placeholder -- remove if needed
     ns_imp = 2  # Placeholder number of spin -- remove if needed
-    sigma_inchworm = np.zeros((nimp, ntau, ns_imp, nao_imp, nao_imp), dtype=np.complex128)  # Placeholder
+    sigma_tau_inchworm = [np.zeros((ntau, ns_imp, nao_imp[i], nao_imp[i]), dtype=np.complex128) for i in range(nimp)]
+    sigma_inf_inchworm = [np.zeros((ns_imp, nao_imp[i], nao_imp[i]), dtype=np.complex128) for i in range(nimp)]
+    # NOTE: expecting sigma on imaginary-time grid.
 
     # Open output file
     fsimseet = h5py.File(args.results_file, 'r+')
     group = fsimseet['iter{}/Selfenergy'.format(iteration)]
     sigma_in = group['data'][()]
+    sigma_inf_in = fsimseet['iter{}/Sigma1'.format(iteration)][()]
     ntau, ns, nk, nao_full, _ = sigma_in.shape
     assert ns_imp == ns, "Spin dimension mismatch"
 
     # Active space to full orthogonal basis and combine SIGMA from all impurity blocks
-    sigma_local_orth = np.zeros((ntau, ns, nao_full, nao_full), dtype=np.complex128)
+    sigma_tau_local_orth = np.zeros((ntau, ns, nao_full, nao_full), dtype=np.complex128)
+    sigma_inf_local_orth = np.zeros((ns, nao_full, nao_full), dtype=np.complex128)
     for i in range(nimp):
-        sigma_local_orth += np.einsum('pi, tspq, qj -> tij', uu_trans[i].conj(), sigma_inchworm[i], uu_trans[i])
+        sigma_tau_local_orth += np.einsum('pi, tspq, qj -> tsij', uu_trans[i].conj(), sigma_tau_inchworm[i], uu_trans[i])
+        sigma_inf_local_orth += np.einsum('pi, spq, qj -> sij', uu_trans[i].conj(), sigma_inf_inchworm[i], uu_trans[i])
 
     # Orthogonal to AO basisi for each k-point
-    sigma_loc_ao_ts_ibz = np.zeros((nk, nao_full, nao_full), dtype=np.complex128)
+    sigma_loc_ao_ts_ibz = np.zeros((ntau, ns, nk, nao_full, nao_full), dtype=np.complex128)
+    sigma_loc_ao_inf_ibz = np.zeros((ns, nk, nao_full, nao_full), dtype=np.complex128)
     for t in range(ntau):
         for s in range(ns):
-            sigma_loc_ao_ts_ibz = np.einsum('kab, bc, dc -> kad', X_k, sigma_local_orth[t, s], X_k.conj())
+            sigma_loc_ao_ts_ibz[t, s] = np.einsum('kab, bc, sdc -> kad', X_k, sigma_tau_local_orth[t, s], X_k.conj())
+            sigma_loc_ao_inf_ibz[s] = np.einsum('kab, bc, sdc -> kad', X_k, sigma_inf_local_orth[s], X_k.conj())
     
     # Update SIGMA from results file
     for t in range(ntau):
         for s in range(ns):
-            sigma_in[t, s] += sigma_loc_ao_ts_ibz * args.mixing
+            sigma_in[t, s] += sigma_loc_ao_ts_ibz[t, s] * args.mixing
+            sigma_inf_in[s] += sigma_loc_ao_inf_ibz[s] * args.mixing
     
     # Save the data back to results file
     group['data'][...] = sigma_in
+    fsimseet['iter{}/Sigma1'.format(iteration)][...] = sigma_inf_in
     fsimseet.close()
     
     print("[PLACEHOLDER] Inchworm output processing not implemented")
@@ -215,6 +225,8 @@ def main():
     parser.add_argument("--transform_file", type=Path, default="transform.h5", help="Path to transformation file")
     parser.add_argument("--results_file", type=Path, default="seet_results.h5", help="Path to SEET results file")
     parser.add_argument("--mixing", type=float, default=0.5, help="Mixing parameter for self-energy update")
+    parser.add_argument("--ir_file", type=Path, default="1e5.h5", help="Path to IR grid file")
+    parser.add_argument("--BETA", type=float, default=100.0, help="Inverse temperature for IR grid")
     
     args = parser.parse_args()
     workdir = args.workdir
