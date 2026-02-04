@@ -3,8 +3,8 @@
  *
  */
 
-#ifndef GREEN_DFINTEGRAL_H
-#define GREEN_DFINTEGRAL_H
+#ifndef GREEN_OLD_DFINTEGRAL_H
+#define GREEN_OLD_DFINTEGRAL_H
 
 #include <green/symmetry/symmetry.h>
 #include <green/utils/mpi_shared.h>
@@ -40,13 +40,12 @@ namespace green::mbpt {
       h5pp::archive ar(path + "/meta.h5");
       if(ar.has_attribute("__green_version__")) {
         std::string int_version = ar.get_attribute<std::string>("__green_version__");
-        if (int_version.rfind(INPUT_VERSION, 0) != 0) {
+        if (!CheckVersion(int_version)) {
           throw mbpt_outdated_input("Integral files at '" + path +"' are outdated, please run migration script python/migrate.py");
         }
       } else {
         throw mbpt_outdated_input("Integral files at '" + path +"' are outdated, please run migration script python/migrate.py");
       }
-      hid_t         file = H5Fopen((path + "/meta.h5").c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
       ar["chunk_size"] >> _chunk_size;
       ar.close();
       _vij_Q = std::make_shared<int_data>(std::array<size_t, 4>{size_t(_chunk_size), size_t(NQ), size_t(nao), size_t(nao)}, cntx);
@@ -84,7 +83,6 @@ namespace green::mbpt {
 
     void read_a_chunk(size_t c_id, ztensor<4>& V_buffer) {
       std::string   fname = _base_path + "/" + _chunk_basename + "_" + std::to_string(c_id) + ".h5";
-      hid_t         file  = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
       h5pp::archive ar(fname);
       ar["/" + std::to_string(c_id)] >> reinterpret_cast<double*>(V_buffer.data());
       ar.close();
@@ -227,4 +225,4 @@ namespace green::mbpt {
 
 }  // namespace green::mbpt
 
-#endif  // GF2_DFINTEGRAL_H
+#endif  // GF2_OLD_DFINTEGRAL_H
