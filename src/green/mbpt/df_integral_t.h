@@ -226,4 +226,4 @@ namespace green::mbpt {
 
 }  // namespace green::mbpt
 
-#endif  // GF2_DFINTEGRAL_H
+#endif  // GREEN_DFINTEGRAL_H
