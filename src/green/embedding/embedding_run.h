@@ -59,8 +59,22 @@ namespace green::embedding {
       p2["dfintegral_hf_file"] = dc_data_path + "." + std::to_string(imp);
       green::symmetry::brillouin_zone_utils bz(p2);
       green::grids::transformer_t           ft(p2);
-      size_t                                nso = 2, ns = 2, nk = 1, ink = 1, nts = ft.sd().repn_fermi().nts();
-      auto                 Sk   = green::sc::ztensor<4>(ns, ink, nso, nso);
+      const auto           g_shape = G.object().shape();
+      size_t               nts     = g_shape[0];
+      size_t               ns      = g_shape[1];
+      size_t               ink     = g_shape[2];
+      size_t               nso     = g_shape[3];
+      auto                 Sk      = green::sc::ztensor<4>(ns, ink, nso, nso);
+
+      // Initialize overlap to identity for impurity subspace
+      Sk.set_zero();
+      for (size_t is = 0; is < ns; ++is) {
+        for (size_t ik = 0; ik < ink; ++ik) {
+          for (size_t io = 0; io < nso; ++io) {
+            Sk(is, ik, io, io) = 1.0;
+          }
+        }
+      }
 
       const mbpt::scf_type type = p2["scf_type"];
       switch (type) {
