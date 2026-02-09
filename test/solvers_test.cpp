@@ -234,10 +234,10 @@ TEST_CASE("MBPT Solver") {
     std::vector<std::string> pass_versions = {
       "0.2.4", "0.2.4b10", "0.3.0", "0.3.0b8", "0.3.1", "0.3.1b10"
     };
-    for (int i=0; i < fail_versions.size() - 1; i++) {
+    for (size_t i=0; i < fail_versions.size() - 1; i++) {
       REQUIRE_FALSE(green::mbpt::CheckVersion(fail_versions[i]));
     }
-    for (int i=0; i < pass_versions.size() - 1; i++) {
+    for (size_t i=0; i < pass_versions.size() - 1; i++) {
       REQUIRE(green::mbpt::CheckVersion(pass_versions[i]));
     }
   }

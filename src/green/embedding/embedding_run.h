@@ -60,7 +60,6 @@ namespace green::embedding {
       green::symmetry::brillouin_zone_utils bz(p2);
       green::grids::transformer_t           ft(p2);
       const auto           g_shape = G.object().shape();
-      size_t               nts     = g_shape[0];
       size_t               ns      = g_shape[1];
       size_t               ink     = g_shape[2];
       size_t               nso     = g_shape[3];
