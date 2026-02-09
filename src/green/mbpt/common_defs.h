@@ -188,14 +188,18 @@ namespace green::mbpt {
    * @return false otherwise
    */
   inline bool CheckVersion(const std::string& v) {
-    int major_Vin, minor_Vin, patch_Vin;
-    int major_Vref, minor_Vref, patch_Vref;
+    int major_Vin = 0, minor_Vin = 0, patch_Vin = 0;
+    int major_Vref = 0, minor_Vref = 0, patch_Vref = 0;
   
     char suffixV[32] = "";
     char suffixM[32] = "";
   
-    std::sscanf(v.c_str(), "%d.%d.%d%31s", &major_Vin, &minor_Vin, &patch_Vin, suffixV);
-    std::sscanf(INPUT_VERSION.c_str(), "%d.%d.%d%31s", &major_Vref, &minor_Vref, &patch_Vref, suffixM);
+    int parsed_in = std::sscanf(v.c_str(), "%d.%d.%d%31s", &major_Vin, &minor_Vin, &patch_Vin, suffixV);
+    int parsed_ref = std::sscanf(INPUT_VERSION.c_str(), "%d.%d.%d%31s", &major_Vref, &minor_Vref, &patch_Vref, suffixM);
+
+    if (parsed_in < 3 || parsed_ref < 3) {
+      throw std::runtime_error("Version string format is incorrect. Expected format: major.minor.patch[suffix]");
+    }
   
     if (major_Vin != major_Vref) return major_Vin > major_Vref;
     if (minor_Vin != minor_Vref) return minor_Vin > minor_Vref;
