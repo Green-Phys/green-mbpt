@@ -186,6 +186,7 @@ namespace green::mbpt {
    * @param v (std::string)
    * @return true if v >= INPUT_VERSION
    * @return false otherwise
+   * @throws std::runtime_error if version string format is incorrect
    */
   inline bool CheckVersion(const std::string& v) {
     int major_Vin = 0, minor_Vin = 0, patch_Vin = 0;
