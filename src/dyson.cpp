@@ -368,7 +368,7 @@ namespace green::mbpt {
       {
         ztensor<5> g_tmp;
         ar["iter" + std::to_string(iter - 1) + "/G_tau/data"] >> g_tmp;
-        gam -= g_tmp(g_tmp.shape()[g_tmp.shape().size() - 1]);
+        gam -= g_tmp(g_tmp.shape()[0] - 1);
       }
     }
     ar["iter" + std::to_string(iter) + "/Energy_1b"] >> e1;
