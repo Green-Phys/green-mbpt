@@ -12,6 +12,7 @@
 
 #include <green/mbpt/except.h>
 #include "common_defs.h"
+#include "except.h"
 
 #include <Eigen/Core>
 #include <Eigen/Sparse>
