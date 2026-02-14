@@ -115,6 +115,8 @@ namespace green::mbpt {
     [[nodiscard]] double        mu() const { return _mu; }
     double&                     mu() { return _mu; }
 
+    const std::string& get_grids_version() const { return _ft.get_version(); }
+
   protected:
     // Imaginary time/frequency transform class
     grids::transformer_t _ft;
