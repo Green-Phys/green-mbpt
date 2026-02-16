@@ -15,6 +15,7 @@ import argparse
 import subprocess
 import time
 from pathlib import Path
+from python.inchworm_utils import get_inchworm_selfenergy
 
 
 SEET_SCRIPT_TEMPLATE = """#!/bin/bash
@@ -162,6 +163,15 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
         uu_trans.append(uu_i)
         nao_imp.append(uu_i.shape[0])
     ftransform.close()
+    # NOTE: expecting sigma on imaginary-time grid.
+
+    # Open output file
+    fsimseet = h5py.File(args.results_file, 'r+')
+    group = fsimseet['iter{}/Selfenergy'.format(iteration)]
+    mu = group['mu'][()]
+    sigma_in = group['data'][()]
+    sigma_inf_in = fsimseet['iter{}/Sigma1'.format(iteration)][()]
+    ntau, ns, nk, nao_full, _ = sigma_in.shape
     
     # PLACEHOLDER: 
     # 1. Read inchworm output files
@@ -173,17 +183,19 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
 
     ntau = 100  # Placeholder -- remove if needed
     ns_imp = 2  # Placeholder number of spin -- remove if needed
-    sigma_tau_inchworm = [np.zeros((ntau, ns_imp, nao_imp[i], nao_imp[i]), dtype=np.complex128) for i in range(nimp)]
-    sigma_inf_inchworm = [np.zeros((ns_imp, nao_imp[i], nao_imp[i]), dtype=np.complex128) for i in range(nimp)]
-    # NOTE: expecting sigma on imaginary-time grid.
-
-    # Open output file
-    fsimseet = h5py.File(args.results_file, 'r+')
-    group = fsimseet['iter{}/Selfenergy'.format(iteration)]
-    sigma_in = group['data'][()]
-    sigma_inf_in = fsimseet['iter{}/Sigma1'.format(iteration)][()]
-    ntau, ns, nk, nao_full, _ = sigma_in.shape
     assert ns_imp == ns, "Spin dimension mismatch"
+    sigma_tau_inchworm = []
+    sigma_inf_inchworm = []
+    default_green_func_path = '.'
+    default_time_filename = 'time_intervals.txt'
+    for i in range(nimp):
+        # NOTE: Replace `get_inchworm_selfenergy` with a custom defined function for other applications
+        sigma_inf, sigma_tau = get_inchworm_selfenergy(
+            default_green_func_path, default_time_filename, f'imp_{i}_hopping.txt', f'imp_{i}_delta.txt',
+            nao_imp[i], args.ir_file, args.BETA, mu, args.uhf
+        )
+        sigma_inf_inchworm.append(sigma_inf)
+        sigma_tau_inchworm.append(sigma_tau)
 
     # Active space to full orthogonal basis and combine SIGMA from all impurity blocks
     sigma_tau_local_orth = np.zeros((ntau, ns, nao_full, nao_full), dtype=np.complex128)
@@ -227,6 +239,7 @@ def main():
     parser.add_argument("--mixing", type=float, default=0.5, help="Mixing parameter for self-energy update")
     parser.add_argument("--ir_file", type=Path, default="1e5.h5", help="Path to IR grid file")
     parser.add_argument("--BETA", type=float, default=100.0, help="Inverse temperature for IR grid")
+    parser.add_argument("--uhf", type=int, default=1, help="Urestricted calculations or not.")
     
     args = parser.parse_args()
     workdir = args.workdir
