@@ -211,9 +211,9 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
 
     # Orthogonal to AO basis for each k-point: X_inv_k @ sigma_orth @ X_inv_k†
     X_inv_k_H = X_inv_k.conj().transpose(0, 2, 1)
-    sigma_inf_in += np.einsum('kab, sbc, kdc -> skad', X_inv_k, sigma_inf_local_orth, X_inv_k_H) * args.mixing
+    sigma_inf_in += np.einsum('kab, sbc, kcd -> skad', X_inv_k, sigma_inf_local_orth, X_inv_k_H) * args.mixing
     for t in range(ntau):
-        sigma_in[t] += np.einsum('kab, sbc, kdc -> skad', X_inv_k, sigma_tau_local_orth[t], X_inv_k_H) * args.mixing
+        sigma_in[t] += np.einsum('kab, sbc, kcd -> skad', X_inv_k, sigma_tau_local_orth[t], X_inv_k_H) * args.mixing
     
     # Save the data back to results file
     group['data'][...] = sigma_in
