@@ -177,7 +177,11 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
     sigma_in = group['data'][()]
     sigma_inf_in = fsimseet['iter{}/Sigma1'.format(iteration)][()]
     ntau, ns, nk, nao_full, _ = sigma_in.shape
-    
+    assert X_inv_k.shape[0] == nk, (
+        f"Mismatch after IBZ filtering: X_inv_k has {X_inv_k.shape[0]} k-points "
+        f"but sigma_in expects {nk}. Verify IBZ k-point configuration and filtering settings."
+    )
+
     # PLACEHOLDER: 
     # 1. Read inchworm output files
     # 2. Extract new local self-energy
