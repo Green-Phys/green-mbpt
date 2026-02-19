@@ -153,8 +153,8 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
     # Open and obtain transformation
     ftransform = h5py.File(args.transform_file, 'r')
     nimp = ftransform['nimp'][()]
-    # AO <-> Orthogonal basis transformations
-    X_k = ftransform['X_k'][()]
+    # Orthogonal -> AO basis transformation (full BZ, filter to IBZ below)
+    X_inv_k_full = ftransform['X_inv_k'][()]
     # Projection from active to full orbital space
     uu_trans = []
     nao_imp = []
@@ -165,10 +165,15 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
     ftransform.close()
     # NOTE: expecting sigma on imaginary-time grid.
 
+    # Filter X_inv_k to IBZ k-points
+    with h5py.File(args.input_file, 'r') as finput:
+        ir_list = finput['grid/ir_list'][()]
+    X_inv_k = X_inv_k_full[ir_list]
+
     # Open output file
     fsimseet = h5py.File(args.results_file, 'r+')
     group = fsimseet['iter{}/Selfenergy'.format(iteration)]
-    mu = group['mu'][()]
+    mu = fsimseet['iter{}/mu'.format(iteration)][()]
     sigma_in = group['data'][()]
     sigma_inf_in = fsimseet['iter{}/Sigma1'.format(iteration)][()]
     ntau, ns, nk, nao_full, _ = sigma_in.shape
@@ -204,19 +209,11 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
         sigma_tau_local_orth += np.einsum('pi, tspq, qj -> tsij', uu_trans[i].conj(), sigma_tau_inchworm[i], uu_trans[i])
         sigma_inf_local_orth += np.einsum('pi, spq, qj -> sij', uu_trans[i].conj(), sigma_inf_inchworm[i], uu_trans[i])
 
-    # Orthogonal to AO basisi for each k-point
-    sigma_loc_ao_ts_ibz = np.zeros((ntau, ns, nk, nao_full, nao_full), dtype=np.complex128)
-    sigma_loc_ao_inf_ibz = np.zeros((ns, nk, nao_full, nao_full), dtype=np.complex128)
+    # Orthogonal to AO basis for each k-point: X_inv_k @ sigma_orth @ X_inv_k†
+    X_inv_k_H = X_inv_k.conj().transpose(0, 2, 1)
+    sigma_inf_in += np.einsum('kab, sbc, kdc -> skad', X_inv_k, sigma_inf_local_orth, X_inv_k_H) * args.mixing
     for t in range(ntau):
-        for s in range(ns):
-            sigma_loc_ao_ts_ibz[t, s] = np.einsum('kab, bc, sdc -> kad', X_k, sigma_tau_local_orth[t, s], X_k.conj())
-            sigma_loc_ao_inf_ibz[s] = np.einsum('kab, bc, sdc -> kad', X_k, sigma_inf_local_orth[s], X_k.conj())
-    
-    # Update SIGMA from results file
-    for t in range(ntau):
-        for s in range(ns):
-            sigma_in[t, s] += sigma_loc_ao_ts_ibz[t, s] * args.mixing
-            sigma_inf_in[s] += sigma_loc_ao_inf_ibz[s] * args.mixing
+        sigma_in[t] += np.einsum('kab, sbc, kdc -> skad', X_inv_k, sigma_tau_local_orth[t], X_inv_k_H) * args.mixing
     
     # Save the data back to results file
     group['data'][...] = sigma_in
@@ -236,6 +233,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Print job scripts without submitting")
     parser.add_argument("--transform_file", type=Path, default="transform.h5", help="Path to transformation file")
     parser.add_argument("--results_file", type=Path, default="seet_results.h5", help="Path to SEET results file")
+    parser.add_argument("--input_file", type=Path, default="input.h5", help="Path to DFT input file (for IBZ k-point mapping)")
     parser.add_argument("--mixing", type=float, default=0.5, help="Mixing parameter for self-energy update")
     parser.add_argument("--ir_file", type=Path, default="1e5.h5", help="Path to IR grid file")
     parser.add_argument("--BETA", type=float, default=100.0, help="Inverse temperature for IR grid")
