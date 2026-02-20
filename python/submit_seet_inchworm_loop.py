@@ -15,7 +15,8 @@ import argparse
 import subprocess
 import time
 from pathlib import Path
-from python.inchworm_utils import get_inchworm_selfenergy
+from inchworm_utils import get_inchworm_selfenergy
+from green_mbtools.pesto.ir import IR_factory
 
 
 SEET_SCRIPT_TEMPLATE = """#!/bin/bash
@@ -167,19 +168,47 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
 
     # Filter X_inv_k to IBZ k-points
     with h5py.File(args.input_file, 'r') as finput:
+        # Grids data
         ir_list = finput['grid/ir_list'][()]
+        ink = finput['grid/ink'][()]
+        nk_full = finput['grid/nk'][()]
+        index = finput['grid/index'][()]
+        kpt_weight = ir_list * 0  # degree of each unique k-point
+        for i, ik in enumerate(ir_list):
+            kpt_weight[i] = np.sum(index == ik)
+        # One electron Hamiltonian
+        Hk = finput['HF/H-k'][()].view(complex)
+        Hk = Hk.reshape(Hk.shape[:-1])
+        Hk = Hk[:, ir_list]  # extract only IBZ k-points
+        # Overlap
+        Sk = finput['HF/S-k'][()].view(complex)
+        Sk = Sk.reshape(Sk.shape[:-1])
+        Sk = Sk[:, ir_list]  # extract only IBZ k-points
+        # Spin symmetry
+        nao = finput['params/nao'][()]
+        nso = finput['params/nso'][()]
+        ns = finput['params/ns'][()]
+        if ns == 1 and nso == 2 * nao:
+            spin_type = 'rhf'
+        elif ns == 1 and nso == nao:
+            spin_type = 'x2c'
+        elif ns == 2 and nso == 2 * nao:
+            spin_type = 'uhf'
+        else:
+            raise ValueError(f"Unsupported spin configuration: ns={ns}, nso={nso}, nao={nao}")
     X_inv_k = X_inv_k_full[ir_list]
 
     # Open output file
     fsimseet = h5py.File(args.results_file, 'r+')
     group = fsimseet['iter{}/Selfenergy'.format(iteration)]
     mu = fsimseet['iter{}/mu'.format(iteration)][()]
+    gtau = fsimseet['iter{}/G_tau/data'][()]
     sigma_in = group['data'][()]
     sigma_inf_in = fsimseet['iter{}/Sigma1'.format(iteration)][()]
-    ntau, ns, nk, nao_full, _ = sigma_in.shape
-    assert X_inv_k.shape[0] == nk, (
+    ntau, ns, nk_sig, nao_full, _ = sigma_in.shape
+    assert X_inv_k.shape[0] == nk_sig, (
         f"Mismatch after IBZ filtering: X_inv_k has {X_inv_k.shape[0]} k-points "
-        f"but sigma_in expects {nk}. Verify IBZ k-point configuration and filtering settings."
+        f"but sigma_in expects {nk_sig}. Verify IBZ k-point configuration and filtering settings."
     )
 
     # PLACEHOLDER: 
@@ -222,11 +251,33 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
     # Save the data back to results file
     group['data'][...] = sigma_in
     fsimseet['iter{}/Sigma1'.format(iteration)][...] = sigma_inf_in
+
+    # Get energy and update output file
+    fock = Hk + sigma_inf_in
+    dm_prefac = 2.0 if spin_type == 'rhf' else 1.0
+    dm_k = dm_prefac * gtau[-1].real
+    e1 = 0.
+    ehf = 0.
+    ecorr = 0.
+    myir = IR_factory(args.BETA, args.ir_file)
+    for s in range(ns):
+        for k in range(ink):
+            # one-body energy
+            e1 += np.trace(dm_k[s, k] @ Hk[s, k]) * kpt_weight[k] / nk_full
+            # hartree-fock energy
+            ehf += 0.5 * np.trace(dm_k[s, k] @ (fock[s, k] + Hk[s, k])) * kpt_weight[k] / nk_full
+            # correlation energy
+            sig_wsk = myir.tau_to_w(sigma_in[:, s, k])
+            g_wsk = myir.tau_to_w(gtau[:, s, k])
+            ecorr_w = np.einsum('wab, wba -> w', g_wsk, sig_wsk)
+            ecorr -= (dm_prefac / 2) * kpt_weight[k] * myir.w_to_tau(ecorr_w)[-1].real / nk_full
+    fsimseet['iter{}/Energy_1b'.format(iteration)][...] = e1
+    fsimseet['iter{}/Energy_HF'.format(iteration)][...] = ehf
+    fsimseet['iter{}/Energy_2b'.format(iteration)][...] = ecorr
     fsimseet.close()
     
-    print("[PLACEHOLDER] Inchworm output processing not implemented")
-    print("              Add your processing logic to process_inchworm_output()")
-    return True  # Return True to continue workflow in placeholder mode
+    print("COMPLETED! the integration of impurity solver data and SEET results.")
+    return True
 
 
 def main():
