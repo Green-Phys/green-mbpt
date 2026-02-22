@@ -273,7 +273,7 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
     sig_w = myir.tau_to_w(sigma_in)
     g_w = myir.tau_to_w(gtau)
     # Galitski Migdal formula
-    ecorr_w = -dm_prefac * np.einsum('wskab, wskba, k -> w', gtau, sigma_in, kpt_weight) / (2 * nk_full)
+    ecorr_w = -dm_prefac * np.einsum('wskab, wskba, k -> w', g_w, sig_w, kpt_weight) / (2 * nk_full)
     ecorr = myir.w_to_tau(ecorr_w)[-1].real
     for s in range(ns):
         for k in range(ink):
