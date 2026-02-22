@@ -180,10 +180,6 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
         Hk = finput['HF/H-k'][()].view(complex)
         Hk = Hk.reshape(Hk.shape[:-1])
         Hk = Hk[:, ir_list]  # extract only IBZ k-points
-        # Overlap
-        Sk = finput['HF/S-k'][()].view(complex)
-        Sk = Sk.reshape(Sk.shape[:-1])
-        Sk = Sk[:, ir_list]  # extract only IBZ k-points
         # Spin symmetry
         nao = finput['params/nao'][()]
         nso = finput['params/nso'][()]
@@ -260,7 +256,6 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
             f"Hk.shape={Hk.shape}, sigma_inf_in.shape={sigma_inf_in.shape}. "
             "Expected sigma_inf_in to have shape (ns, nk, nao_full, nao_full) matching Hk."
         )
-    # Get energy and update output file
     fock = Hk + sigma_inf_in
     # For non-relativistic RHF, each spatial orbital is double occupied -> factor 2
     # For x2c (exact two-component) with ns=1 and nso=nao, the spin degree of freedom is already included in the 2c basis,
@@ -281,14 +276,16 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
             e1 += np.trace(dm_k[s, k] @ Hk[s, k]) * kpt_weight[k] / nk_full
             # hartree-fock energy
             ehf += 0.5 * np.trace(dm_k[s, k] @ (fock[s, k] + Hk[s, k])) * kpt_weight[k] / nk_full
-    for ds_name, ds_value in (('Energy_1b', e1), ('Energy_HF', ehf), ('Energy_2b', ecorr)):
-        if ds_name in iter_group:
-            iter_group[ds_name][...] = ds_value
-        else:
-            raise KeyError(f"Dataset '{ds_name}' not found in group 'iter{iteration}'. Check if SEET output file structure has changed.")
-    fsimseet.close()
+    try:
+        for ds_name, ds_value in (('Energy_1b', e1), ('Energy_HF', ehf), ('Energy_2b', ecorr)):
+            if ds_name in iter_group:
+                iter_group[ds_name][...] = ds_value
+            else:
+                raise KeyError(f"Dataset '{ds_name}' not found in group 'iter{iteration}'. Verify that the SEET step executed correctly.")
+    finally:
+        fsimseet.close()
     
-    print("COMPLETED! the integration of impurity solver data and SEET results.")
+    print("COMPLETED the integration of impurity solver data and SEET results.")
     return True
 
 
