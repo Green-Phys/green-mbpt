@@ -15,7 +15,7 @@ import argparse
 import subprocess
 import time
 from pathlib import Path
-from inchworm_utils import get_inchworm_selfenergy
+from .inchworm_utils import get_inchworm_selfenergy
 from green_mbtools.pesto.ir import IR_factory
 
 
@@ -173,7 +173,7 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
         ink = finput['grid/ink'][()]
         nk_full = finput['grid/nk'][()]
         index = finput['grid/index'][()]
-        kpt_weight = ir_list * 0  # degree of each unique k-point
+        kpt_weight = np.zeros_like(ir_list)  # degree of each unique k-point
         for i, ik in enumerate(ir_list):
             kpt_weight[i] = np.sum(index == ik)
         # One electron Hamiltonian
@@ -200,15 +200,17 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
 
     # Open output file
     fsimseet = h5py.File(args.results_file, 'r+')
-    group = fsimseet['iter{}/Selfenergy'.format(iteration)]
+    iter_group = fsimseet['iter{}'.format(iteration)]
+    sigma_group = fsimseet['iter{}/Selfenergy'.format(iteration)]
     mu = fsimseet['iter{}/mu'.format(iteration)][()]
-    gtau = fsimseet['iter{}/G_tau/data'][()]
-    sigma_in = group['data'][()]
+    gtau = fsimseet['iter{}/G_tau/data'.format(iteration)][()]
+    sigma_in = sigma_group['data'][()]
     sigma_inf_in = fsimseet['iter{}/Sigma1'.format(iteration)][()]
-    ntau, ns, nk_sig, nao_full, _ = sigma_in.shape
-    assert X_inv_k.shape[0] == nk_sig, (
+    ntau, ns_sigma, nk_sigma, nao_full, _ = sigma_in.shape
+    assert ns_sigma == ns, f"Spin dimension mismatch between sigma_in (ns = {ns_sigma}) and params/ns (ns = {ns})."
+    assert X_inv_k.shape[0] == nk_sigma, (
         f"Mismatch after IBZ filtering: X_inv_k has {X_inv_k.shape[0]} k-points "
-        f"but sigma_in expects {nk_sig}. Verify IBZ k-point configuration and filtering settings."
+        f"but sigma_in expects {nk_sigma}. Verify IBZ k-point configuration and filtering settings."
     )
 
     # PLACEHOLDER: 
@@ -249,31 +251,41 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
         sigma_in[t] += np.einsum('kab, sbc, kcd -> skad', X_inv_k, sigma_tau_local_orth[t], X_inv_k_H) * args.mixing
     
     # Save the data back to results file
-    group['data'][...] = sigma_in
+    sigma_group['data'][...] = sigma_in
     fsimseet['iter{}/Sigma1'.format(iteration)][...] = sigma_inf_in
-
+    # Get energy and update output file
+    if sigma_inf_in.shape != Hk.shape:
+        raise ValueError(
+            f"Inconsistent shapes for Hk and sigma_inf_in: "
+            f"Hk.shape={Hk.shape}, sigma_inf_in.shape={sigma_inf_in.shape}. "
+            "Expected sigma_inf_in to have shape (ns, nk, nao_full, nao_full) matching Hk."
+        )
     # Get energy and update output file
     fock = Hk + sigma_inf_in
+    # For non-relativistic RHF, each spatial orbital is double occupied -> factor 2
+    # For x2c (exact two-component) with ns=1 and nso=nao, the spin degree of freedom is already included in the 2c basis,
+    # so no additional factor of 2 is applied.
     dm_prefac = 2.0 if spin_type == 'rhf' else 1.0
     dm_k = dm_prefac * gtau[-1].real
     e1 = 0.
     ehf = 0.
-    ecorr = 0.
     myir = IR_factory(args.BETA, args.ir_file)
+    sig_w = myir.tau_to_w(sigma_in)
+    g_w = myir.tau_to_w(gtau)
+    # Galitski Migdal formula
+    ecorr_w = -dm_prefac * np.einsum('wskab, wskba, k -> w', gtau, sigma_in, kpt_weight) / (2 * nk_full)
+    ecorr = myir.w_to_tau(ecorr_w)[-1].real
     for s in range(ns):
         for k in range(ink):
             # one-body energy
             e1 += np.trace(dm_k[s, k] @ Hk[s, k]) * kpt_weight[k] / nk_full
             # hartree-fock energy
             ehf += 0.5 * np.trace(dm_k[s, k] @ (fock[s, k] + Hk[s, k])) * kpt_weight[k] / nk_full
-            # correlation energy
-            sig_wsk = myir.tau_to_w(sigma_in[:, s, k])
-            g_wsk = myir.tau_to_w(gtau[:, s, k])
-            ecorr_w = np.einsum('wab, wba -> w', g_wsk, sig_wsk)
-            ecorr -= (dm_prefac / 2) * kpt_weight[k] * myir.w_to_tau(ecorr_w)[-1].real / nk_full
-    fsimseet['iter{}/Energy_1b'.format(iteration)][...] = e1
-    fsimseet['iter{}/Energy_HF'.format(iteration)][...] = ehf
-    fsimseet['iter{}/Energy_2b'.format(iteration)][...] = ecorr
+    for ds_name, ds_value in (('Energy_1b', e1), ('Energy_HF', ehf), ('Energy_2b', ecorr)):
+        if ds_name in iter_group:
+            iter_group[ds_name][...] = ds_value
+        else:
+            raise KeyError(f"Dataset '{ds_name}' not found in group 'iter{iteration}'. Check if SEET output file structure has changed.")
     fsimseet.close()
     
     print("COMPLETED! the integration of impurity solver data and SEET results.")
