@@ -174,6 +174,7 @@ namespace green::mbpt {
     MPI_Op_free(&matrix_sum_op);
     if (!utils::context.global_rank) {
       h5pp::archive res(results_file, "w");
+      res.set_attribute("__grids_version__", dyson_solver.get_grids_version());
       res["G_tau_hs/data"] << g_tau_hs.object();
       res["G_tau_hs/mesh"] << dyson_solver.ft().sd().repn_fermi().tsample();
       res["Sigma_1_hs"] << Sigma_1_fbz;
