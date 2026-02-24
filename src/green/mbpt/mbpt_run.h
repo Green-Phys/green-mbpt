@@ -30,7 +30,6 @@
 #include "gf2_solver.h"
 #include "gw_solver.h"
 #include "hf_solver.h"
-#include "kinter.h"
 
 namespace green::mbpt {
 
