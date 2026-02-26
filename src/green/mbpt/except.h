@@ -44,5 +44,11 @@ namespace green::mbpt {
   public:
     explicit mbpt_outdated_input(const std::string& what) : std::runtime_error(what) {}
   };
+
+  class mbpt_wrong_results_file : public std::runtime_error {
+  public:
+    explicit mbpt_wrong_results_file(const std::string& what) : std::runtime_error(what) {}
+  };
+
 }  // namespace green::mbpt
 #endif  // GREEN_MBPT_EXCEPT_H
