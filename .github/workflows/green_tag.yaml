@@ -3,7 +3,7 @@ name: Trigger Tags in Green Repos
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
 
 jobs:
   trigger-tags:
