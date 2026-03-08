@@ -32,10 +32,17 @@ jobs:
             "Green-Phys/green-gpu"
           )
           
+          failed_repos=()
           for repo in "${REPOS[@]}"; do
             gh api repos/$repo/dispatches \
               -f event_type='tag-created' \
-              -F client_payload="{\"tag\":\"$TAG_NAME\"}"
+              -f client_payload="{\"tag\":\"$TAG_NAME\"}" \
+              || failed_repos+=("$repo")
           done
+          
+          if [ ${#failed_repos[@]} -ne 0 ]; then
+            echo "Failed to trigger tag creation in the following repositories: ${failed_repos[*]}"
+            exit 1
+          fi
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
