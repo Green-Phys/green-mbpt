@@ -61,8 +61,9 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Back to development after ${{ github.ref_name }}"
+            git commit -m "Back to development after $TAG_NAME"
             git push
           fi
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+          TAG_NAME: ${{ github.ref_name }}
