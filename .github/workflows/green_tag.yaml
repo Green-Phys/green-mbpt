@@ -35,7 +35,7 @@ jobs:
           for repo in "${REPOS[@]}"; do
             gh api repos/$repo/dispatches \
               -f event_type='tag-created' \
-              -f client_payload="{\"tag\":\"$TAG_NAME\"}"
+              -F client_payload="{\"tag\":\"$TAG_NAME\"}"
           done
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
