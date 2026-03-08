@@ -1,0 +1,48 @@
+name: Trigger Tags in Green Repos
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  trigger-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GREEN_TAG_APP_ID }}
+          private-key: ${{ secrets.GREEN_TAG_APP_PRIVATE_KEY }}
+      
+      - name: Trigger tag creation in dependent repos
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          
+          REPOS=(
+            "Green-Phys/green-grids"
+            "Green-Phys/green-h5pp"
+            "Green-Phys/green-ndarray"
+            "Green-Phys/green-params"
+            "Green-Phys/green-sc"
+            "Green-Phys/green-utils"
+            "Green-Phys/green-symmetry"
+            "Green-Phys/green-opt"
+            "Green-Phys/green-gpu"
+          )
+          
+          failed_repos=()
+          for repo in "${REPOS[@]}"; do
+            gh api repos/$repo/dispatches \
+              -f event_type='tag-created' \
+              -f client_payload="{\"tag\":\"$TAG_NAME\"}" \
+              || failed_repos+=("$repo")
+          done
+          
+          if [ ${#failed_repos[@]} -ne 0 ]; then
+            echo "Failed to trigger tag creation in the following repositories: ${failed_repos[*]}"
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
