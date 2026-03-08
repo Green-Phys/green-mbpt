@@ -22,7 +22,7 @@ jobs:
           module load BuildEnv/gcc-12.2.0.lua;
           mkdir -p build && cd build;
           cmake -DCMAKE_CXX_FLAGS=" --coverage -fno-inline -fno-inline-small-functions -fno-default-inline -fprofile-arcs -ftest-coverage " \
-            -DGREEN_RELEASE origin/main ..;
+            -DGREEN_RELEASE="origin/main" ..;
           make -j 8;
 
       - name: Test
