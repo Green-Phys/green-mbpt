@@ -15,6 +15,7 @@ jobs:
         with:
           app-id: ${{ secrets.GREEN_TAG_APP_ID }}
           private-key: ${{ secrets.GREEN_TAG_APP_PRIVATE_KEY }}
+          owner: Green-Phys
       
       - name: Trigger tag creation in dependent repos
         run: |
