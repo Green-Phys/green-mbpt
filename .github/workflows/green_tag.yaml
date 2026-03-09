@@ -35,12 +35,15 @@ jobs:
           
           failed_repos=()
           for repo in "${REPOS[@]}"; do
-            payload=$(jq -n --arg tag "$TAG_NAME" \
-              '{"event_type": "tag-created", "client_payload": {"tag": $tag}}')
-            echo "$payload" | gh api repos/$repo/dispatches \
+            # Get the latest commit SHA on default branch
+            SHA=$(gh api repos/$repo/git/ref/heads/main --jq '.object.sha')
+            
+            # Create the tag ref directly
+            payload=$(jq -n --arg tag "$TAG_NAME" --arg sha "$SHA" \
+              '{"ref": "refs/tags/\($tag)", "sha": $sha}')
+            echo "$payload" | gh api repos/$repo/git/refs \
               --method POST \
-              --input - \
-              || failed_repos+=("$repo")
+              --input - || failed_repos+=("$repo")
           done
           
           if [ ${#failed_repos[@]} -ne 0 ]; then
@@ -71,4 +74,3 @@ jobs:
           fi
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
-          TAG_NAME: ${{ github.ref_name }}
