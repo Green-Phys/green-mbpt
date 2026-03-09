@@ -35,9 +35,11 @@ jobs:
           
           failed_repos=()
           for repo in "${REPOS[@]}"; do
-            gh api repos/$repo/dispatches \
-              -F event_type='tag-created' \
-              -F client_payload.tag="$TAG_NAME" \
+            payload=$(jq -n --arg tag "$TAG_NAME" \
+              '{"event_type": "tag-created", "client_payload": {"tag": $tag}}')
+            echo "$payload" | gh api repos/$repo/dispatches \
+              --method POST \
+              --input - \
               || failed_repos+=("$repo")
           done
           
@@ -57,6 +59,7 @@ jobs:
         run: echo "origin/main" > GREEN_RELEASE.txt
       - name: Commit and push
         run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add GREEN_RELEASE.txt
