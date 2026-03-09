@@ -37,7 +37,7 @@ jobs:
           for repo in "${REPOS[@]}"; do
             gh api repos/$repo/dispatches \
               -F event_type='tag-created' \
-              -f client_payload="{\"tag\":\"$TAG_NAME\"}" \
+              -F client_payload="{\"tag\":\"$TAG_NAME\"}" \
               || failed_repos+=("$repo")
           done
           
