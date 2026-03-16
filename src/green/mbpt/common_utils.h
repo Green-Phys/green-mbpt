@@ -18,7 +18,7 @@ namespace green::mbpt {
 
   inline auto compute_energy(const ztensor<5>& g_tau, const ztensor<4>& sigma1, const ztensor<5>& sigma_tau,
                              const ztensor<4>& H_k, const grids::transformer_t& ft,
-                             const symmetry::brillouin_zone_utils<symmetry::inv_symm_op>& bz, bool X2C) {
+                             const symmetry::brillouin_zone_utils& bz, bool X2C) {
     size_t     _nso = g_tau.shape()[4];
     size_t     _ns  = g_tau.shape()[1];
     size_t     _ink = g_tau.shape()[2];
@@ -44,8 +44,8 @@ namespace green::mbpt {
       size_t ik = iwsk % _ink;
       ft.tau_to_omega_wsk(sigma_tau, Sigma_w, iw, is, ik, 1);
       ft.tau_to_omega_wsk(g_tau, G_w, iw, is, ik, 1);
-      size_t k_ir = bz.symmetry().full_point(ik);
-      GS_w(iw, 0) += bz.symmetry().weight()[k_ir] * (matrix(G_w) * matrix(Sigma_w)).eval().trace();
+      size_t k_ir = bz.k_symmetry().full_point(ik);
+      GS_w(iw, 0) += bz.k_symmetry().weight()[k_ir] * (matrix(G_w) * matrix(Sigma_w)).eval().trace();
     }
     GS_t                    = TtBn * GS_w;
     double energy_prefactor = (_ns == 1 and !X2C) ? 1.0 : 0.5;
@@ -54,10 +54,10 @@ namespace green::mbpt {
     for (size_t isk = utils::context.global_rank; isk < _ns * _ink; isk += utils::context.global_size) {
       size_t is   = isk / _ink;
       size_t ik   = isk % _ink;
-      size_t k_ir = bz.symmetry().full_point(ik);
+      size_t k_ir = bz.k_symmetry().full_point(ik);
       ehf += 0.5 * (matrix(dmr(is, ik)) * (matrix(sigma1(is, ik)) + 2.0 * matrix(H_k(is, ik)))).trace().real() *
-             bz.symmetry().weight()[k_ir];
-      e1e += (matrix(dmr(is, ik)) * matrix(H_k(is, ik))).trace().real() * bz.symmetry().weight()[k_ir];
+             bz.k_symmetry().weight()[k_ir];
+      e1e += (matrix(dmr(is, ik)) * matrix(H_k(is, ik))).trace().real() * bz.k_symmetry().weight()[k_ir];
     }
     MPI_Allreduce(MPI_IN_PLACE, &e1e, 1, MPI_DOUBLE_PRECISION, MPI_SUM, utils::context.global);
     MPI_Allreduce(MPI_IN_PLACE, &ehf, 1, MPI_DOUBLE_PRECISION, MPI_SUM, utils::context.global);

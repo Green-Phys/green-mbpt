@@ -83,11 +83,11 @@ namespace green::mbpt {
       size_t iw   = iwsk / (_ns * _ink);
       size_t is   = (iwsk % (_ns * _ink)) / _ink;
       size_t ik   = (iwsk % _ink);
-      size_t k_ir = _bz_utils.symmetry().full_point(ik);
+      size_t k_ir = _bz_utils.k_symmetry().full_point(ik);
       muomega     = _ft.wsample_fermi()(iw) * 1.0i + mu;
       // Trace over AO index
       for (size_t i = 0; i < _nso; ++i, ++iii) {
-        trace_w(iw, 0) += _bz_utils.nkpw() * _bz_utils.symmetry().weight()[k_ir] / (muomega - eigenvalues_Sigma_p_F[iii]);
+        trace_w(iw, 0) += _bz_utils.nkpw() * _bz_utils.k_symmetry().weight()[k_ir] / (muomega - eigenvalues_Sigma_p_F[iii]);
       }
     }
     // Transform to tau
