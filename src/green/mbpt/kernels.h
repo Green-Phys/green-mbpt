@@ -169,6 +169,17 @@ namespace green::mbpt::kernels {
     void selfenergy_contraction(const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm,
                                 MMatrixX<prec>& Y1m, MMatrixX<prec>& Y1mm, MMatrixX<prec>& Y2mm, MMatrixX<prec>& X2m,
                                 MMatrixX<prec>& Y2mmm, MMatrixX<prec>& X2mm, MatrixX<prec>& P, MatrixXcd& Sm_ts);
+
+    /**
+     * Obtain Polarization P0 / P matrix at a given q-point in the full BZ by applying
+     * symmetry transformation to the given matrix at irreducible q point.
+     *
+     * @param p0_q_ibz
+     * @param q_bz
+     * @return
+     */
+    template <typename prec>
+    MatrixX<prec> eval_p0_bz_from_ibz(const ztensor<2> &P0_tilde_q_ibz, size_t q_bz);
   };
 
   class hf_kernel {

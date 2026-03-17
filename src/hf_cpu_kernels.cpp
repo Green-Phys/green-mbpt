@@ -42,14 +42,14 @@ namespace green::mbpt::kernels {
       MMatrixXcd X1m(X1.data(), _nao * _nao, 1);
       MMatrixXcd vm(v.data(), NQ_local, _nao * _nao);
       MMatrixXcd upper_Coul_m(upper_Coul.data() + NQ_offset, NQ_local, 1);
-      for (int ikps = utils::context.internode_rank; ikps < _nk * _ns; ikps += utils::context.internode_size) {
-        int is    = ikps % _ns;
-        int ikp   = ikps / _ns;
-        statistics.start("Read Coulomb Up");
-        coul_int1.read_integrals(ikp, ikp);
-        statistics.end();
+      if(NQ_local > 0) {
+        for (int ikps = utils::context.internode_rank; ikps < _nk * _ns; ikps += utils::context.internode_size) {
+          int is    = ikps % _ns;
+          int ikp   = ikps / _ns;
+          statistics.start("Read Coulomb Up");
+          coul_int1.read_integrals(ikp, ikp);
+          statistics.end();
 
-        if(NQ_local > 0) {
           coul_int1.symmetrize(v, ikp, ikp, NQ_offset, NQ_local);
 
           X1 = _bz_utils.k_symmetry().value_AO(dm(is), ikp).transpose();
