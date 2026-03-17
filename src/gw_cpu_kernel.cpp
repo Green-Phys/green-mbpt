@@ -307,13 +307,13 @@ namespace green::mbpt::kernels {
   template <typename prec>
   MatrixX<prec> gw_cpu_kernel::eval_p0_bz_from_ibz(const ztensor<2>& p0_tilde_q_ibz, size_t q_bz) {
     MatrixX<prec> U_q(_NQ, _NQ);
-    _bz_utils.q_symmetry().q_sym_transform_p0(U_q, q_idx);
+    _bz_utils.q_symmetry().q_sym_transform_p0(U_q, q_bz);
     // Symmetry transform P to current q point and apply conjugation if needed
-    MMatrixXcd P_q_ibz_matrix(p0_tilde_q_ibz.data(), _NQ, _NQ);
+    CMMatrixXcd P_q_ibz_matrix(p0_tilde_q_ibz.data(), _NQ, _NQ);
     MatrixX<prec> P_q = P_q_ibz_matrix.template cast<prec>();
     P_q = U_q * P_q * U_q.adjoint();
-    if (_bz_utils.q_symmetry().tr_conj_list()[q_idx] == 1) {
-      P_sp = P_sp.conjugate();
+    if (_bz_utils.q_symmetry().tr_conj_list()[q_bz] == 1) {
+      P_q = P_q.conjugate();
     }
     return P_q;
   }
@@ -355,7 +355,7 @@ namespace green::mbpt::kernels {
       size_t          a, b, i_shift, j_shift;
       size_t          sigma_shift;
       for (size_t t = tau_offset, it = 0; it < tau_local; ++t, ++it) {
-        MatrixX<prec> P_sp = eval_p0_bz_from_ibz(P0_tilde(t, 0), q_idx);
+        MatrixX<prec> P_sp = eval_p0_bz_from_ibz<prec>(P0_tilde(t, 0), q_idx);
         for (size_t s = 0; s < pseudo_ns; ++s) {
           if (!_X2C) {
             assign_G(k1_k1mq[1], t, s, G_fermi.object(), G_k1q);
