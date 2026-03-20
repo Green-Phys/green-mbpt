@@ -15,8 +15,8 @@ namespace green::mbpt {
   // TODO Merge two different corrections into this class
   class mbpt_q0_utils_t {
   public:
-    mbpt_q0_utils_t(size_t ink, size_t NQ, const ztensor<4>&S_k, const std::string & path, sigma_q0_treatment_e q0_treatment):
-    _ink(ink), _S_k(S_k), _q_abs(ink), _q0_treatment(q0_treatment) {
+    mbpt_q0_utils_t(size_t inq, size_t NQ, const ztensor<4>&S_k, const std::string & path, sigma_q0_treatment_e q0_treatment):
+    _inq(inq), _S_k(S_k), _q_abs(inq), _q0_treatment(q0_treatment) {
       if (_q0_treatment == extrapolate) {
         std::string Aq_path = path + "/AqQ.h5";
         // Read _Aq, madelung constant
@@ -66,12 +66,17 @@ namespace green::mbpt {
                              size_t intranode_rank, size_t intranode_size, MPI_Win win_Sigma);
 
 
+    // type of q0 treatment
     sigma_q0_treatment_e _q0_treatment;
-    size_t _ink;
+    // number of irreducible q-points (Bosonic)
+    size_t _inq;
+    // number of auxiliary basis-functions
     size_t _NQ;
 
     ztensor<2> _AqQ;
+    // overlap metric
     const ztensor<4> &_S_k;
+    // absolute (magnitude) of q-vectors available in the irreducible q-mesh
     std::vector<double> _q_abs;
     // Madelung constant
     double _madelung;

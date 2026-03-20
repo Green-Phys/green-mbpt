@@ -45,9 +45,9 @@ namespace green::mbpt::kernels {
         _ni_b(ft.sd().repn_bose().ni()), _nw(ft.sd().repn_fermi().nw()), _nw_b(ft.sd().repn_bose().nw()), _nk(bz_utils.nk()),
         _ink(bz_utils.ink()), _nq(bz_utils.nq()), _inq(bz_utils.inq()), _nao(nao), _nso(nso), _ns(ns), _NQ(NQ), _X2C(X2C), _p_sp(p["P_sp"]), _sigma_sp(p["Sigma_sp"]),
         _ft(ft), _bz_utils(bz_utils), _path(p["dfintegral_file"]), statistics("GW"),
-        _q0_utils(bz_utils.ink(), 0, S_k, _path, p["q0_treatment"]),
+        _q0_utils(bz_utils.inq(), 0, S_k, _path, p["q0_treatment"]),
         // _P0_tilde(0, 0, 0, 0),
-        _eps_inv_wq(ft.wsample_bose().size(), bz_utils.ink()),
+        _eps_inv_wq(ft.wsample_bose().size(), bz_utils.inq()),
         _coul_int1(nullptr) {
       _q0_utils.resize(_NQ);
     }
