@@ -174,9 +174,6 @@ namespace green::mbpt::kernels {
           } else {
             a       = s / 2;
             b       = s % 2;
-            i_shift = a * _nao;
-            j_shift = b * _nao;
-
             assign_G_nso(k1_k1q[0], tt, b, a, G.object(), Gb_k1);
             assign_G_nso(k1_k1q[1], t, a, b, G.object(), G_k1q);
           }

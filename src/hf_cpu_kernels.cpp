@@ -171,7 +171,6 @@ namespace green::mbpt::kernels {
       NQ_offset = (NQ_offset >= _NQ) ? 0 : NQ_offset;
       ztensor<3> v(NQ_local, _nao, _nao);
       // Direct diagram
-      // if (utils::context.global_rank < _ink) {
       statistics.start("X2C direct diagram");
       {
         MatrixXcd  X1(_nao, _nao);
@@ -190,7 +189,8 @@ namespace green::mbpt::kernels {
             // Sum of alpha-alpha and beta-beta spin block
             // In the presence of TR symmetry,
             // (dm_aa(-k) + dm_bb(-k)) = (dm_aa(k) + dm_bb(k))*
-            X1 = _bz_utils.k_symmetry().value_AO(dm_spblks[0], ikp) + _bz_utils.k_symmetry().value_AO(dm_spblks[1], ikp);
+            MatrixXcd dm_so = _bz_utils.k_symmetry().value_AO(dm(0), ikp);
+            X1 = dm_so.block(0, 0, _nao, _nao) + dm_so.block(_nao, _nao, _nao, _nao);
             X1 = X1.transpose().eval();
             // (Q, 1) = (Q, ab) * (ab, 1)
             upper_Coul_m += vm * X1m;
