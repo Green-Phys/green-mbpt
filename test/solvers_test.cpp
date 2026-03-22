@@ -38,7 +38,7 @@ void solve_hf(const std::string& input, const std::string& int_hf, const std::st
     ar["params/nso"] >> nso;
     ar["params/ns"] >> ns;
     ar["params/nk"] >> nk;
-    ar["grid/ink"] >> ink;
+    ar["symmetry/k/ink"] >> ink;
     green::sc::dtensor<5> S_k;
     ar["HF/S-k"] >> S_k;
     ar.close();
@@ -93,7 +93,7 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
     ar["params/nso"] >> nso;
     ar["params/ns"] >> ns;
     ar["params/nk"] >> nk;
-    ar["grid/ink"] >> ink;
+    ar["symmetry/k/ink"] >> ink;
     green::sc::dtensor<5> S_k;
     ar["HF/S-k"] >> S_k;
     ar.close();
@@ -147,7 +147,7 @@ void solve_gf2(const std::string& df_int_path, const std::string& test_file, con
     ar["params/nso"] >> nso;
     ar["params/ns"] >> ns;
     ar["params/nk"] >> nk;
-    ar["grid/ink"] >> ink;
+    ar["symmetry/k/ink"] >> ink;
     green::sc::dtensor<5> S_k;
     ar["HF/S-k"] >> S_k;
     ar.close();
@@ -185,7 +185,7 @@ TEST_CASE("MBPT Solver") {
   SECTION("HF") { solve_hf("/HF/input.h5", "/HF/df_hf_int", "/HF/data.h5"); }
   SECTION("HF_X2C") { solve_hf("/HF_X2C/input.h5", "/HF_X2C/df_hf_int", "/HF_X2C/data.h5"); }
   SECTION("GW") { solve_gw("/GW/input.h5", "/GW/df_int", "/GW/data.h5"); }
-  SECTION("GW_C") { solve_gw("/GW/input.h5", "/GW/df_hf_int", "/GW/data_c.h5", "EXTRAPOLATE"); }
+  SECTION("GW_C") { solve_gw("/GW/input_tr_symm.h5", "/GW/df_hf_int", "/GW/data_c.h5", "EXTRAPOLATE"); }
   SECTION("GW_X2C") { solve_gw("/GW_X2C/input.h5", "/GW_X2C/df_hf_int", "/GW_X2C/data.h5"); }
 
   SECTION("GF2") { solve_gf2(TEST_PATH + "/GF2/df_hf_int"s, TEST_PATH + "/GF2/data.h5"s, TEST_PATH + "/GF2/input.h5"s); }
@@ -202,9 +202,9 @@ TEST_CASE("MBPT Solver") {
     auto        p             = green::params::params("DESCR");
     std::string input_file    = TEST_PATH + "/Input/input.h5"s;
     std::string df_int_path_1 = TEST_PATH + "/Input/df_int"s;
-    std::string df_int_path_2 = TEST_PATH + "/Input/df_int_x"s;
-    std::string df_int_path_3 = TEST_PATH + "/Input/df_int_y"s;
-    std::string df_int_path_4 = TEST_PATH + "/Input/df_int_0.3.0"s;
+    std::string df_int_path_2 = TEST_PATH + "/Input/df_int_0.3.0"s;
+    std::string df_int_path_3 = TEST_PATH + "/Input/df_int_1.0.0"s;
+    std::string df_int_path_4 = TEST_PATH + "/Input/df_int_1.1.0"s;
     std::string grid_file     = GRID_PATH + "/ir/1e4.h5"s;
     std::string args =
         "test --restart 0 --itermax 2 --E_thr 1e-13 --mixing_type G_MIXING --mixing_weight 0.8 --input_file=" + input_file +
@@ -215,19 +215,19 @@ TEST_CASE("MBPT Solver") {
     green::grids::define_parameters(p);
     green::mbpt::define_parameters(p);
     p.parse(args);
-    green::symmetry::brillouin_zone_utils<green::symmetry::inv_symm_op> bz_utils(p);
+    green::symmetry::brillouin_zone_utils bz_utils(p);
     REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_1, 2, 36, bz_utils), green::mbpt::mbpt_outdated_input);
     REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_2, 2, 36, bz_utils), green::mbpt::mbpt_outdated_input);
     REQUIRE_NOTHROW(green::mbpt::df_integral_t(df_int_path_3, 2, 36, bz_utils));
-    REQUIRE_NOTHROW(green::mbpt::df_integral_t(df_int_path_4, 2, 36, bz_utils));
+    REQUIRE_NOTHROW(green::mbpt::df_integral_t(df_int_path_3, 2, 36, bz_utils));
     REQUIRE_THROWS_AS(green::mbpt::check_input(p), green::mbpt::mbpt_outdated_input);
   }
 
   SECTION("Test Version Strings") {
-    std::vector<std::string> fail_versions = {"0.2.0", "0.2.3"};
-    std::vector<std::string> pass_versions = {
+    std::vector<std::string> fail_versions = {
       "0.2.4", "0.2.4b10", "0.3.0", "0.3.0b8", "0.3.1", "0.3.1b10"
     };
+    std::vector<std::string> pass_versions = {"1.0.0", "1.1.0", "1.1.2b"};
     for (int i=0; i < fail_versions.size() - 1; i++) {
       REQUIRE_FALSE(green::mbpt::CheckVersion(fail_versions[i]));
     }
@@ -252,8 +252,8 @@ TEST_CASE("MBPT Solver") {
     green::sc::sc_loop<green::mbpt::shared_mem_dyson> sc(MPI_COMM_WORLD, p);
     size_t                                            nts;
     size_t                                            ns  = sc.dyson_solver().ns();
-    size_t                                            nk  = sc.dyson_solver().bz_utils().nk();
-    size_t                                            ink = sc.dyson_solver().bz_utils().ink();
+    size_t                                            nk  = sc.dyson_solver().bz_utils().k_symmetry().nk();
+    size_t                                            ink = sc.dyson_solver().bz_utils().k_symmetry().ink();
     size_t                                            nao = sc.dyson_solver().nao();
     size_t                                            nso = sc.dyson_solver().nso();
     green::sc::ztensor<4>                             tmp;
@@ -302,7 +302,7 @@ TEST_CASE("MBPT Solver") {
       ar["params/nao"] >> nao;
       ar["params/ns"] >> ns;
       ar["params/nk"] >> nk;
-      ar["grid/ink"] >> ink;
+      ar["symmetry/k/ink"] >> ink;
       green::sc::dtensor<5> H_k;
       green::sc::dtensor<5> F_k;
       ar["HF/H-k"] >> H_k;
