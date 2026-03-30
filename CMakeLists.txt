@@ -39,13 +39,13 @@ endif ()
 
 include(GreenDeps)
 
+add_green_dependency(green-utils)
 add_green_dependency(green-grids)
 add_green_dependency(green-h5pp)
 add_green_dependency(green-ndarray)
 add_green_dependency(green-params)
-add_green_dependency(green-sc)
 add_green_dependency(green-symmetry)
-add_green_dependency(green-utils)
+add_green_dependency(green-sc)
 
 if (CUSTOM_KERNELS)
     include(AddGreenKernel)

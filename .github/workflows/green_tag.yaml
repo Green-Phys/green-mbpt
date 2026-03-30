@@ -41,9 +41,14 @@ jobs:
             # Create the tag ref directly
             payload=$(jq -n --arg tag "$TAG_NAME" --arg sha "$SHA" \
               '{"ref": "refs/tags/\($tag)", "sha": $sha}')
-            echo "$payload" | gh api repos/$repo/git/refs \
+            response=$(echo "$payload" | gh api repos/$repo/git/refs \
               --method POST \
-              --input - || failed_repos+=("$repo")
+              --input - 2>&1) || true
+            if echo "$response" | grep -q "Reference already exists"; then
+              echo "Tag $TAG_NAME already exists in $repo, skipping."
+            elif ! echo "$response" | grep -q "refs/tags/$TAG_NAME"; then
+              failed_repos+=("$repo")
+            fi
           done
           
           if [ ${#failed_repos[@]} -ne 0 ]; then
