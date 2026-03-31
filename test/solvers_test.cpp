@@ -220,6 +220,8 @@ TEST_CASE("MBPT Solver") {
     REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_2, 2, 36, bz_utils), green::mbpt::mbpt_outdated_input);
     REQUIRE_NOTHROW(green::mbpt::df_integral_t(df_int_path_3, 2, 36, bz_utils));
     REQUIRE_NOTHROW(green::mbpt::df_integral_t(df_int_path_3, 2, 36, bz_utils));
+    REQUIRE_NOTHROW(green::mbpt::check_input(p));
+    p["input_file"] = TEST_PATH + "/Input/input_old.h5"s;
     REQUIRE_THROWS_AS(green::mbpt::check_input(p), green::mbpt::mbpt_outdated_input);
   }
 
