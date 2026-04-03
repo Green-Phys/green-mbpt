@@ -113,7 +113,7 @@ namespace green::mbpt {
     tau_hs_t   g_tau_hs(nts, ns, kmesh_hs.shape()[0], nso);
     tau_hs_t   g_omega_hs(nw, ns, kmesh_hs.shape()[0], nso);
     // Compute transformation matricies
-    // TODO: THis can be moved to k-to-r and r-to-k in bz_utils to maintain a clean separation of work
+    // TODO: This can be moved to k-to-r and r-to-k in bz_utils to maintain a clean separation of work
     for (size_t ir = 0; ir < rmesh.shape()[0]; ++ir) {
       auto r = rmesh(ir);
       for (size_t ik = 0; ik < nk; ++ik) {

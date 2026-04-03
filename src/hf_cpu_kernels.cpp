@@ -43,6 +43,8 @@ namespace green::mbpt::kernels {
       MMatrixXcd vm(v.data(), NQ_local, _nao * _nao);
       MMatrixXcd upper_Coul_m(upper_Coul.data() + NQ_offset, NQ_local, 1);
       if(NQ_local > 0) {
+        // TODO: We can save a lot of time here by reducing the loop over ikp, but that would require removing the NQ_local, NQ_offset framework.
+        //        The symmetry speedup only works if we load all of NQ at once -- which shold be doable now that we have much smaller memory footprint.
         for (int ikps = utils::context.internode_rank; ikps < _nk * _ns; ikps += utils::context.internode_size) {
           int is    = ikps % _ns;
           int ikp   = ikps / _ns;
@@ -93,6 +95,7 @@ namespace green::mbpt::kernels {
       ztensor<3> v2(_nao, NQ_local, _nao);
       MMatrixXcd v2m(v2.data(), _nao, NQ_local * _nao);
       MMatrixXcd v2mm(v2.data(), _nao * NQ_local, _nao);
+      MatrixXcd dmm(_nao, _nao);
       double     prefactor = (_ns == 2) ? 1.0 : 0.5;
       statistics.start("Exchange");
       if (NQ_local > 0) {
@@ -102,7 +105,7 @@ namespace green::mbpt::kernels {
           int        k_ir = _bz_utils.k_symmetry().full_point(ik);
           MMatrixXcd Fmm(new_Fock.data() + is * _ink * _nao * _nao + ik * _nao * _nao, _nao, _nao);
           for (int ikp = 0; ikp < _nk; ++ikp) {
-            MatrixXcd dmm = _bz_utils.k_symmetry().value_AO(dm(is), ikp);
+            dmm = _bz_utils.k_symmetry().value_AO(dm(is), ikp);
             statistics.start("Read Coulomb Exch");
             coul_int1.read_integrals(k_ir, ikp);
             statistics.end();

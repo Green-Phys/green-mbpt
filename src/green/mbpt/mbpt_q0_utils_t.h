@@ -16,7 +16,7 @@ namespace green::mbpt {
   class mbpt_q0_utils_t {
   public:
     mbpt_q0_utils_t(size_t inq, size_t NQ, const ztensor<4>&S_k, const std::string & path, sigma_q0_treatment_e q0_treatment):
-    _inq(inq), _S_k(S_k), _q_abs(inq), _q0_treatment(q0_treatment) {
+    _q0_treatment(q0_treatment), _inq(inq), _NQ(NQ), _S_k(S_k), _q_abs(inq) {
       if (_q0_treatment == extrapolate) {
         std::string Aq_path = path + "/AqQ.h5";
         // Read _Aq, madelung constant
@@ -26,7 +26,10 @@ namespace green::mbpt {
           int_file["q_abs"] >> _q_abs;
           int_file["madelung"] >> _madelung;
           int_file.close();
-          _NQ = _AqQ.shape()[1];
+          if (_NQ != _AqQ.shape()[1]) {
+            std::runtime_error("Auxiliary basis dimension in input.h5 " + std::to_string(_NQ) +
+                               " and the size of q0 correction dataset " + std::to_string(_AqQ.shape()[1]) + " do not match.");
+          }
           //check_Aq();
         } else {
           std::cout << "## Warning: " << Aq_path << " is not found! Extrapolation treatment for GW self-energy will be disabled." << std::endl;

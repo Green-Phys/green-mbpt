@@ -65,11 +65,11 @@ namespace green::mbpt::kernels {
 
     // number of k-points in the full BZ for G and Sigma (fermionic mesh)
     size_t                      _nk;
-    // number of k-points in the ireeducible BZ for G and Sigma (fermionic mesh)
+    // number of k-points in the irreducible BZ for G and Sigma (fermionic mesh)
     size_t                      _ink;
     // number of q-points in the full BZ for P0, P (bosonic mesh)
     size_t                      _nq;
-    // number of q-points in the ireeducible BZ for P0, P (bosonic mesh)
+    // number of q-points in the irreducible BZ for P0, P (bosonic mesh)
     size_t                      _inq;
     // number of AOs
     size_t                      _nao;
@@ -200,15 +200,15 @@ namespace green::mbpt::kernels {
     size_t            _nso;
     // number of k-points in the full BZ for G and Sigma_inf (fermionic mesh)
     size_t            _nk;
-    // number of k-point in the ireeducible BZ for G and Sigma_inf (fermionic mesh)
+    // number of k-point in the irreducible BZ for G and Sigma_inf (fermionic mesh)
     size_t            _ink;
     // number of q-points in the full BZ for P0, P (bosonic mesh)
     size_t            _nq;
-    // number of q-point in the ireeducible BZ for P0, P (bosonic mesh)
+    // number of q-point in the irreducible BZ for P0, P (bosonic mesh)
     size_t            _inq;
     // number of spins
     size_t            _ns;
-    // auxiliraly basis size
+    // auxiliary basis size
     size_t            _NQ;
     // madelung constant
     double            _madelung;
