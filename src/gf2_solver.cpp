@@ -59,7 +59,7 @@ namespace green::mbpt {
     for (size_t k1k3k2 = utils::context.internode_rank; k1k3k2 < _nk * _nk * _ink; k1k3k2 += utils::context.internode_size) {
       size_t                k1_pos = k1k3k2 / (_nk * _nk);
       // Link the reduce index (k1_pos) to corresponding momentum
-      size_t                k1_red = _bz_utils.symmetry().full_point(k1_pos);
+      size_t                k1_red = _bz_utils.k_symmetry().full_point(k1_pos);
       size_t                k3     = (k1k3k2 / _nk) % _nk;
       size_t                k2     = k1k3k2 % _nk;
       std::array<size_t, 4> k      = _bz_utils.momentum_conservation({k1_red, k2, k3});
@@ -126,10 +126,10 @@ namespace green::mbpt {
     // Link current k-points to corresponding reduced k's
     // k = (k_red, k1, k2, k3)
     // Find the position in the irreducible list
-    size_t k1_pos   = _bz_utils.symmetry().reduced_point(k[1]);
-    size_t k2_pos   = _bz_utils.symmetry().reduced_point(k[2]);
-    size_t k3_pos   = _bz_utils.symmetry().reduced_point(k[3]);
-    size_t k0_pos   = _bz_utils.symmetry().reduced_point(k[0]);
+    size_t k1_pos   = _bz_utils.k_symmetry().reduced_point(k[1]);
+    size_t k2_pos   = _bz_utils.k_symmetry().reduced_point(k[2]);
+    size_t k3_pos   = _bz_utils.k_symmetry().reduced_point(k[3]);
+    size_t k0_pos   = _bz_utils.k_symmetry().reduced_point(k[0]);
     size_t momshift = k0_pos * nao2;
 #pragma omp parallel
     {
@@ -155,16 +155,9 @@ namespace green::mbpt {
         int tt    = _nts - t - 1;
         // initialize Green's functions
         for (size_t isp = 0; isp < _ns; ++isp) {
-          for (size_t q0 = 0; q0 < _nao; ++q0) {
-            for (size_t p0 = 0; p0 < _nao; ++p0) {
-              G1(q0, p0) = _bz_utils.symmetry().conj_list()[k[1]] == 0 ? Gr_full_tau(t, is, k1_pos, q0, p0)
-                                                                       : std::conj(Gr_full_tau(t, is, k1_pos, q0, p0));
-              G2(q0, p0) = _bz_utils.symmetry().conj_list()[k[2]] == 0 ? Gr_full_tau(tt, isp, k2_pos, q0, p0)
-                                                                       : std::conj(Gr_full_tau(tt, isp, k2_pos, q0, p0));
-              G3(q0, p0) = _bz_utils.symmetry().conj_list()[k[3]] == 0 ? Gr_full_tau(t, isp, k3_pos, q0, p0)
-                                                                       : std::conj(Gr_full_tau(t, isp, k3_pos, q0, p0));
-            }
-          }
+          G1 = _bz_utils.k_symmetry().value_AO(Gr_full_tau(t, is), k[1]);
+          G2 = _bz_utils.k_symmetry().value_AO(Gr_full_tau(tt, isp), k[2]);
+          G3 = _bz_utils.k_symmetry().value_AO(Gr_full_tau(t, isp), k[3]);
           for (size_t i = 0; i < _nao; ++i) {
             // pm,k
             MMatrixXcd Sm(Sigma_local.data() + shift + i * _nao, 1, _nao);

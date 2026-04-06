@@ -30,7 +30,7 @@ namespace green::mbpt {
    * @brief GWSolver class performs self-energy calculation by means of GW approximation using density fitting
    */
   class gw_solver {
-    using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using bz_utils_t = symmetry::brillouin_zone_utils;
     using G_type     = utils::shared_object<ztensor<5>>;
     using S1_type    = ztensor<4>;
     using St_type    = utils::shared_object<ztensor<5>>;

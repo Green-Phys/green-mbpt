@@ -34,7 +34,7 @@
 
 namespace green::mbpt::kernels {
   class gw_cpu_kernel {
-    using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using bz_utils_t = symmetry::brillouin_zone_utils;
     using G_type     = utils::shared_object<ztensor<5>>;
     using St_type    = utils::shared_object<ztensor<5>>;
 
@@ -43,11 +43,11 @@ namespace green::mbpt::kernels {
                   const bz_utils_t& bz_utils, const ztensor<4>& S_k, bool X2C = false) :
         _beta(p["BETA"]), _nts(ft.sd().repn_fermi().nts()), _nts_b(ft.sd().repn_bose().nts()), _ni(ft.sd().repn_fermi().ni()),
         _ni_b(ft.sd().repn_bose().ni()), _nw(ft.sd().repn_fermi().nw()), _nw_b(ft.sd().repn_bose().nw()), _nk(bz_utils.nk()),
-        _ink(bz_utils.ink()), _nao(nao), _nso(nso), _ns(ns), _NQ(NQ), _X2C(X2C), _p_sp(p["P_sp"]), _sigma_sp(p["Sigma_sp"]),
+        _ink(bz_utils.ink()), _nq(bz_utils.nq()), _inq(bz_utils.inq()), _nao(nao), _nso(nso), _ns(ns), _NQ(NQ), _X2C(X2C), _p_sp(p["P_sp"]), _sigma_sp(p["Sigma_sp"]),
         _ft(ft), _bz_utils(bz_utils), _path(p["dfintegral_file"]), statistics("GW"),
-        _q0_utils(bz_utils.ink(), 0, S_k, _path, p["q0_treatment"]),
+        _q0_utils(bz_utils.inq(), 0, S_k, _path, p["q0_treatment"]),
         // _P0_tilde(0, 0, 0, 0),
-        _eps_inv_wq(ft.wsample_bose().size(), bz_utils.ink()),
+        _eps_inv_wq(ft.wsample_bose().size(), bz_utils.inq()),
         _coul_int1(nullptr) {
       _q0_utils.resize(_NQ);
     }
@@ -63,14 +63,26 @@ namespace green::mbpt::kernels {
     size_t                      _nw;
     size_t                      _nw_b;
 
+    // number of k-points in the full BZ for G and Sigma (fermionic mesh)
     size_t                      _nk;
+    // number of k-points in the irreducible BZ for G and Sigma (fermionic mesh)
     size_t                      _ink;
+    // number of q-points in the full BZ for P0, P (bosonic mesh)
+    size_t                      _nq;
+    // number of q-points in the irreducible BZ for P0, P (bosonic mesh)
+    size_t                      _inq;
+    // number of AOs
     size_t                      _nao;
+    // number of spin-orbitals
     size_t                      _nso;
+    // number of spins
     size_t                      _ns;
+    // number of auxiliary basis functions
     size_t                      _NQ;
+    // Whether to perform two-component calculation
     bool                        _X2C;
 
+    // controls for single precision in polarization and self-energy calculation
     bool                        _p_sp;
     bool                        _sigma_sp;
 
@@ -97,18 +109,24 @@ namespace green::mbpt::kernels {
     void selfenergy_innerloop(size_t q_ir, const G_type& G_fermi, St_type& Sigma_fermi_s,
                               utils::shared_object<ztensor<4>>& P0_tilde_s, utils::shared_object<ztensor<4>>& Pw_tilde_s);
 
+    // /**
+    //  * Read next part of Coulomb integrals in terms of 3-index tensors for fixed set of k-points
+    //  * @param k - [INPUT] (k1, 0, q, k1+q) or (k1, q, 0, k1-q)
+    //  */
+    // void read_next(const std::array<size_t, 4>& k);
+
     /**
      * Read next part of Coulomb integrals in terms of 3-index tensors for fixed set of k-points
-     * @param k - [INPUT] (k1, 0, q, k1+q) or (k1, q, 0, k1-q)
+     * @param k - [INPUT] (k1, k2)
      */
-    void read_next(const std::array<size_t, 4>& k);
+    void read_next(const std::array<size_t, 2>& k);
 
     /**
      * Evaluate polarization function P for a given job portion (maybe a single k-point or a set of k-points),
      * in desired precision
      */
     template <typename prec>
-    void eval_P0_tilde(const std::array<size_t, 4>& k, const G_type& G, ztensor<4>& P0_tilde_s, size_t local_tau,
+    void eval_P0_tilde(const std::array<size_t, 2>& k1_k1q, const G_type& G, ztensor<4>& P0_tilde_s, size_t local_tau,
                        size_t tau_offset);
 
     template <typename prec>
@@ -142,26 +160,37 @@ namespace green::mbpt::kernels {
      * Evaluate self-energy
      */
     template <typename prec>
-    void eval_selfenergy(const std::array<size_t, 4>& k, const G_type& G_fermi, St_type& Sigma_fermi_s, ztensor<4>& P0_tilde);
+    void eval_selfenergy(const std::array<size_t, 2>& k1_k1mq, const G_type& G_fermi, St_type& Sigma_fermi_s, ztensor<4>& P0_tilde);
 
     /**
      * Contraction for evaluating self-energy for given tau and k-point
      */
     template <typename prec>
-    void selfenergy_contraction(const std::array<size_t, 4>& k, const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm,
+    void selfenergy_contraction(const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm,
                                 MMatrixX<prec>& Y1m, MMatrixX<prec>& Y1mm, MMatrixX<prec>& Y2mm, MMatrixX<prec>& X2m,
                                 MMatrixX<prec>& Y2mmm, MMatrixX<prec>& X2mm, MatrixX<prec>& P, MatrixXcd& Sm_ts);
+
+    /**
+     * Obtain Polarization P0 / P matrix at a given q-point in the full BZ by applying
+     * symmetry transformation to the given matrix at irreducible q point.
+     *
+     * @param p0_q_ibz
+     * @param q_bz
+     * @return
+     */
+    template <typename prec>
+    MatrixX<prec> eval_p0_bz_from_ibz(const ztensor<2> &P0_tilde_q_ibz, size_t q_bz);
   };
 
   class hf_kernel {
   public:
-    using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using bz_utils_t = symmetry::brillouin_zone_utils;
     using dm_type    = ztensor<4>;
     using S1_type    = ztensor<4>;
 
     hf_kernel(const params::params& p, size_t nao, size_t nso, size_t ns, size_t NQ, double madelung, const bz_utils_t& bz_utils,
               const ztensor<4>& S_k) :
-        _nao(nao), _nso(nso), _nk(bz_utils.nk()), _ink(bz_utils.ink()), _ns(ns), _NQ(NQ), _madelung(madelung),
+        _nao(nao), _nso(nso), _nk(bz_utils.nk()), _ink(bz_utils.ink()), _nq(bz_utils.nq()), _inq(bz_utils.inq()), _ns(ns), _NQ(NQ), _madelung(madelung),
         _bz_utils(bz_utils), _S_k(S_k), _hf_path(p["dfintegral_hf_file"]), statistics("Hartree Fock"){};
     virtual ~hf_kernel() = default;
 
@@ -169,13 +198,17 @@ namespace green::mbpt::kernels {
     // number of atomic orbitals per cell
     size_t            _nao;
     size_t            _nso;
-    // number of cells for GF2 loop
+    // number of k-points in the full BZ for G and Sigma_inf (fermionic mesh)
     size_t            _nk;
-    // number of k-point after time-reversal symmetry
+    // number of k-point in the irreducible BZ for G and Sigma_inf (fermionic mesh)
     size_t            _ink;
+    // number of q-points in the full BZ for P0, P (bosonic mesh)
+    size_t            _nq;
+    // number of q-point in the irreducible BZ for P0, P (bosonic mesh)
+    size_t            _inq;
     // number of spins
     size_t            _ns;
-    // auxiliraly basis size
+    // auxiliary basis size
     size_t            _NQ;
     // madelung constant
     double            _madelung;

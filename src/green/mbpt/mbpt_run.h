@@ -35,9 +35,7 @@
 
 namespace green::mbpt {
 
-  inline void read_hartree_fock_selfenergy(const params::params&                                        p,
-                                           const symmetry::brillouin_zone_utils<symmetry::inv_symm_op>& bz,
-                                           sc::ztensor<4>&                                              Sigma1) {
+  inline void read_hartree_fock_selfenergy(const params::params& p, const symmetry::brillouin_zone_utils& bz, sc::ztensor<4>& Sigma1) {
     h5pp::archive         ar(p["input_file"]);
     std::array<size_t, 4> shape = Sigma1.shape();
     shape[1]                    = bz.nk();
@@ -115,10 +113,11 @@ namespace green::mbpt {
     tau_hs_t   g_tau_hs(nts, ns, kmesh_hs.shape()[0], nso);
     tau_hs_t   g_omega_hs(nw, ns, kmesh_hs.shape()[0], nso);
     // Compute transformation matricies
+    // TODO: This can be moved to k-to-r and r-to-k in bz_utils to maintain a clean separation of work
     for (size_t ir = 0; ir < rmesh.shape()[0]; ++ir) {
       auto r = rmesh(ir);
       for (size_t ik = 0; ik < nk; ++ik) {
-        auto   k       = dyson_solver.bz_utils().mesh()(ik);
+        auto   k       = dyson_solver.bz_utils().kmesh()(ik);
         double rk      = std::inner_product(r.begin(), r.end(), k.begin(), 0.0);
         exp_rk(ir, ik) = std::exp(std::complex<double>(0, 2 * rk * M_PI));
       }
