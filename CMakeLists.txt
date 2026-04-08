@@ -8,7 +8,7 @@ if (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
 endif ()
 
 ################ GREEN RELEASE VERSION #####################
-set(GREEN_RELEASE origin/main)
+set(GREEN_RELEASE origin/main CACHE STRING "Release version for Green dependencies")
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -37,14 +37,14 @@ endif ()
 
 include(GreenDeps)
 
-add_green_dependency(green-grids)
-add_green_dependency(green-h5pp)
-add_green_dependency(green-ndarray)
-add_green_dependency(green-params)
-add_green_dependency(green-sc)
-add_green_dependency(green-symmetry)
 add_green_dependency(green-utils)
-add_green_dependency(green-impurity)
+add_green_dependency(green-ndarray)
+add_green_dependency(green-h5pp)
+add_green_dependency(green-params)
+add_green_dependency(green-grids)
+add_green_dependency(green-symmetry)
+add_green_dependency(green-sc)
+add_green_dependency(green-impurity "origin/main")
 
 if (CUSTOM_KERNELS)
     include(AddGreenKernel)

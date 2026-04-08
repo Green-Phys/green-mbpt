@@ -176,13 +176,12 @@ namespace green::embedding {
     // initialize Dyson solver
     mbpt::shared_mem_dyson dyson(p);
     // Allocate working arrays
-    double _ = 0.0;
     auto G_tau = utils::shared_object<mbpt::ztensor<5>>(dyson.ft().sd().repn_fermi().nts(), dyson.ns(), dyson.bz_utils().ink(),
                                                         dyson.nso(), dyson.nso());
     auto Sigma_tau = utils::shared_object<mbpt::ztensor<5>>(dyson.ft().sd().repn_fermi().nts(), dyson.ns(),
                                                             dyson.bz_utils().ink(), dyson.nso(), dyson.nso());
     auto Sigma1    = mbpt::ztensor<4>(dyson.ns(), dyson.bz_utils().ink(), dyson.nso(), dyson.nso());
-    sc::read_results(_, G_tau, Sigma1, Sigma_tau, p["weak_results"].as<std::string>());
+    sc::read_results(dyson.mu(), G_tau, Sigma1, Sigma_tau, p["weak_results"].as<std::string>());
     auto embedding = p["embedding_type"].as<embedding_type>();
     if (embedding == SEET) {
       inner_seet_job(sc, p, dyson, G_tau, Sigma_tau, Sigma1);
