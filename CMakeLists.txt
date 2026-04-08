@@ -44,7 +44,8 @@ add_green_dependency(green-params)
 add_green_dependency(green-grids)
 add_green_dependency(green-symmetry)
 add_green_dependency(green-sc)
-add_green_dependency(green-impurity "origin/main")
+set(GREEN_RELEASE origin/main) # Force origin/main or other branch for green-impurity
+add_green_dependency(green-impurity)
 
 if (CUSTOM_KERNELS)
     include(AddGreenKernel)
