@@ -106,23 +106,25 @@ namespace green::embedding {
 
   inline weak_solver_functype get_weak_solver(const params::params& p, mbpt::scf_type type,
                        mbpt::shared_mem_dyson& dyson) {
-    // Hartree-Fock solver is used by all perturbation solvers.
-    mbpt::hf_solver hf(p, dyson.bz_utils(), dyson.S_k());
+    // All solver objects must be heap-allocated and captured by value in the returned lambda.
+    // composition_solver stores references (via std::ref) to the solver objects, so those
+    // objects must outlive every call to the lambda. Capturing shared_ptrs by value keeps the
+    // reference counts > 0 for the lambda's entire lifetime.
+    auto hf = std::make_shared<mbpt::hf_solver>(p, dyson.bz_utils(), dyson.S_k());
     switch (type) {
       case mbpt::HF: {
-        auto cs =  std::make_shared<sc::composition_solver<mbpt::hf_solver>>(hf);
-        return [&cs](dyn_type& G, stat_type& Sigma1, dyn_type& Sigma_t) { cs->solve(G, Sigma1, Sigma_t);};
+        auto cs = std::make_shared<sc::composition_solver<mbpt::hf_solver>>(*hf);
+        return [hf, cs](dyn_type& G, stat_type& Sigma1, dyn_type& Sigma_t) { cs->solve(G, Sigma1, Sigma_t); };
       }
       case mbpt::GW: {
-        mbpt::gw_solver        gw(p, dyson.ft(), dyson.bz_utils(), dyson.S_k());
-        auto cs =  std::make_shared<sc::composition_solver<mbpt::hf_solver, mbpt::gw_solver>>(hf, gw);
-        return [&cs](dyn_type& G, stat_type& Sigma1, dyn_type& Sigma_t) { cs->solve(G, Sigma1, Sigma_t);};
+        auto gw = std::make_shared<mbpt::gw_solver>(p, dyson.ft(), dyson.bz_utils(), dyson.S_k());
+        auto cs = std::make_shared<sc::composition_solver<mbpt::hf_solver, mbpt::gw_solver>>(*hf, *gw);
+        return [hf, gw, cs](dyn_type& G, stat_type& Sigma1, dyn_type& Sigma_t) { cs->solve(G, Sigma1, Sigma_t); };
       }
       case mbpt::GF2: {
-        mbpt::gf2_solver       gf2(p, dyson.ft(), dyson.bz_utils());
-        auto cs =  std::make_shared<sc::composition_solver<mbpt::hf_solver, mbpt::gf2_solver>>(hf, gf2);
-        return [&cs](dyn_type& G, stat_type& Sigma1, dyn_type& Sigma_t) { cs->solve(G, Sigma1, Sigma_t);};
-        //sc::composition_solver cs(hf, gf2);
+        auto gf2 = std::make_shared<mbpt::gf2_solver>(p, dyson.ft(), dyson.bz_utils());
+        auto cs  = std::make_shared<sc::composition_solver<mbpt::hf_solver, mbpt::gf2_solver>>(*hf, *gf2);
+        return [hf, gf2, cs](dyn_type& G, stat_type& Sigma1, dyn_type& Sigma_t) { cs->solve(G, Sigma1, Sigma_t); };
       }
       default: {
         throw std::runtime_error("Unsupported weak-coupling type");
