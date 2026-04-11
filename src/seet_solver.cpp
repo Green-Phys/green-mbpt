@@ -2,7 +2,7 @@
  * Copyright (c) 2023 University of Michigan
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this
- * software and associated documentation files (the “Software”), to deal in the Software
+ * software and associated documentation files (the "Software"), to deal in the Software
  * without restriction, including without limitation the rights to use, copy, modify,
  * merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
  * permit persons to whom the Software is furnished to do so, subject to the following
@@ -11,7 +11,7 @@
  * The above copyright notice and this permission notice shall be included in all copies or
  * substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
  * PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
  * FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
@@ -56,32 +56,43 @@ namespace green::embedding {
   }
 
   void seet_solver::solve(G_type& g, S1_type& sigma_inf, St_type& sigma_tau) {
-    ztensor<4> g_loc         = compute_local_obj(g.object(), _x_inv_k);
-    ztensor<4> sigma_loc     = compute_local_obj(sigma_tau.object(), _x_k);
-    ztensor<3> sigma_inf_loc = compute_local_obj(sigma_inf, _x_k);
-    ztensor<3> ovlp_loc      = compute_local_obj(_ovlp_k, _x_k);
-    ztensor<3> h_core_loc    = compute_local_obj(_h_core_k, _x_k);
-    ztensor<3> sigma_inf_loc_new(sigma_inf_loc.shape());
-    ztensor<4> sigma_loc_new(sigma_loc.shape());
-    // loop over all impurities
-    if (!utils::context.global_rank) {
-      auto [sigma_inf_loc_new_, sigma_loc_new_] = _solver.solve(_mu, ovlp_loc, h_core_loc, sigma_inf_loc, sigma_loc, g_loc);
-      sigma_inf_loc_new << sigma_inf_loc_new_;
-      sigma_loc_new << sigma_loc_new_;
-    }
-    MPI_Bcast(sigma_inf_loc_new.data(), sigma_inf_loc_new.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
-    MPI_Bcast(sigma_loc_new.data(), sigma_loc_new.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
+    // Snapshot local quantities from the full (weak + impurity) self-energy BEFORE resetting to
+    // weak coupling. g_loc, sigma_loc, and sigma_inf_full_loc all carry impurity corrections from
+    // the previous iteration and are used as bath inputs to the impurity solver.
+    ztensor<4> g_loc            = compute_local_obj(g.object(), _x_inv_k);
+    ztensor<4> sigma_loc        = compute_local_obj(sigma_tau.object(), _x_k);
+    ztensor<3> ovlp_loc         = compute_local_obj(_ovlp_k, _x_k);
+    ztensor<3> h_core_loc       = compute_local_obj(_h_core_k, _x_k);
+    ztensor<3> sigma_inf_full_loc = compute_local_obj(sigma_inf, _x_k);
 
+    // Reset sigma to the weak-coupling result. After this call sigma_inf and sigma_tau
+    // hold only the HF/GW contribution — no impurity corrections.
     _weak_solver(g, sigma_inf, sigma_tau);
+    ztensor<3> sigma_inf_weak_loc = compute_local_obj(sigma_inf, _x_k);
 
+    // Solve all impurity problems. The return values are the net impurity corrections
+    // (sigma_imp - DC) summed over impurities, ready to be added to the weak-coupling sigma.
+    ztensor<3> sigma_inf_imp_loc(sigma_inf_weak_loc.shape());
+    ztensor<4> sigma_tau_imp_loc(sigma_loc.shape());
+    if (!utils::context.global_rank) {
+      auto [sigma_inf_imp_, sigma_tau_imp_] = _solver.solve(_mu, ovlp_loc, h_core_loc,
+                                                            sigma_inf_weak_loc, sigma_inf_full_loc,
+                                                            sigma_loc, g_loc);
+      sigma_inf_imp_loc << sigma_inf_imp_;
+      sigma_tau_imp_loc << sigma_tau_imp_;
+    }
+    MPI_Bcast(sigma_inf_imp_loc.data(), sigma_inf_imp_loc.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
+    MPI_Bcast(sigma_tau_imp_loc.data(), sigma_tau_imp_loc.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
+
+    // Add impurity correction on top of the weak-coupling sigma (already in sigma_inf / sigma_tau).
     for (size_t is = 0; is < g.object().shape()[1]; ++is) {
       auto x_k = _x_inv_k.shape()[1] == _bz_utils.nk() ? _bz_utils.full_to_ibz(_x_inv_k(is)) : _x_inv_k(is).copy();
       for (size_t ik = 0; ik < g.object().shape()[2]; ++ik) {
         auto x_k_m = mbpt::matrix(x_k(ik));
-        mbpt::matrix(sigma_inf(is, ik)) += x_k_m * mbpt::matrix(sigma_inf_loc_new(is)) * x_k_m.adjoint();
+        mbpt::matrix(sigma_inf(is, ik)) += x_k_m * mbpt::matrix(sigma_inf_imp_loc(is)) * x_k_m.adjoint();
         sigma_tau.fence();
         for (size_t it = utils::context.node_rank; it < g.object().shape()[0]; it += utils::context.node_size) {
-          mbpt::matrix(sigma_tau.object()(it, is, ik)) += x_k_m * mbpt::matrix(sigma_loc_new(it, is)) * x_k_m.adjoint();
+          mbpt::matrix(sigma_tau.object()(it, is, ik)) += x_k_m * mbpt::matrix(sigma_tau_imp_loc(it, is)) * x_k_m.adjoint();
         }
         sigma_tau.fence();
       }
