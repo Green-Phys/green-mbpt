@@ -70,10 +70,10 @@ namespace green::embedding {
      * @param second_only -- Whether do GW or only second-order direct diagram
      */
     seet_solver(const params::params& p, const grids::transformer_t& ft, const bz_utils_t& bz_utils, const ztensor<4>& H_k,
-                const ztensor<4>& S_k, const double& mu,
+        const ztensor<4>& S_k, const double& mu,
                 std::function<void(std::string, int, utils::shared_object<ztensor<5>> &,ztensor<4>&, utils::shared_object<ztensor<5>>&)>& dc_solver,
                 const weak_solver_functype& weak_solver) :
-        _ft(ft), _bz_utils(bz_utils), _ovlp_k(S_k), _h_core_k(H_k), _mu(mu), _solver(p, ft, bz_utils, dc_solver), _weak_solver(weak_solver) {
+      _ft(ft), _bz_utils(bz_utils), _ovlp_k(S_k), _h_core_k(H_k), _mu(mu), _solver(p, ft, bz_utils, dc_solver), _weak_solver(weak_solver) {
       h5pp::archive ar(p["input_file"]);
       ar["params/nao"] >> _nao;
       ar["params/nso"] >> _nso;

@@ -133,7 +133,7 @@ namespace green::embedding {
   }
 
   inline void seet_job(sc::sc_loop<mbpt::shared_mem_dyson>& sc, const params::params& p, mbpt::scf_type type,
-                       mbpt::shared_mem_dyson& dyson, utils::shared_object<mbpt::ztensor<5>>& G_tau,
+                       utils::shared_object<mbpt::ztensor<5>>& G_tau,
                        utils::shared_object<mbpt::ztensor<5>>& Sigma_tau, mbpt::ztensor<4>& Sigma1) {
     /*read_hartree_fock_selfenergy(p, dyson.bz_utils(), Sigma1);
     G_tau.fence();
@@ -144,13 +144,14 @@ namespace green::embedding {
     Sigma_tau.fence();*/
     params::params p2           = p;
     std::string    dc_data_path = p["dc_data_prefix"].as<std::string>();
+    auto&          dyson        = sc.dyson_solver();
     auto dc_solver              = get_dc_solver(p2);
     auto weak_solver            = get_weak_solver(p, type, dyson);
     seet_solver seet(p, dyson.ft(), dyson.bz_utils(), dyson.H_k(), dyson.S_k(), dyson.mu(), dc_solver, weak_solver);
     sc.solve(seet, dyson.H_k(), dyson.S_k(), G_tau, Sigma1, Sigma_tau);
   }
 
-  inline void inner_seet_job(sc::sc_loop<mbpt::shared_mem_dyson>& sc, const params::params& p, mbpt::shared_mem_dyson& dyson,
+  inline void inner_seet_job(sc::sc_loop<mbpt::shared_mem_dyson>& sc, const params::params& p,
                              utils::shared_object<mbpt::ztensor<5>>& G_tau, utils::shared_object<mbpt::ztensor<5>>& Sigma_tau,
                              mbpt::ztensor<4>& Sigma1) {
     /*read_hartree_fock_selfenergy(p, dyson.bz_utils(), Sigma1);
@@ -163,6 +164,7 @@ namespace green::embedding {
     params::params         p2           = p;
     std::string            dc_data_path = p["dc_data_prefix"].as<std::string>();
     std::string            grid_file    = p["grid_file"].as<std::string>();
+    auto&                  dyson        = sc.dyson_solver();
     auto                   dc_solver    = get_dc_solver(p2);
     auto                   seet_weak = std::make_shared<seet_inner_solver>(p);
     auto                   weak_solver = [&seet_weak](utils::shared_object<mbpt::ztensor<5>>& G, mbpt::ztensor<4>& Sigma1, 
@@ -176,7 +178,8 @@ namespace green::embedding {
   inline void run(sc::sc_loop<mbpt::shared_mem_dyson>& sc, const params::params& p) {
     const mbpt::scf_type   type = p["scf_type"];
     // initialize Dyson solver
-    mbpt::shared_mem_dyson dyson(p);
+    // mbpt::shared_mem_dyson dyson(p);
+    auto& dyson = sc.dyson_solver();
     // Allocate working arrays
     auto G_tau = utils::shared_object<mbpt::ztensor<5>>(dyson.ft().sd().repn_fermi().nts(), dyson.ns(), dyson.bz_utils().ink(),
                                                         dyson.nso(), dyson.nso());
@@ -186,9 +189,9 @@ namespace green::embedding {
     sc::read_results(dyson.mu(), G_tau, Sigma1, Sigma_tau, p["weak_results"].as<std::string>());
     auto embedding = p["embedding_type"].as<embedding_type>();
     if (embedding == SEET) {
-      inner_seet_job(sc, p, dyson, G_tau, Sigma_tau, Sigma1);
+      inner_seet_job(sc, p, G_tau, Sigma_tau, Sigma1);
     } else if (embedding == FSC_SEET) {
-      seet_job(sc, p, type, dyson, G_tau, Sigma_tau, Sigma1);
+      seet_job(sc, p, type, G_tau, Sigma_tau, Sigma1);
     }
     if (!utils::context.global_rank) std::cout << "Completed." << std::endl;
   }
