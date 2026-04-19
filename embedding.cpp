@@ -34,6 +34,7 @@ int  main(int argc, char** argv) {
   green::symmetry::define_parameters(p);
   green::grids::define_parameters(p);
   green::mbpt::define_parameters(p);
+  green::impurity::define_parameters(p);
   green::embedding::define_parameters(p);
 
   if (!p.parse(argc, argv)) {

@@ -53,10 +53,6 @@ namespace green::embedding {
     p.define<embedding_type>("embedding_type", "Type of Embedding theory (SEET - inner loop self-consistency self-energy embedding; FSC_SEET - fully self-consistent self-energy embedding).");
     p.define<std::string>("seet_input", "Input file with SEET transformations.", "transform.h5");
     p.define<std::string>("weak_results", "Results from the weak-coupling simulation.");
-    p.define<std::string>("bath_file", "Input file with initial bath parameters.", "bath.txt");
-    p.define<std::string>("impurity_solver", "Type of the impurity solver.", "ED");
-    p.define<std::string>("impurity_solver_exec", "Path to an impurity solver executable.");
-    p.define<std::string>("impurity_solver_params", "Impurity solver parameters.");
     p.define<std::string>("dc_data_prefix", "Prefix for the path to the double counting data.");
     p.define<std::string>("seet_root_dir", "Directory to put output for impurity solvers.", "");
     p.define<bool>("spin_symm", "Apply spin symmetrization to hybridization function", false);
