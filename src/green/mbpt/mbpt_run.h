@@ -237,16 +237,16 @@ namespace green::mbpt {
     input.close();
   }
 
-  inline void check_input(const params::params&p) {
-    std::string path = p["input_file"];
+  inline void check_input(const params::params& p) {
+    std::string   path = p["input_file"];
     h5pp::archive ar(path, "r");
-    if(ar.has_attribute("__green_version__")) {
+    if (ar.has_attribute("__green_version__")) {
       std::string int_version = ar.get_attribute<std::string>("__green_version__");
-      if (!CheckVersion(int_version)) {
-        throw mbpt_outdated_input("Input file at '" + path +"' is outdated, please run migration script python/migrate.py");
+      if (int_version.rfind(INPUT_VERSION, 0) != 0) {
+        throw mbpt_outdated_input("Input file at '" + path + "' is outdated, please run migration script python/migrate.py");
       }
     } else {
-      throw mbpt_outdated_input("Input file at '" + path +"' is outdated, please run migration script python/migrate.py");
+      throw mbpt_outdated_input("Input file at '" + path + "' is outdated, please run migration script python/migrate.py");
     }
     ar.close();
   }
@@ -258,7 +258,7 @@ namespace green::mbpt {
     shared_mem_dyson dyson(p);
     // Allocate working arrays
     auto G_tau     = utils::shared_object<ztensor<5>>(dyson.ft().sd().repn_fermi().nts(), dyson.ns(), dyson.bz_utils().ink(),
-                                                  dyson.nso(), dyson.nso());
+                                                      dyson.nso(), dyson.nso());
     auto Sigma_tau = utils::shared_object<ztensor<5>>(dyson.ft().sd().repn_fermi().nts(), dyson.ns(), dyson.bz_utils().ink(),
                                                       dyson.nso(), dyson.nso());
     auto Sigma1    = ztensor<4>(dyson.ns(), dyson.bz_utils().ink(), dyson.nso(), dyson.nso());
