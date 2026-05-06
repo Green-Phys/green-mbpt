@@ -38,7 +38,7 @@
 
 namespace green::mbpt::kernels {
   class hf_kernel_factory {
-    using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using bz_utils_t = symmetry::brillouin_zone_utils;
     using x_type     = ztensor<4>;
 
   public:
@@ -78,7 +78,7 @@ namespace green::mbpt::kernels {
   };
 
   class gw_kernel_factory {
-    using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using bz_utils_t = symmetry::brillouin_zone_utils;
     using G_type     = utils::shared_object<ztensor<5>>;
 
   public:

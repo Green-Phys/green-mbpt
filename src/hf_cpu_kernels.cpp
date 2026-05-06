@@ -41,20 +41,21 @@ namespace green::mbpt::kernels {
       MMatrixXcd X1m(X1.data(), _nao * _nao, 1);
       MMatrixXcd vm(v.data(), NQ_local, _nao * _nao);
       MMatrixXcd upper_Coul_m(upper_Coul.data() + NQ_offset, NQ_local, 1);
-      for (int ikps = ctx.internode_rank; ikps < _ink * _ns; ikps += ctx.internode_size) {
-        int is    = ikps % _ns;
-        int ikp   = ikps / _ns;
-        int kp_ir = _bz_utils.symmetry().full_point(ikp);
-        statistics.start("Read Coulomb Up");
-        coul_int1.read_integrals(kp_ir, kp_ir);
-        statistics.end();
-        if(NQ_local > 0) {
-          coul_int1.symmetrize(v, kp_ir, kp_ir, NQ_offset, NQ_local);
+      if(NQ_local > 0) {
+        // TODO: We can save a lot of time here by reducing the loop over ikp, but that would require removing the NQ_local, NQ_offset framework.
+        //        The symmetry speedup only works if we load all of NQ at once -- which shold be doable now that we have much smaller memory footprint.
+        for (int ikps = utils::context.internode_rank; ikps < _nk * _ns; ikps += utils::context.internode_size) {
+          int is    = ikps % _ns;
+          int ikp   = ikps / _ns;
+          statistics.start("Read Coulomb Up");
+          coul_int1.read_integrals(ikp, ikp);
+          statistics.end();
 
-          X1 = CMMatrixXcd(dm.data() + is * _ink * _nao * _nao + ikp * _nao * _nao, _nao, _nao);
-          X1 = X1.transpose().eval();
+          coul_int1.symmetrize(v, ikp, ikp, NQ_offset, NQ_local);
+
+          X1 = _bz_utils.k_symmetry().value_AO(dm(is), ikp).transpose();
           // (Q, 1) = (Q, ab) * (ab, 1)
-          upper_Coul_m += _bz_utils.symmetry().weight()[kp_ir] * vm * X1m;
+          upper_Coul_m += vm * X1m;
         }
       }
       statistics.start("Reduce Direct");
@@ -62,14 +63,14 @@ namespace green::mbpt::kernels {
       statistics.end();
 
       upper_Coul /= double(_nk);
-      for (int ii = ctx.internode_rank; ii < _ink * _ns; ii += ctx.internode_size) {
-        int is   = ii / _ink;
-        int ik   = ii % _ink;
-        int k_ir = _bz_utils.symmetry().full_point(ik);
-        statistics.start("Read Coulomb Low");
-        coul_int1.read_integrals(k_ir, k_ir);
-        statistics.end();
-        if(NQ_local > 0) {
+      if (NQ_local > 0) {
+        for (int ii = utils::context.internode_rank; ii < _ink * _ns; ii += utils::context.internode_size) {
+          int is   = ii / _ink;
+          int ik   = ii % _ink;
+          int k_ir = _bz_utils.k_symmetry().full_point(ik);
+          statistics.start("Read Coulomb Low");
+          coul_int1.read_integrals(k_ir, k_ir);
+          statistics.end();
           coul_int1.symmetrize(v, k_ir, k_ir, NQ_offset, NQ_local);
 
           MMatrixXcd Fm(new_Fock.data() + is * _ink * _nao * _nao + ik * _nao * _nao, 1, _nao * _nao);
@@ -93,29 +94,26 @@ namespace green::mbpt::kernels {
       ztensor<3> v2(_nao, NQ_local, _nao);
       MMatrixXcd v2m(v2.data(), _nao, NQ_local * _nao);
       MMatrixXcd v2mm(v2.data(), _nao * NQ_local, _nao);
+      MatrixXcd dmm(_nao, _nao);
       double     prefactor = (_ns == 2) ? 1.0 : 0.5;
       statistics.start("Exchange");
-      for (int ii = ctx.internode_rank; ii < _ink * _ns; ii += ctx.internode_size) {
-        int        is   = ii / _ink;
-        int        ik   = ii % _ink;
-        int        k_ir = _bz_utils.symmetry().full_point(ik);
-        MMatrixXcd Fmm(new_Fock.data() + is * _ink * _nao * _nao + ik * _nao * _nao, _nao, _nao);
-        for (int ikp = 0; ikp < _nk; ++ikp) {
-          int         kp = _bz_utils.symmetry().reduced_point(ikp);
-          CMMatrixXcd dmm(dm.data() + is * _ink * _nao * _nao + kp * _nao * _nao, _nao, _nao);
-          statistics.start("Read Coulomb Exch");
-          coul_int1.read_integrals(k_ir, ikp);
-          statistics.end();
-          if(NQ_local > 0) {
+      if (NQ_local > 0) {
+        for (int ii = utils::context.internode_rank; ii < _ink * _ns; ii += utils::context.internode_size) {
+          int        is   = ii / _ink;
+          int        ik   = ii % _ink;
+          int        k_ir = _bz_utils.k_symmetry().full_point(ik);
+          MMatrixXcd Fmm(new_Fock.data() + is * _ink * _nao * _nao + ik * _nao * _nao, _nao, _nao);
+          for (int ikp = 0; ikp < _nk; ++ikp) {
+            dmm = _bz_utils.k_symmetry().value_AO(dm(is), ikp);
+            statistics.start("Read Coulomb Exch");
+            coul_int1.read_integrals(k_ir, ikp);
+            statistics.end();
             // (Q, i, b) or conj(Q, j, a)
             coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
 
             // (Qi, a) = (Qi, b) * (b, a)
-            if (_bz_utils.symmetry().conj_list()[ikp] == 0) {
-              Ym = vmm * dmm;
-            } else {
-              Ym = vmm * dmm.conjugate();
-            }
+            Ym = vmm * dmm;
+
             // (ia, Q)
             Y1m = Ymm.transpose();
             // (a, Qj). (Q, j, a) -> (a, Q, j)*
@@ -175,7 +173,6 @@ namespace green::mbpt::kernels {
       NQ_offset = (NQ_offset >= _NQ) ? 0 : NQ_offset;
       ztensor<3> v(NQ_local, _nao, _nao);
       // Direct diagram
-      // if (ctx.global_rank < _ink) {
       statistics.start("X2C direct diagram");
       {
         MatrixXcd  X1(_nao, _nao);
@@ -184,23 +181,21 @@ namespace green::mbpt::kernels {
         MMatrixXcd vm(v.data(), NQ_local, _nao * _nao);
 
         ztensor<2> upper_Coul(_NQ, 1);
+        upper_Coul.set_zero();
         MMatrixXcd upper_Coul_m(upper_Coul.data() + NQ_offset, NQ_local, 1);
-        for (int ikp = ctx.internode_rank; ikp < _ink; ikp += ctx.internode_size) {
-        // for (size_t ikp = 0; ikp < _ink; ++ikp) {
-          size_t kp_ir = _bz_utils.symmetry().full_point(ikp);
-
-          coul_int1.read_integrals(kp_ir, kp_ir);
+        for (int ikp = utils::context.internode_rank; ikp < _nk; ikp += utils::context.internode_size) {
+          coul_int1.read_integrals(ikp, ikp);
           if(NQ_local > 0) {
-            coul_int1.symmetrize(v, kp_ir, kp_ir, NQ_offset, NQ_local);
+            coul_int1.symmetrize(v, ikp, ikp, NQ_offset, NQ_local);
 
             // Sum of alpha-alpha and beta-beta spin block
             // In the presence of TR symmetry,
             // (dm_aa(-k) + dm_bb(-k)) = (dm_aa(k) + dm_bb(k))*
-            X1 = matrix(dm_spblks[0](ikp)) + matrix(dm_spblks[1](ikp));
+            MatrixXcd dm_so = _bz_utils.k_symmetry().value_AO(dm(0), ikp);
+            X1 = dm_so.block(0, 0, _nao, _nao) + dm_so.block(_nao, _nao, _nao, _nao);
             X1 = X1.transpose().eval();
             // (Q, 1) = (Q, ab) * (ab, 1)
-            // Since vm(k) = vm(-k)* as well, we only need to take care of half of the k-point
-            upper_Coul_m += _bz_utils.symmetry().weight()[kp_ir] * vm * X1m;
+            upper_Coul_m += vm * X1m;
           }
         }
         statistics.start("Reduce Direct");
@@ -210,8 +205,8 @@ namespace green::mbpt::kernels {
 
         MatrixXcd  Fm(1, _nao * _nao);
         MMatrixXcd Fmm(Fm.data(), _nao, _nao);
-        for (int ik = ctx.internode_rank; ik < _ink; ik += ctx.internode_size) {
-          int k_ir = _bz_utils.symmetry().full_point(ik);
+        for (int ik = utils::context.internode_rank; ik < _ink; ik += utils::context.internode_size) {
+          int k_ir = _bz_utils.k_symmetry().full_point(ik);
 
           coul_int1.read_integrals(k_ir, k_ir);
           if(NQ_local > 0) {
@@ -284,11 +279,11 @@ namespace green::mbpt::kernels {
                                                 df_integral_t& coul_int1, ztensor<3>& Y, MMatrixXcd& Ym, MMatrixXcd& Ymm,
                                                 ztensor<3>& Y1, MMatrixXcd& Y1m, MMatrixXcd& Y1mm, MMatrixXcd& vmm,
                                                 ztensor<3>& v2, MMatrixXcd& v2m, MMatrixXcd& v2mm, size_t NQ_local, size_t NQ_offset) {
-    int       k_ir = _bz_utils.symmetry().full_point(ik);
+    int       k_ir = _bz_utils.k_symmetry().full_point(ik);
     MatrixXcd Fock = MatrixXcd::Zero(_nao, _nao);
 
     for (int ikp = 0; ikp < _nk; ++ikp) {
-      int kp = _bz_utils.symmetry().reduced_point(ikp);
+      int kp = _bz_utils.k_symmetry().reduced_point(ikp);
 
       coul_int1.read_integrals(k_ir, ikp);
       if(NQ_local > 0) {
@@ -296,7 +291,7 @@ namespace green::mbpt::kernels {
         coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
 
         // (Qi, a) = (Qi, b) * (b, a)
-        if (_bz_utils.symmetry().conj_list()[ikp] == 0) {
+        if (_bz_utils.k_symmetry().tr_conj_list()[ikp] == 0) {
           CMMatrixXcd dmm(dm_s1_s2.data() + kp * _nao * _nao, _nao, _nao);
           Ym = vmm * dmm;
         } else {
@@ -318,11 +313,11 @@ namespace green::mbpt::kernels {
                                                    ztensor<3>& Y, MMatrixXcd& Ym, MMatrixXcd& Ymm, ztensor<3>& Y1,
                                                    MMatrixXcd& Y1m, MMatrixXcd& Y1mm, MMatrixXcd& vmm, ztensor<3>& v2,
                                                    MMatrixXcd& v2m, MMatrixXcd& v2mm, size_t NQ_local, size_t NQ_offset) {
-    int       k_ir = _bz_utils.symmetry().full_point(ik);
+    int       k_ir = _bz_utils.k_symmetry().full_point(ik);
     MatrixXcd Fock = MatrixXcd::Zero(_nao, _nao);
 
     for (int ikp = 0; ikp < _nk; ++ikp) {
-      int kp = _bz_utils.symmetry().reduced_point(ikp);
+      int kp = _bz_utils.k_symmetry().reduced_point(ikp);
 
       coul_int1.read_integrals(k_ir, ikp);
       if(NQ_local > 0) {
@@ -330,7 +325,7 @@ namespace green::mbpt::kernels {
         coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
 
         // (Qi, a) = (Qi, b) * (b, a)
-        if (_bz_utils.symmetry().conj_list()[ikp] == 0) {
+        if (_bz_utils.k_symmetry().tr_conj_list()[ikp] == 0) {
           CMMatrixXcd dmm(dm_ab.data() + kp * _nao * _nao, _nao, _nao);
           Ym = vmm * dmm;
         } else {

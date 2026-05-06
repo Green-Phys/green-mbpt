@@ -45,7 +45,7 @@ namespace green::mbpt {
     // execution will proceed while current point is non-negative
     for (size_t k1i = utils::context.internode_rank; k1i < _ink * _nao; k1i += utils::context.internode_size) {
       size_t k1_pos   = k1i / _nao;
-      int    k1_red   = _bz_utils.symmetry().full_point(k1_pos);
+      int    k1_red   = _bz_utils.k_symmetry().full_point(k1_pos);
       size_t i        = k1i % _nao;
       size_t momshift = k1_pos * nao2;
       // read next part of integrals
@@ -58,9 +58,9 @@ namespace green::mbpt {
         for (size_t s = 0; s < _ns; ++s) {
           size_t shift = t * _ns * _ink * nao2 + s * _ink * nao2 + momshift;
           // initialize Green's functions
-          G1           = extract_G_tau_k(Gr_full_tau, t, k1_pos, k1_red, s);
-          G2           = extract_G_tau_k(Gr_full_tau, tt, k1_pos, k1_red, s);
-          G3           = extract_G_tau_k(Gr_full_tau, t, k1_pos, k1_red, s);
+          G1 = _bz_utils.k_symmetry().value_AO(Gr_full_tau(t, s), k1_red);
+          G2 = _bz_utils.k_symmetry().value_AO(Gr_full_tau(tt, s), k1_red);
+          G3 = G1;
           MMatrixXcd Sm(Sigma_local.data() + shift + i * _nao, 1, _nao);
           MMatrixXcd vm_1(vijkl.data() + i * nao3, nao2, _nao);
           contraction(nao2, nao3, false, true, G1, G2, G3, Xm_4, Xm_1, Xm_2, Ym_1, Ym_2, vm_1, Xm, Vm, Vm, Sm);
@@ -88,10 +88,10 @@ namespace green::mbpt {
     for (size_t k1k2 = utils::context.internode_rank; k1k2 < _ink * _nk; k1k2 += utils::context.internode_size) {
       // k1k2 = k1 * _nk + k2
       size_t k1_pos   = k1k2 / (_nk);
-      int    k1_red   = _bz_utils.symmetry().full_point(k1_pos);
+      int    k1_red   = _bz_utils.k_symmetry().full_point(k1_pos);
 
       int    k2_red   = (k1k2) % _nk;
-      size_t k2_pos   = _bz_utils.symmetry().reduced_point(k2_red);
+      size_t k2_pos   = _bz_utils.k_symmetry().reduced_point(k2_red);
       size_t momshift = k1_pos * nao2;
       // read next part of integrals
       if (old_k1 != k1_red || old_k2 != k2_red) {
@@ -104,9 +104,9 @@ namespace green::mbpt {
         for (size_t s = 0; s < _ns; ++s) {
           size_t shift = t * _ns * _ink * nao2 + s * _ink * nao2 + momshift;
           // initialize Green's functions
-          G1           = extract_G_tau_k(Gr_full_tau, t, k1_pos, k1_red, s);
-          G2           = extract_G_tau_k(Gr_full_tau, tt, k2_pos, k2_red, s);
-          G3           = extract_G_tau_k(Gr_full_tau, t, k2_pos, k2_red, s);
+          G1 = _bz_utils.k_symmetry().value_AO(Gr_full_tau(t, s), k1_red);
+          G2 = _bz_utils.k_symmetry().value_AO(Gr_full_tau(tt, s), k2_red);
+          G3 = _bz_utils.k_symmetry().value_AO(Gr_full_tau(t, s), k2_red);
           for (size_t i = 0; i < _nao; ++i) {
             MMatrixXcd Sm(Sigma_local.data() + shift + i * _nao, 1, _nao);
             MMatrixXcd vm_1(vijkl.data() + i * nao3, nao2, _nao);
@@ -135,9 +135,9 @@ namespace green::mbpt {
     for (size_t k1k2 = utils::context.internode_rank; k1k2 < _ink * _nk; k1k2 += utils::context.internode_size) {
       // k1k2 = k1 * _nk + k2
       size_t k1_pos   = k1k2 / (_nk);
-      int    k1_red   = _bz_utils.symmetry().full_point(k1_pos);
+      int    k1_red   = _bz_utils.k_symmetry().full_point(k1_pos);
       int    k2_red   = k1k2 % _nk;
-      size_t k2_pos   = _bz_utils.symmetry().reduced_point(k2_red);
+      size_t k2_pos   = _bz_utils.k_symmetry().reduced_point(k2_red);
       size_t momshift = k1_pos * nao2;
       // read next part of integrals
       if (old_k1 != k1_red || old_k2 != k2_red) {
@@ -150,9 +150,9 @@ namespace green::mbpt {
         for (size_t s = 0; s < _ns; ++s) {
           size_t shift = t * _ns * _ink * nao2 + s * _ink * nao2 + momshift;
           // initialize Green's functions
-          G1           = extract_G_tau_k(Gr_full_tau, t, k2_pos, k2_red, s);
-          G2           = extract_G_tau_k(Gr_full_tau, tt, k2_pos, k2_red, s);
-          G3           = extract_G_tau_k(Gr_full_tau, t, k1_pos, k1_red, s);
+          G1 = _bz_utils.k_symmetry().value_AO(Gr_full_tau(t, s), k2_red);
+          G2 = _bz_utils.k_symmetry().value_AO(Gr_full_tau(tt, s), k2_red);
+          G3 = _bz_utils.k_symmetry().value_AO(Gr_full_tau(t, s), k1_red);
           for (size_t i = 0; i < _nao; ++i) {
             MMatrixXcd Sm(Sigma_local.data() + shift + i * _nao, 1, _nao);
             MMatrixXcd vm_1(vijkl.data() + i * nao3, nao2, _nao);

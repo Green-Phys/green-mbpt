@@ -15,8 +15,8 @@ namespace green::mbpt {
   // TODO Merge two different corrections into this class
   class mbpt_q0_utils_t {
   public:
-    mbpt_q0_utils_t(size_t ink, size_t NQ, const ztensor<4>&S_k, const std::string & path, sigma_q0_treatment_e q0_treatment):
-    _ink(ink), _S_k(S_k), _q_abs(ink), _q0_treatment(q0_treatment) {
+    mbpt_q0_utils_t(size_t inq, size_t NQ, const ztensor<4>&S_k, const std::string & path, sigma_q0_treatment_e q0_treatment):
+    _q0_treatment(q0_treatment), _inq(inq), _NQ(NQ), _S_k(S_k), _q_abs(inq) {
       if (_q0_treatment == extrapolate) {
         std::string Aq_path = path + "/AqQ.h5";
         // Read _Aq, madelung constant
@@ -26,7 +26,10 @@ namespace green::mbpt {
           int_file["q_abs"] >> _q_abs;
           int_file["madelung"] >> _madelung;
           int_file.close();
-          _NQ = _AqQ.shape()[1];
+          if (_NQ != _AqQ.shape()[1]) {
+            std::runtime_error("Auxiliary basis dimension in input.h5 " + std::to_string(_NQ) +
+                               " and the size of q0 correction dataset " + std::to_string(_AqQ.shape()[1]) + " do not match.");
+          }
           //check_Aq();
         } else {
           std::cout << "## Warning: " << Aq_path << " is not found! Extrapolation treatment for GW self-energy will be disabled." << std::endl;
@@ -66,12 +69,17 @@ namespace green::mbpt {
                              size_t intranode_rank, size_t intranode_size, MPI_Win win_Sigma);
 
 
+    // type of q0 treatment
     sigma_q0_treatment_e _q0_treatment;
-    size_t _ink;
+    // number of irreducible q-points (Bosonic)
+    size_t _inq;
+    // number of auxiliary basis-functions
     size_t _NQ;
 
     ztensor<2> _AqQ;
+    // overlap metric
     const ztensor<4> &_S_k;
+    // absolute (magnitude) of q-vectors available in the irreducible q-mesh
     std::vector<double> _q_abs;
     // Madelung constant
     double _madelung;

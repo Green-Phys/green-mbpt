@@ -25,7 +25,7 @@ namespace green::mbpt {
 
   template <typename G_type, typename Sigma1_type, typename Sigma_tau_type>
   class dyson {
-    using brillouin_zone_utils = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using brillouin_zone_utils = symmetry::brillouin_zone_utils;
 
   public:
     using G         = G_type;

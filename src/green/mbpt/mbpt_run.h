@@ -24,18 +24,18 @@
 
 #include <green/params/params.h>
 #include <green/sc/sc_loop.h>
+#include <filesystem>
 
 #include "common_defs.h"
 #include "dyson.h"
 #include "gf2_solver.h"
 #include "gw_solver.h"
 #include "hf_solver.h"
+#include "except.h"
 
 namespace green::mbpt {
 
-  inline void read_hartree_fock_selfenergy(const params::params&                                        p,
-                                           const symmetry::brillouin_zone_utils<symmetry::inv_symm_op>& bz,
-                                           sc::ztensor<4>&                                              Sigma1) {
+  inline void read_hartree_fock_selfenergy(const params::params& p, const symmetry::brillouin_zone_utils& bz, sc::ztensor<4>& Sigma1) {
     h5pp::archive         ar(p["input_file"]);
     std::array<size_t, 4> shape = Sigma1.shape();
     shape[1]                    = bz.nk();
@@ -113,10 +113,11 @@ namespace green::mbpt {
     tau_hs_t   g_tau_hs(nts, ns, kmesh_hs.shape()[0], nso);
     tau_hs_t   g_omega_hs(nw, ns, kmesh_hs.shape()[0], nso);
     // Compute transformation matricies
+    // TODO: This can be moved to k-to-r and r-to-k in bz_utils to maintain a clean separation of work
     for (size_t ir = 0; ir < rmesh.shape()[0]; ++ir) {
       auto r = rmesh(ir);
       for (size_t ik = 0; ik < nk; ++ik) {
-        auto   k       = dyson_solver.bz_utils().mesh()(ik);
+        auto   k       = dyson_solver.bz_utils().kmesh()(ik);
         double rk      = std::inner_product(r.begin(), r.end(), k.begin(), 0.0);
         exp_rk(ir, ik) = std::exp(std::complex<double>(0, 2 * rk * M_PI));
       }
@@ -223,9 +224,14 @@ namespace green::mbpt {
                          utils::shared_object<ztensor<5>>& g0_tau, utils::shared_object<ztensor<5>>& sigma_tau,
                          ztensor<4>& sigma1) {
     h5pp::archive input(p["input_file"]);
+    std::string results_file = p["results_file"].as<std::string>();
+    if (!std::filesystem::exists(results_file)) {
+      throw mbpt_wrong_results_file("Results file '" + results_file + "' does not exist. " +
+                                    "Please verify the path is correct, or run the 'SC' job before running 'WINTER'.");
+    }
     if (input.has_group("high_symm_path")) {
       if (!utils::context.global_rank) std::cout << "Running Wannier interpolation" << std::endl;
-      sc::read_results(dyson.mu(), g0_tau, sigma1, sigma_tau, p["results_file"]);
+      sc::read_results(dyson.mu(), g0_tau, sigma1, sigma_tau, results_file);
       wannier_interpolation(dyson, sigma1, sigma_tau, input, p["high_symmetry_output_file"]);
     }
     input.close();

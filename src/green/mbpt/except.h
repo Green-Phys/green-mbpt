@@ -50,5 +50,10 @@ namespace green::mbpt {
     explicit mbpt_orth_error(const std::string& string) : runtime_error(string) {}
   };
 
+  class mbpt_wrong_results_file : public std::runtime_error {
+  public:
+    explicit mbpt_wrong_results_file(const std::string& what) : std::runtime_error(what) {}
+  };
+
 }  // namespace green::mbpt
 #endif  // GREEN_MBPT_EXCEPT_H

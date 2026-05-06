@@ -26,7 +26,7 @@ namespace green::mbpt {
    * @brief This class performs self-energy calculation by means of second-order PT using density fitting
    */
   class gf2_solver {
-    using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using bz_utils_t = symmetry::brillouin_zone_utils;
     using G_type     = utils::shared_object<ztensor<5>>;
     using S1_type    = ztensor<4>;
     using St_type    = utils::shared_object<ztensor<5>>;
@@ -117,22 +117,6 @@ namespace green::mbpt {
      * Performs loop over time for fixed set of k-points
      */
     void      selfenergy_innerloop(size_t tau_offset, size_t ntau_local, const std::array<size_t, 4>& k, size_t is, const ztensor<5>& Gr_full_tau);
-
-    MatrixXcd extract_G_tau_k(const ztensor<5>& G_tau, size_t t, size_t k_pos, size_t k_red, size_t s) {
-      int         ts_shift = t * G_tau.shape()[1] * G_tau.shape()[2] * _nao * _nao + s * G_tau.shape()[2] * _nao * _nao;
-      int         k_shift  = k_pos * _nao * _nao;
-      CMMatrixXcd tmp(G_tau.data() + ts_shift + k_shift, G_tau.shape()[3], G_tau.shape()[4]);
-      MatrixXcd   G = tmp;
-      if (_bz_utils.symmetry().conj_list()[k_red] == 1) {
-        for (size_t i = 0; i < _nao; ++i) {
-          for (size_t j = 0; j < _nao; ++j) {
-            G(i, j) = std::conj(G(i, j));
-          }
-        }
-      }
-
-      return G;
-    }
 
     /**
      * Performs all possible contractions for i and n indices

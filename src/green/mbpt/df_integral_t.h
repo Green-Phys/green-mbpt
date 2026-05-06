@@ -30,7 +30,7 @@ namespace green::mbpt {
     const std::string _corr_basename     = "EW";
     const std::string _corr_bar_basename = "EW_bar";
 
-    using bz_utils_t                     = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using bz_utils_t                     = symmetry::brillouin_zone_utils;
     using int_data                       = utils::shared_object<ztensor<4>>;
 
   public:
@@ -67,12 +67,12 @@ namespace green::mbpt {
       // Find corresponding index for k-pair (k1,k2). Only k-pair with k1 > k2 will be stored.
       size_t idx = (k1 >= k2) ? k1 * (k1 + 1) / 2 + k2 : k2 * (k2 + 1) / 2 + k1;  // k-pair = (k1, k2) or (k2, k1)
       // Corresponding symmetry-related k-pair
-      if (_bz_utils.symmetry().conj_kpair_list()[idx] != idx) {
-        idx = _bz_utils.symmetry().conj_kpair_list()[idx];
-      } else if (_bz_utils.symmetry().trans_kpair_list()[idx] != idx) {
-        idx = _bz_utils.symmetry().trans_kpair_list()[idx];
+      if (_bz_utils.k_symmetry().conj_kpair_list()[idx] != idx) {
+        idx = _bz_utils.k_symmetry().conj_kpair_list()[idx];
+      } else if (_bz_utils.k_symmetry().trans_kpair_list()[idx] != idx) {
+        idx = _bz_utils.k_symmetry().trans_kpair_list()[idx];
       }
-      long idx_red = _bz_utils.symmetry().irre_pos_kpair(idx);
+      long idx_red = _bz_utils.k_symmetry().irre_pos_kpair(idx);
       if ((idx_red / _chunk_size) == _current_chunk) return;  // we have data cached
 
       _current_chunk = idx_red / _chunk_size;
@@ -143,9 +143,9 @@ namespace green::mbpt {
       // determine applied symmetry type
       // by default no symmetries applied
       integral_symmetry_type_e symmetry_type = direct;
-      if (_bz_utils.symmetry().conj_kpair_list()[idx] != idx) {
+      if (_bz_utils.k_symmetry().conj_kpair_list()[idx] != idx) {
         symmetry_type = conjugated;
-      } else if (_bz_utils.symmetry().trans_kpair_list()[idx] != idx) {
+      } else if (_bz_utils.k_symmetry().trans_kpair_list()[idx] != idx) {
         symmetry_type = transposed;
       }
       return std::make_pair(sign, symmetry_type);
@@ -192,12 +192,12 @@ namespace green::mbpt {
     int               wrap(int k1, int k2) {
       size_t idx = (k1 >= k2) ? k1 * (k1 + 1) / 2 + k2 : k2 * (k2 + 1) / 2 + k1;  // k-pair = (k1, k2) or (k2, k1)
       // determine type
-      if (_bz_utils.symmetry().conj_kpair_list()[idx] != idx) {
-        idx = _bz_utils.symmetry().conj_kpair_list()[idx];
-      } else if (_bz_utils.symmetry().trans_kpair_list()[idx] != idx) {
-        idx = _bz_utils.symmetry().trans_kpair_list()[idx];
+      if (_bz_utils.k_symmetry().conj_kpair_list()[idx] != idx) {
+        idx = _bz_utils.k_symmetry().conj_kpair_list()[idx];
+      } else if (_bz_utils.k_symmetry().trans_kpair_list()[idx] != idx) {
+        idx = _bz_utils.k_symmetry().trans_kpair_list()[idx];
       }
-      int idx_red = _bz_utils.symmetry().irre_pos_kpair(idx);
+      int idx_red = _bz_utils.k_symmetry().irre_pos_kpair(idx);
       return idx_red % _chunk_size;
     }
 

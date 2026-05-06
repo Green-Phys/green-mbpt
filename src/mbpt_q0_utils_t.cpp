@@ -12,7 +12,7 @@ namespace green::mbpt {
     // X_PW_00[dim0, iq] = Aq[iq, NQ].conj() * X_aux[dim0, NQ, NQ] * Aq[iq, NQ]
     size_t dim0 = X_aux.shape()[0];
     //MMatrixX<prec> vm(v.data(), _NQ * _nao, _nao);
-    MMatrixXcd AqQ_m(_AqQ.data(), _ink, _NQ);
+    MMatrixXcd AqQ_m(_AqQ.data(), _inq, _NQ);
 
     for (size_t i = 0; i < dim0; ++i) {
       // X_PW_00_nw = _Aq(NQ).conj() * X_aux_nw(NQ, NQ) * _Aq(NQ)
@@ -21,8 +21,8 @@ namespace green::mbpt {
   }
 
   void mbpt_q0_utils_t::check_AqQ() {
-    MMatrixXcd AqQ_m(_AqQ.data(), _ink, _NQ);
-    for (size_t q = 0; q < _ink; ++q) {
+    MMatrixXcd AqQ_m(_AqQ.data(), _inq, _NQ);
+    for (size_t q = 0; q < _inq; ++q) {
       std::complex<double> identity = AqQ_m.row(q).conjugate() * AqQ_m.transpose().col(q);
       if (q != 0) std::cout << "identity = " << identity << std::endl;
     }
@@ -91,7 +91,7 @@ namespace green::mbpt {
    //MPI_Allreduce(MPI_IN_PLACE, _eps_inv_wq.data(), _eps_inv_wq.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, _comm);
    size_t nts  = Sigma.shape()[0];
    size_t nw_b = eps_inv_wq.shape()[0];
-   size_t ink  = eps_inv_wq.shape()[1];
+   size_t inq  = eps_inv_wq.shape()[1];
 
    // Extrapolate to q->0 limit
    ztensor<2> eps_q0_inv_w(nw_b, 1);
@@ -99,7 +99,7 @@ namespace green::mbpt {
    column poly_coeffs(fit_order+1);
    for (int n = 0; n < nw_b; ++n) {
      // eps_q0_inv_w(n,0) = _eps_q_inv_w(n, 1);
-     std::complex<double> *eps_inv_wn_q_ptr = eps_inv_wq.data() + n * ink;
+     std::complex<double> *eps_inv_wn_q_ptr = eps_inv_wq.data() + n * inq;
      if (n == nw_b/2) {
        eps_q0_inv_w(n, 0) = (!myid)? extrapolate_q0(eps_inv_wn_q_ptr, fit_order, 1.0, true)
                                     : extrapolate_q0(eps_inv_wn_q_ptr, fit_order, 1.0);

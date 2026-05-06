@@ -37,7 +37,7 @@ namespace green::embedding {
   using weak_solver_functype = std::function<void(dyn_type&, stat_type&, dyn_type&)>;
 
   inline void read_hartree_fock_selfenergy(const params::params&                                        p,
-                                           const symmetry::brillouin_zone_utils<symmetry::inv_symm_op>& bz,
+                                           const symmetry::brillouin_zone_utils& bz,
                                            sc::ztensor<4>&                                              Sigma1) {
     h5pp::archive         ar(p["input_file"]);
     std::array<size_t, 4> shape = Sigma1.shape();

@@ -1,0 +1,81 @@
+name: Trigger Tags in Green Repos
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  trigger-tags:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GREEN_TAG_APP_ID }}
+          private-key: ${{ secrets.GREEN_TAG_APP_PRIVATE_KEY }}
+          owner: Green-Phys
+      
+      - name: Trigger tag creation in dependent repos
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          
+          REPOS=(
+            "Green-Phys/green-grids"
+            "Green-Phys/green-h5pp"
+            "Green-Phys/green-ndarray"
+            "Green-Phys/green-params"
+            "Green-Phys/green-sc"
+            "Green-Phys/green-utils"
+            "Green-Phys/green-symmetry"
+            "Green-Phys/green-opt"
+            "Green-Phys/green-gpu"
+          )
+          
+          failed_repos=()
+          for repo in "${REPOS[@]}"; do
+            # Get the latest commit SHA on default branch
+            SHA=$(gh api repos/$repo/git/ref/heads/main --jq '.object.sha')
+            
+            # Create the tag ref directly
+            payload=$(jq -n --arg tag "$TAG_NAME" --arg sha "$SHA" \
+              '{"ref": "refs/tags/\($tag)", "sha": $sha}')
+            response=$(echo "$payload" | gh api repos/$repo/git/refs \
+              --method POST \
+              --input - 2>&1) || true
+            if echo "$response" | grep -q "Reference already exists"; then
+              echo "Tag $TAG_NAME already exists in $repo, skipping."
+            elif ! echo "$response" | grep -q "refs/tags/$TAG_NAME"; then
+              failed_repos+=("$repo")
+            fi
+          done
+          
+          if [ ${#failed_repos[@]} -ne 0 ]; then
+            echo "Failed to trigger tag creation in the following repositories: ${failed_repos[*]}"
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main  # important: checkout main, not the tag
+          token: ${{ steps.generate-token.outputs.token }}
+
+      - name: Reset VERSION to development
+        run: echo "origin/main" > GREEN_RELEASE.txt
+      - name: Commit and push
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add GREEN_RELEASE.txt
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Back to development after $TAG_NAME"
+            git push
+          fi
+        env:
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}

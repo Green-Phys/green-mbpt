@@ -53,7 +53,7 @@ namespace green::embedding {
    * from
    */
   class seet_solver {
-    using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using bz_utils_t = symmetry::brillouin_zone_utils;
     using G_type     = utils::shared_object<ztensor<5>>;
     using S1_type    = ztensor<4>;
     using St_type    = utils::shared_object<ztensor<5>>;
@@ -134,7 +134,7 @@ namespace green::embedding {
    * weak coupling problem
    */
   class seet_inner_solver {
-    using bz_utils_t = symmetry::brillouin_zone_utils<symmetry::inv_symm_op>;
+    using bz_utils_t = symmetry::brillouin_zone_utils;
     using G_type     = utils::shared_object<ztensor<5>>;
     using S1_type    = ztensor<4>;
     using St_type    = utils::shared_object<ztensor<5>>;

@@ -9,6 +9,10 @@ endif ()
 
 ################ GREEN RELEASE VERSION #####################
 set(GREEN_RELEASE origin/main CACHE STRING "Release version for Green dependencies")
+###This will need to be restored to GREEN_RELEASE once everything is on the same version
+#file(READ ${CMAKE_SOURCE_DIR}/GREEN_RELEASE.txt GREEN_RELEASE_DEFAULT)
+#string(STRIP ${GREEN_RELEASE_DEFAULT} GREEN_RELEASE_DEFAULT)
+#set (GREEN_RELEASE ${GREEN_RELEASE_DEFAULT} CACHE STRING "Release version for Green MBPT")
 
 set(CMAKE_CXX_STANDARD 17)
 
