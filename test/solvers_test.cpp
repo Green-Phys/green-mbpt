@@ -537,9 +537,9 @@ TEST_CASE("DC comparison to GFmole TEST") {
   solver(df_int_path, imp, G_tau, Sigma1, Sigma_t);
 
 
-  REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test)); 
-  REQUIRE_THAT(Sigma_t.object(), IsCloseTo(Sigma_t_test, 1e-6)); 
- 
+  REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));
+  REQUIRE_THAT(Sigma_t.object(), IsCloseTo(Sigma_t_test, 1e-6));
+
 }
 
 int main(int argc, char** argv) {
