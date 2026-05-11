@@ -30,11 +30,6 @@ namespace green::mbpt::kernels {
 
   void gw_cpu_kernel::solve(G_type& g, St_type& sigma_tau) {
     auto cntx = g.cntx();
-#ifndef NDEBUG
-    assert(g.cntx().global == sigma_tau.cntx().global);
-    assert(g.cntx().node_comm == sigma_tau.cntx().node_comm);
-    assert(g.cntx().internode_comm == sigma_tau.cntx().internode_comm);
-#endif
     _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils, cntx);
     utils::shared_object<ztensor<4>> P0_tilde_s(std::array<size_t, 4>{_nts, 1, _NQ, _NQ}, cntx);
     utils::shared_object<ztensor<4>> Pw_tilde_s(std::array<size_t, 4>{_nw_b, 1, _NQ, _NQ}, cntx);
@@ -79,11 +74,11 @@ namespace green::mbpt::kernels {
                                            utils::shared_object<ztensor<4>>& P0_tilde_s,
                                            utils::shared_object<ztensor<4>>& Pw_tilde_s) {
     auto cntx = P0_tilde_s.cntx();
-#ifndef NDEBUG
+
     if (_nts % 2 != 0) {
       throw mbpt_wrong_grid("Number of tau points should be even!!!");
     }
-#endif
+
     P0_tilde_s.fence();
     if (!cntx.node_rank) P0_tilde_s.object().set_zero();
     P0_tilde_s.fence();
