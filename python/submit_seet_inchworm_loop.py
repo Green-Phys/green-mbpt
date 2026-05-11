@@ -1,0 +1,372 @@
+#!/usr/bin/env python3
+"""
+Script to submit SEET + inchworm solver jobs in sequence.
+Alternates between SEET (with itermax=1) and inchworm solver jobs.
+
+NOTE:
+- This is a template script. You need to fill in the actual SEET and inchworm solver commands.
+- The processing of inchworm output is a placeholder and needs to be implemented based on your requirements.
+- This script will only support SIGMA_MIXING mode for now; CDIIS will require further implementation.
+"""
+
+import numpy as np
+import h5py
+import argparse
+import subprocess
+import time
+from pathlib import Path
+from .inchworm_utils import get_inchworm_selfenergy
+from green_mbtools.pesto.ir import IR_factory
+
+
+SEET_SCRIPT_TEMPLATE = """#!/bin/bash
+#SBATCH --job-name=seet_iter_{iter}
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=16
+#SBATCH --time=02:00:00
+#SBATCH --output=seet_{iter}_%j.log
+
+# Load modules, set up environment, etc.
+# module load ...
+
+# Run SEET with inchworm solver and itermax=1
+seet_command_here --input input.h5 --itermax 1 --restart true \
+  --mixing_type SIGMA_MIXING --mixing_weight {mixing} \
+  --results_file {results_filename} --seet_input {transform_filename} \
+  --impurity_solver "INCHWORM" ...
+"""
+
+INCHWORM_SCRIPT_TEMPLATE = """#!/bin/bash
+#SBATCH --job-name=inchworm_iter_{iter}
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=16
+#SBATCH --time=01:00:00
+#SBATCH --output=inchworm_{iter}_%j.log
+
+# Load modules, set up environment, etc.
+# module load ...
+
+# Run inchworm solver
+inchworm_solver_command_here
+"""
+
+
+def submit_slurm_job(script_path: Path) -> str:
+    """
+    Submit a SLURM job and return the job ID.
+    """
+    result = subprocess.run(
+        ["sbatch", str(script_path)],
+        capture_output=True,
+        text=True
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to submit job: {result.stderr}")
+    
+    # Extract job ID from output (format: "Submitted batch job XXXXX")
+    job_id = result.stdout.strip().split()[-1]
+    print(f"Submitted job {job_id}: {script_path.name}")
+    return job_id
+
+
+def check_job_status(job_id: str) -> str:
+    """
+    Check the status of a SLURM job.
+    Returns: "COMPLETED", "RUNNING", "PENDING", or "FAILED"
+    """
+    result = subprocess.run(["scontrol", "show", "job", job_id], capture_output=True, text=True)
+    if result.returncode != 0:
+        return "UNKNOWN"
+    
+    if "JobState=COMPLETED" in result.stdout:
+        return "COMPLETED"
+    elif "JobState=RUNNING" in result.stdout:
+        return "RUNNING"
+    elif "JobState=PENDING" in result.stdout:
+        return "PENDING"
+    elif "JobState=FAILED" in result.stdout or "JobState=TIMEOUT" in result.stdout:
+        return "FAILED"
+    else:
+        return "UNKNOWN"
+
+
+def wait_for_job(job_id: str, check_interval: int = 30, max_wait: int = 86400) -> bool:
+    """
+    Wait for a job to complete.
+    Returns True if job completed successfully, False otherwise.
+    """
+    elapsed = 0
+    while elapsed < max_wait:
+        status = check_job_status(job_id)
+        print(f"Job {job_id} status: {status}")
+        
+        if status == "COMPLETED":
+            print(f"Job {job_id} completed successfully")
+            return True
+        elif status == "FAILED":
+            print(f"Job {job_id} failed")
+            return False
+        elif status == "UNKNOWN":
+            print(f"Job {job_id} not found (may have been purged)")
+            return False
+        
+        time.sleep(check_interval)
+        elapsed += check_interval
+    
+    print(f"Job {job_id} did not complete within {max_wait} seconds")
+    return False
+
+
+def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namespace) -> bool:
+    """
+    Process inchworm solver output before next SEET iteration.
+    
+    PLACEHOLDER: Implement your post-processing logic here.
+    
+    Examples of what you might do:
+    - Read inchworm output files
+    - Extract self-energy, Green's function, or other observables
+    - Transform/convert data formats
+    - Update input files for next SEET iteration
+    - Check convergence criteria
+    - Copy/move files to appropriate locations
+    
+    Parameters
+    ----------
+    iteration : int
+        Current iteration number (starts from 1)
+    workdir : Path
+        Working directory containing input/output files
+    args : argparse.Namespace
+        Command-line arguments containing results_file and transform_file
+    
+    Returns
+    -------
+    bool
+        True if processing succeeded, False if it failed
+    """
+    print(f"\n{'='*60}")
+    print(f"Processing inchworm output from iteration {iteration}")
+    print(f"{'='*60}")
+
+    # Open and obtain transformation
+    ftransform = h5py.File(args.transform_file, 'r')
+    nimp = ftransform['nimp'][()]
+    # Orthogonal -> AO basis transformation (full BZ, filter to IBZ below)
+    X_inv_k_full = ftransform['X_inv_k'][()]
+    # Projection from active to full orbital space
+    uu_trans = []
+    nao_imp = []
+    for i in range(nimp):
+        uu_i = ftransform[f"{i}/UU"][()] + 0j
+        uu_trans.append(uu_i)
+        nao_imp.append(uu_i.shape[0])
+    ftransform.close()
+    # NOTE: expecting sigma on imaginary-time grid.
+
+    # Filter X_inv_k to IBZ k-points
+    with h5py.File(args.input_file, 'r') as finput:
+        # Grids data
+        ir_list = finput['grid/ir_list'][()]
+        ink = finput['grid/ink'][()]
+        nk_full = finput['grid/nk'][()]
+        index = finput['grid/index'][()]
+        kpt_weight = np.zeros_like(ir_list)  # degree of each unique k-point
+        for i, ik in enumerate(ir_list):
+            kpt_weight[i] = np.sum(index == ik)
+        # One electron Hamiltonian
+        Hk = finput['HF/H-k'][()].view(complex)
+        Hk = Hk.reshape(Hk.shape[:-1])
+        Hk = Hk[:, ir_list]  # extract only IBZ k-points
+        # Spin symmetry
+        nao = finput['params/nao'][()]
+        nso = finput['params/nso'][()]
+        ns = finput['params/ns'][()]
+        if ns == 1 and nso == 2 * nao:
+            spin_type = 'rhf'
+        elif ns == 1 and nso == nao:
+            spin_type = 'x2c'
+        elif ns == 2 and nso == 2 * nao:
+            spin_type = 'uhf'
+        else:
+            raise ValueError(f"Unsupported spin configuration: ns={ns}, nso={nso}, nao={nao}")
+    X_inv_k = X_inv_k_full[ir_list]
+
+    # Open output file
+    fsimseet = h5py.File(args.results_file, 'r+')
+    iter_group = fsimseet['iter{}'.format(iteration)]
+    sigma_group = fsimseet['iter{}/Selfenergy'.format(iteration)]
+    mu = fsimseet['iter{}/mu'.format(iteration)][()]
+    gtau = fsimseet['iter{}/G_tau/data'.format(iteration)][()]
+    sigma_in = sigma_group['data'][()]
+    sigma_inf_in = fsimseet['iter{}/Sigma1'.format(iteration)][()]
+    ntau, ns_sigma, nk_sigma, nao_full, _ = sigma_in.shape
+    assert ns_sigma == ns, f"Spin dimension mismatch between sigma_in (ns = {ns_sigma}) and params/ns (ns = {ns})."
+    assert X_inv_k.shape[0] == nk_sigma, (
+        f"Mismatch after IBZ filtering: X_inv_k has {X_inv_k.shape[0]} k-points "
+        f"but sigma_in expects {nk_sigma}. Verify IBZ k-point configuration and filtering settings."
+    )
+
+    # PLACEHOLDER: 
+    # 1. Read inchworm output files
+    # 2. Extract new local self-energy
+    #       NOTE: Separate static and dynamic contributions not needed, but highly appreciated
+    # 3. Store them in the variable sigma_new of shape (ntau, nao_imp, nao_imp) where
+    #       ntau is the number of imaginary time points on IR grid
+    #       nao_imp is the number of impurity orbitals
+
+    ntau = 100  # Placeholder -- remove if needed
+    ns_imp = 2  # Placeholder number of spin -- remove if needed
+    assert ns_imp == ns, "Spin dimension mismatch"
+    sigma_tau_inchworm = []
+    sigma_inf_inchworm = []
+    default_green_func_path = '.'
+    default_time_filename = 'time_intervals.txt'
+    for i in range(nimp):
+        # NOTE: Replace `get_inchworm_selfenergy` with a custom defined function for other applications
+        sigma_inf, sigma_tau = get_inchworm_selfenergy(
+            default_green_func_path, default_time_filename, f'imp_{i}_hopping.txt', f'imp_{i}_delta.txt',
+            nao_imp[i], args.ir_file, args.BETA, mu, args.uhf
+        )
+        sigma_inf_inchworm.append(sigma_inf)
+        sigma_tau_inchworm.append(sigma_tau)
+
+    # Active space to full orthogonal basis and combine SIGMA from all impurity blocks
+    sigma_tau_local_orth = np.zeros((ntau, ns, nao_full, nao_full), dtype=np.complex128)
+    sigma_inf_local_orth = np.zeros((ns, nao_full, nao_full), dtype=np.complex128)
+    for i in range(nimp):
+        sigma_tau_local_orth += np.einsum('pi, tspq, qj -> tsij', uu_trans[i].conj(), sigma_tau_inchworm[i], uu_trans[i])
+        sigma_inf_local_orth += np.einsum('pi, spq, qj -> sij', uu_trans[i].conj(), sigma_inf_inchworm[i], uu_trans[i])
+
+    # Orthogonal to AO basis for each k-point: X_inv_k @ sigma_orth @ X_inv_k†
+    X_inv_k_H = X_inv_k.conj().transpose(0, 2, 1)
+    sigma_inf_in += np.einsum('kab, sbc, kcd -> skad', X_inv_k, sigma_inf_local_orth, X_inv_k_H) * args.mixing
+    for t in range(ntau):
+        sigma_in[t] += np.einsum('kab, sbc, kcd -> skad', X_inv_k, sigma_tau_local_orth[t], X_inv_k_H) * args.mixing
+    
+    # Save the data back to results file
+    sigma_group['data'][...] = sigma_in
+    fsimseet['iter{}/Sigma1'.format(iteration)][...] = sigma_inf_in
+    # Get energy and update output file
+    if sigma_inf_in.shape != Hk.shape:
+        raise ValueError(
+            f"Inconsistent shapes for Hk and sigma_inf_in: "
+            f"Hk.shape={Hk.shape}, sigma_inf_in.shape={sigma_inf_in.shape}. "
+            "Expected sigma_inf_in to have shape (ns, nk, nao_full, nao_full) matching Hk."
+        )
+    fock = Hk + sigma_inf_in
+    # For non-relativistic RHF, each spatial orbital is double occupied -> factor 2
+    # For x2c (exact two-component) with ns=1 and nso=nao, the spin degree of freedom is already included in the 2c basis,
+    # so no additional factor of 2 is applied.
+    dm_prefac = 2.0 if spin_type == 'rhf' else 1.0
+    dm_k = dm_prefac * gtau[-1].real
+    e1 = 0.
+    ehf = 0.
+    myir = IR_factory(args.BETA, args.ir_file)
+    sig_w = myir.tau_to_w(sigma_in)
+    g_w = myir.tau_to_w(gtau)
+    # Galitski Migdal formula
+    ecorr_w = -dm_prefac * np.einsum('wskab, wskba, k -> w', g_w, sig_w, kpt_weight) / (2 * nk_full)
+    ecorr = myir.w_to_tau(ecorr_w)[-1].real
+    for s in range(ns):
+        for k in range(ink):
+            # one-body energy
+            e1 += np.trace(dm_k[s, k] @ Hk[s, k]) * kpt_weight[k] / nk_full
+            # hartree-fock energy
+            ehf += 0.5 * np.trace(dm_k[s, k] @ (fock[s, k] + Hk[s, k])) * kpt_weight[k] / nk_full
+    try:
+        for ds_name, ds_value in (('Energy_1b', e1), ('Energy_HF', ehf), ('Energy_2b', ecorr)):
+            if ds_name in iter_group:
+                iter_group[ds_name][...] = ds_value
+            else:
+                raise KeyError(f"Dataset '{ds_name}' not found in group 'iter{iteration}'. Verify that the SEET step executed correctly.")
+    finally:
+        fsimseet.close()
+    
+    print("COMPLETED the integration of impurity solver data and SEET results.")
+    return True
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Submit SEET + inchworm solver jobs in sequence")
+    parser.add_argument("--niters", type=int, default=3, help="Number of SEET iterations to run")
+    parser.add_argument("--workdir", type=Path, default=Path.cwd(), help="Working directory for job scripts")
+    parser.add_argument("--check-interval", type=int, default=30, help="Interval (seconds) to check job status")
+    parser.add_argument("--dry-run", action="store_true", help="Print job scripts without submitting")
+    parser.add_argument("--transform_file", type=Path, default="transform.h5", help="Path to transformation file")
+    parser.add_argument("--results_file", type=Path, default="seet_results.h5", help="Path to SEET results file")
+    parser.add_argument("--input_file", type=Path, default="input.h5", help="Path to DFT input file (for IBZ k-point mapping)")
+    parser.add_argument("--mixing", type=float, default=0.5, help="Mixing parameter for self-energy update")
+    parser.add_argument("--ir_file", type=Path, default="1e5.h5", help="Path to IR grid file")
+    parser.add_argument("--BETA", type=float, default=100.0, help="Inverse temperature for IR grid")
+    parser.add_argument("--uhf", type=int, default=1, help="Urestricted calculations or not.")
+    
+    args = parser.parse_args()
+    workdir = args.workdir
+    workdir.mkdir(parents=True, exist_ok=True)
+    
+    job_ids = []
+    
+    for iteration in range(1, args.niters + 1):
+        # ===== SEET job =====
+        seet_script_path = workdir / f"seet_iter_{iteration}.sh"
+        seet_script = SEET_SCRIPT_TEMPLATE.format(
+            iter=iteration, transform_filename=args.transform_file,
+            results_filename=args.results_file, mixing=args.mixing
+        )
+        seet_script_path.write_text(seet_script)
+        seet_script_path.chmod(0o755)
+        
+        print(f"\n{'='*60}")
+        print(f"Iteration {iteration}: Submitting SEET job")
+        print(f"{'='*60}")
+        if args.dry_run:
+            print(f"[DRY-RUN] Would submit: {seet_script_path}")
+            print(seet_script)
+        else:
+            seet_job_id = submit_slurm_job(seet_script_path)
+            job_ids.append(("SEET", iteration, seet_job_id))
+            
+            # Wait for SEET to complete
+            if not wait_for_job(seet_job_id, check_interval=args.check_interval):
+                print(f"SEET job failed at iteration {iteration}. Stopping.")
+                break
+        
+        # ===== Inchworm job =====
+        inchworm_script_path = workdir / f"inchworm_iter_{iteration}.sh"
+        inchworm_script = INCHWORM_SCRIPT_TEMPLATE.format(iter=iteration)
+        inchworm_script_path.write_text(inchworm_script)
+        inchworm_script_path.chmod(0o755)
+        
+        print(f"\n{'='*60}")
+        print(f"Iteration {iteration}: Submitting inchworm solver job")
+        print(f"{'='*60}")
+        if args.dry_run:
+            print(f"[DRY-RUN] Would submit: {inchworm_script_path}")
+            print(inchworm_script)
+        else:
+            inchworm_job_id = submit_slurm_job(inchworm_script_path)
+            job_ids.append(("Inchworm", iteration, inchworm_job_id))
+            
+            # Wait for inchworm to complete
+            if not wait_for_job(inchworm_job_id, check_interval=args.check_interval):
+                print(f"Inchworm job failed at iteration {iteration}. Stopping.")
+                break
+            
+            # Process inchworm output before next SEET iteration
+            if not process_inchworm_output(iteration, workdir, args):
+                print(f"Failed to process inchworm output at iteration {iteration}. Stopping.")
+                break
+    
+    # Summary
+    print(f"\n{'='*60}")
+    print("Job submission summary:")
+    print(f"{'='*60}")
+    for job_type, iteration, job_id in job_ids:
+        print(f"{job_type:12} Iteration {iteration}: Job ID {job_id}")
+
+
+if __name__ == "__main__":
+    main()

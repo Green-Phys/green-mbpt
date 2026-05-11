@@ -12,6 +12,6 @@ namespace green::mbpt {
     ztensor<4> dm(shape);
     dm << g.object()(g.object().shape()[0] - 1);
     dm *= _spin_prefactor;
-    sigma1 << _callback(dm);
+    sigma1 << _callback(dm, g.cntx());
   }
 }  // namespace green::mbpt

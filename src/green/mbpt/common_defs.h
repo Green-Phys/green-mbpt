@@ -154,7 +154,7 @@ namespace green::mbpt {
 
   inline void define_parameters(params::params& p) {
     p.define<std::string>("dfintegral_hf_file", "Path to Hartree-Fock integrals", "df_hf_int");
-    p.define<std::string>("dfintegral_file", "Path to integrals for high orfer theories", "df_int");
+    p.define<std::string>("dfintegral_file", "Path to integrals for high order theories", "df_int");
     p.define<int>("verbose", "Print verbose output.", 0);
     p.define<double>("tolerance,tol", "Double precision tolerance for chemical potential search.", 1e-9);
     p.define<double>("BETA,beta", "Inverse temperature.");
@@ -186,6 +186,7 @@ namespace green::mbpt {
    * @param v (std::string)
    * @return true if v >= INPUT_VERSION
    * @return false otherwise
+   * @throws std::runtime_error if version string format is incorrect
    */
   inline bool CheckVersion(const std::string& v) {
     int major_Vin = 0, minor_Vin = 0, patch_Vin = 0;
