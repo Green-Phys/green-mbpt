@@ -5,12 +5,12 @@ add_library(mbpt common_utils.cpp dyson.cpp hf_solver.cpp gw_solver.cpp gf2_solv
         hf_cpu_kernels.cpp
         gw_cpu_kernel.cpp)
 target_include_directories(mbpt PUBLIC .)
-target_link_libraries(mbpt PUBLIC GREEN::PARAMS GREEN::H5PP GREEN::UTILS GREEN::NDARRAY GREEN::GRIDS GREEN::SYMMETRY GREEN::SC GREEN::IMPURITY)
+target_link_libraries(mbpt PUBLIC GREEN::PARAMS GREEN::H5PP GREEN::UTILS GREEN::NDARRAY GREEN::GRIDS GREEN::SYMMETRY GREEN::SC )
 
 # Embedding framework
 add_library(embedding seet_solver.cpp)
 target_include_directories(embedding PUBLIC .)
-target_link_libraries(embedding PUBLIC mbpt)
+target_link_libraries(embedding PUBLIC mbpt GREEN::IMPURITY)
 
 add_library(transform transform.cpp)
 target_include_directories(transform PUBLIC .)
