@@ -37,7 +37,7 @@ namespace green::mbpt {
     using MatrixXcd = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
     using MatrixXcf = Eigen::Matrix<std::complex<float>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
     using MatrixXd  = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
-    df_integral_t(const std::string& path, int nao, int NQ, const bz_utils_t& bz_utils, const utils::mpi_context & cntx = utils::mpi_context::context) :
+    df_integral_t(const std::string& path, int nao, int NQ, const bz_utils_t& bz_utils, const utils::mpi_context & cntx = utils::mpi_context::context()) :
         _base_path(path), _k0(-1), _current_chunk(-1), _chunk_size(0), _NQ(NQ), _bz_utils(bz_utils) {
       h5pp::archive ar(path + "/meta.h5");
       if(ar.has_attribute("__green_version__")) {
