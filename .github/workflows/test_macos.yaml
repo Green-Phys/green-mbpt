@@ -20,7 +20,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install open-mpi hdf5 eigen@3.4 openblas
+          brew install open-mpi hdf5 eigen@3 openblas
 
       - name: Build
         run: |
