@@ -42,7 +42,7 @@ namespace green::mbpt::kernels {
     sigma_tau.fence();
     statistics.start("total");
     statistics.start("Main loop");
-    for (size_t q = utils::context.internode_rank; q < _inq; q += utils::context.internode_size) {
+    for (size_t q = utils::context().internode_rank; q < _inq; q += utils::context().internode_size) {
       size_t q_ir = _bz_utils.q_symmetry().full_point(q); // irreducible q-point's index in the full BZ
       selfenergy_innerloop(q_ir, g, sigma_tau, P0_tilde_s, Pw_tilde_s);
     }
@@ -289,7 +289,7 @@ namespace green::mbpt::kernels {
     _ft.w_b_to_tau_f(P0_w, P0_tilde.object(), t_offset, nt_local, true);
     //P0_tilde.fence();
     // for G0W0 correction
-    if (_q0_utils.q0_treatment() == extrapolate and utils::context.node_rank == 0) {
+    if (_q0_utils.q0_treatment() == extrapolate and utils::context().node_rank == 0) {
       size_t iq = _bz_utils.q_symmetry().reduced_point(q_ir);
       _q0_utils.aux_to_PW_00(P0_w, _eps_inv_wq, iq);
     }

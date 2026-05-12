@@ -140,7 +140,7 @@ namespace green::mbpt {
     Eigen::FullPivLU<MatrixXcd> lusolver(nso, nso);
     // Interpolate G onto a new grid and perform symmetric orthogonalization
     g_omega_hs.fence();
-    for (int iws = utils::context.global_rank; iws < ns * nw; iws += utils::context.global_size) {
+    for (int iws = utils::context().global_rank; iws < ns * nw; iws += utils::context().global_size) {
       int iw = iws / ns;
       int is = iws % ns;
       Sigma_w.set_zero();
@@ -163,17 +163,17 @@ namespace green::mbpt {
     MPI_Datatype dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(nso * nso);
     MPI_Op       matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
     g_omega_hs.fence();
-    if (!utils::context.node_rank) {
+    if (!utils::context().node_rank) {
       utils::allreduce(MPI_IN_PLACE, g_omega_hs.object().data(), g_omega_hs.object().size() / (nso * nso), dt_matrix,
-                       matrix_sum_op, utils::context.internode_comm);
+                       matrix_sum_op, utils::context().internode_comm);
     }
     g_omega_hs.fence();
     g_tau_hs.fence();
-    if (!utils::context.node_rank) dyson_solver.ft().omega_to_tau(g_omega_hs.object(), g_tau_hs.object(), 1);
+    if (!utils::context().node_rank) dyson_solver.ft().omega_to_tau(g_omega_hs.object(), g_tau_hs.object(), 1);
     g_tau_hs.fence();
     MPI_Type_free(&dt_matrix);
     MPI_Op_free(&matrix_sum_op);
-    if (!utils::context.global_rank) {
+    if (!utils::context().global_rank) {
       h5pp::archive res(results_file, "w");
       res.set_attribute("__grids_version__", dyson_solver.get_grids_version());
       res["G_tau_hs/data"] << g_tau_hs.object();
@@ -183,17 +183,17 @@ namespace green::mbpt {
       res["Sk_hs"] << Sk_hs;
       res.close();
     }
-    MPI_Barrier(utils::context.global);
+    MPI_Barrier(utils::context().global);
   }
 
   inline void sc_job(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p, scf_type type, shared_mem_dyson& dyson,
                      utils::shared_object<ztensor<5>>& G_tau, utils::shared_object<ztensor<5>>& Sigma_tau, ztensor<4>& Sigma1) {
     read_hartree_fock_selfenergy(p, dyson.bz_utils(), Sigma1);
     G_tau.fence();
-    if (!utils::context.node_rank) G_tau.object().set_zero();
+    if (!utils::context().node_rank) G_tau.object().set_zero();
     G_tau.fence();
     Sigma_tau.fence();
-    if (!utils::context.node_rank) Sigma_tau.object().set_zero();
+    if (!utils::context().node_rank) Sigma_tau.object().set_zero();
     Sigma_tau.fence();
     // Hartree-Fock solver is used by all perturbation solvers.
     hf_solver hf(p, dyson.bz_utils(), dyson.S_k());
@@ -230,7 +230,7 @@ namespace green::mbpt {
                                     "Please verify the path is correct, or run the 'SC' job before running 'WINTER'.");
     }
     if (input.has_group("high_symm_path")) {
-      if (!utils::context.global_rank) std::cout << "Running Wannier interpolation" << std::endl;
+      if (!utils::context().global_rank) std::cout << "Running Wannier interpolation" << std::endl;
       sc::read_results(dyson.mu(), g0_tau, sigma1, sigma_tau, results_file);
       wannier_interpolation(dyson, sigma1, sigma_tau, input, p["high_symmetry_output_file"]);
     }
@@ -268,9 +268,9 @@ namespace green::mbpt {
       } else if (job == WINTER) {
         winter_job(sc, p, dyson, G_tau, Sigma_tau, Sigma1);
       }
-      if (!utils::context.global_rank) std::cout << "Job " << magic_enum::enum_name(job) << " is finished." << std::endl;
+      if (!utils::context().global_rank) std::cout << "Job " << magic_enum::enum_name(job) << " is finished." << std::endl;
     }
-    if (!utils::context.global_rank) std::cout << "Completed." << std::endl;
+    if (!utils::context().global_rank) std::cout << "Completed." << std::endl;
   }
 
 }  // namespace green::mbpt

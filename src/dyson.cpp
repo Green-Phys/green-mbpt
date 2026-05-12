@@ -54,7 +54,7 @@ namespace green::mbpt {
     size_t                               batch_number = 0;
     Eigen::ComplexEigenSolver<MatrixXcd> solver(_nso);
     // iterate over all matsubara frequencies
-    for (size_t iwsk = utils::context.global_rank; iwsk < _nw * _ns * _ink; iwsk += utils::context.global_size) {
+    for (size_t iwsk = utils::context().global_rank; iwsk < _nw * _ns * _ink; iwsk += utils::context().global_size) {
       size_t iw = iwsk / (_ns * _ink);
       size_t is = (iwsk % (_ns * _ink)) / _ink;
       size_t ik = iwsk % _ink;
@@ -79,7 +79,7 @@ namespace green::mbpt {
     MatrixXcd            trace_t(1, 1);
     std::complex<double> muomega;
     trace_w = MatrixXcd::Zero(_nw, 1);
-    for (size_t iwsk = utils::context.global_rank, iii = 0; iwsk < _nw * _ns * _ink; iwsk += utils::context.global_size) {
+    for (size_t iwsk = utils::context().global_rank, iii = 0; iwsk < _nw * _ns * _ink; iwsk += utils::context().global_size) {
       size_t iw   = iwsk / (_ns * _ink);
       size_t is   = (iwsk % (_ns * _ink)) / _ink;
       size_t ik   = (iwsk % _ink);
@@ -94,7 +94,7 @@ namespace green::mbpt {
     trace_t       = TtBn * trace_w;
     int prefactor = (_ns == 2 or _X2C) ? 1 : 2;
     nel += prefactor * -trace_t(0, 0).real();
-    MPI_Allreduce(MPI_IN_PLACE, &nel, 1, MPI_DOUBLE, MPI_SUM, utils::context.global);
+    MPI_Allreduce(MPI_IN_PLACE, &nel, 1, MPI_DOUBLE, MPI_SUM, utils::context().global);
     return nel;
   }
 
@@ -115,7 +115,7 @@ namespace green::mbpt {
     selfenergy_eigenspectra(sigma1, sigma_tau_s, eigenvalues_Sigma_p_F);
     // Start search for the chemical potential
     nel = compute_number_of_electrons(mu, eigenvalues_Sigma_p_F);
-    if (!utils::context.global_rank && _verbose != 0) ss << "nel:" << nel << " mu: " << mu << " target nel:" << _nel << std::endl;
+    if (!utils::context().global_rank && _verbose != 0) ss << "nel:" << nel << " mu: " << mu << " target nel:" << _nel << std::endl;
 
     if (std::abs((nel - _nel) / double(_nel)) > _tol) {
       if (nel > _nel) {
@@ -123,7 +123,7 @@ namespace green::mbpt {
         double d = delta;
         do {
           nel1 = compute_number_of_electrons(mu1, eigenvalues_Sigma_p_F);
-          if (!utils::context.global_rank && _verbose != 0) ss << "nel:" << nel1 << " mu: " << mu1 << std::endl;
+          if (!utils::context().global_rank && _verbose != 0) ss << "nel:" << nel1 << " mu: " << mu1 << std::endl;
           mu1 -= d;
         } while (nel1 > _nel);
         mu2  = mu;
@@ -133,13 +133,13 @@ namespace green::mbpt {
         double d = delta;
         do {
           nel2 = compute_number_of_electrons(mu2, eigenvalues_Sigma_p_F);
-          if (!utils::context.global_rank && _verbose != 0) ss << "nel:" << nel2 << " mu: " << mu2 << std::endl;
+          if (!utils::context().global_rank && _verbose != 0) ss << "nel:" << nel2 << " mu: " << mu2 << std::endl;
           mu2 += d;
         } while (nel2 < _nel);
         mu1  = mu;
         nel1 = nel;
       }
-      if (!utils::context.global_rank && _verbose != 0) {
+      if (!utils::context().global_rank && _verbose != 0) {
         std::cout << ss.str() << std::flush;
         ss.str("");
       }
@@ -156,14 +156,14 @@ namespace green::mbpt {
         } else {
           mu1 = mu;
         }
-        if (!utils::context.global_rank && _verbose != 0) ss << "nel:" << nel << " mu: " << mu << std::endl;
-        if (!utils::context.global_rank && _verbose != 0) {
+        if (!utils::context().global_rank && _verbose != 0) ss << "nel:" << nel << " mu: " << mu << std::endl;
+        if (!utils::context().global_rank && _verbose != 0) {
           std::cout << ss.str() << std::flush;
           ss.str("");
         }
       }
     }
-    if (!utils::context.global_rank) {
+    if (!utils::context().global_rank) {
       ss << std::right << std::setw(36) << "New chemical potential, μ = " << std::setw(22) << std::right << mu << std::endl;
       ss << std::right << std::setw(37) << "Chemical potential difference Δμ = " << std::setw(22) << std::right
          << std::abs(mu - _mu) << std::endl;
@@ -188,16 +188,16 @@ namespace green::mbpt {
     ztensor<3>                  Sigma_k(_nts, _nso, _nso);
     Eigen::FullPivLU<MatrixXcd> lusolver(_nso, _nso);
     g_tau_s.fence();
-    if (!utils::context.node_rank) g_tau.set_zero();
+    if (!utils::context().node_rank) g_tau.set_zero();
     double coeff_last  = 0.0;
     double coeff_first = 0.0;
     g_tau_s.fence();
     g_tau_s.fence();
     make_hermitian(sigma1);
     sigma_tau_s.fence();
-    if (!utils::context.node_rank) make_hermitian(sigma_tau_s.object());
+    if (!utils::context().node_rank) make_hermitian(sigma_tau_s.object());
     sigma_tau_s.fence();
-    for (int isk = utils::context.global_rank; isk < _ns * _ink; isk += utils::context.global_size) {
+    for (int isk = utils::context().global_rank; isk < _ns * _ink; isk += utils::context().global_size) {
       int is = isk / _ink;
       int ik = isk % _ink;
       Sigma_k.set_zero();
@@ -223,14 +223,14 @@ namespace green::mbpt {
     }
     g_tau_s.fence();
     g_tau_s.fence();
-    if (!utils::context.node_rank) {
+    if (!utils::context().node_rank) {
       utils::allreduce(MPI_IN_PLACE, g_tau.data(), g_tau.size() / (_nso * _nso), dt_matrix, matrix_sum_op,
-                       utils::context.internode_comm);
+                       utils::context().internode_comm);
     }
     g_tau_s.fence();
     double leakage = coeff_last / coeff_first;
-    if (!utils::context.global_rank) std::cout << "Leakage of Dyson G: " << leakage << std::endl;
-    if (!utils::context.global_rank and leakage > 1e-8) std::cerr << "WARNING: The leakage is larger than 1e-8" << std::endl;
+    if (!utils::context().global_rank) std::cout << "Leakage of Dyson G: " << leakage << std::endl;
+    if (!utils::context().global_rank and leakage > 1e-8) std::cerr << "WARNING: The leakage is larger than 1e-8" << std::endl;
     MPI_Type_free(&dt_matrix);
     MPI_Op_free(&matrix_sum_op);
   }
@@ -246,10 +246,10 @@ namespace green::mbpt {
     ztensor<3>                  Sigma_w(_nw, _nso, _nso);
     ztensor<3>                  Sigma_k(_nts, _nso, _nso);
     Eigen::FullPivLU<MatrixXcd> lusolver(_nso, _nso);
-    if (!utils::context.node_rank) g_tau.set_zero();
+    if (!utils::context().node_rank) g_tau.set_zero();
     double coeff_last  = 0.0;
     double coeff_first = 0.0;
-    for (int isk = utils::context.global_rank; isk < _ns * _ink; isk += utils::context.global_size) {
+    for (int isk = utils::context().global_rank; isk < _ns * _ink; isk += utils::context().global_size) {
       int is = isk / _ink;
       int ik = isk % _ink;
       Sigma_k.set_zero();
@@ -276,13 +276,13 @@ namespace green::mbpt {
       _ft.tau_to_chebyshev_c(G_t, G_c, 0, 1);
       coeff_first = std::max(matrix(G_c(0)).cwiseAbs().maxCoeff(), coeff_first);
     }
-    if (!utils::context.node_rank) {
+    if (!utils::context().node_rank) {
       utils::allreduce(MPI_IN_PLACE, g_tau.data(), g_tau.size() / (_nso * _nso), dt_matrix, matrix_sum_op,
-                       utils::context.internode_comm);
+                       utils::context().internode_comm);
     }
     double leakage = coeff_last / coeff_first;
-    if (!utils::context.global_rank) std::cout << "Leakage of Dyson G: " << leakage << std::endl;
-    if (!utils::context.global_rank and leakage > 1e-8) std::cerr << "WARNING: The leakage is larger than 1e-8" << std::endl;
+    if (!utils::context().global_rank) std::cout << "Leakage of Dyson G: " << leakage << std::endl;
+    if (!utils::context().global_rank and leakage > 1e-8) std::cerr << "WARNING: The leakage is larger than 1e-8" << std::endl;
     MPI_Type_free(&dt_matrix);
     MPI_Op_free(&matrix_sum_op);
   }
@@ -318,7 +318,7 @@ namespace green::mbpt {
 
   template <typename G, typename S1, typename St>
   void dyson<G, S1, St>::dump_iteration(size_t iter, const G& gtau, const S1&, const St&, const std::string& result_file) {
-    if (!utils::context.global_rank) {
+    if (!utils::context().global_rank) {
       h5pp::archive ar(result_file, "a");
       ar["iter" + std::to_string(iter) + "/G_tau/mesh"] << _ft.sd().repn_fermi().tsample();
       ar["iter" + std::to_string(iter) + "/Selfenergy/mesh"] << _ft.sd().repn_fermi().tsample();
