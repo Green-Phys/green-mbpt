@@ -409,7 +409,7 @@ TEST_CASE("SEET DC TEST") {
 }
 
 TEST_CASE("Context TEST") {
-  if(green::utils::mpi_context::context.global_rank > 1) {
+  if(green::utils::mpi_context::context().global_rank > 1) {
     return;
   }
   green::utils::mpi_context cntx(MPI_COMM_SELF);
