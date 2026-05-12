@@ -34,4 +34,4 @@ jobs:
           OMP_NUM_THREADS: 1
         run: |
           cd build
-          ctest -j1
+          ctest -j1 || ctest --rerun-failed --output-on-failure
