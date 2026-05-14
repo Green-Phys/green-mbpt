@@ -45,11 +45,11 @@ green::transform::int_transform parse_input(int argc, char** argv) {
   p.define<bool>("transform", "Evaluate transformed three-center integrals", false);
   p.parse(argc, argv);
   if (!p.parse(argc, argv)) {
-    if (!green::utils::context.global_rank) p.help();
+    if (!green::utils::context().global_rank) p.help();
     MPI_Finalize();
     std::exit(-1);
   }
-  if (!green::utils::context.global_rank) p.print();
+  if (!green::utils::context().global_rank) p.print();
 
   return green::transform::int_transform{p["input_file"], p["in_file"], p["in_int_file"], p["input_file"], p["dc_int_path"], static_cast<int>(p["transform"].as<bool>()), p["verbose"]};
 }

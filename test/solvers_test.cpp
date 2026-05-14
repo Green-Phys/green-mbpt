@@ -66,7 +66,7 @@ void solve_hf(const std::string& input, const std::string& int_hf, const std::st
   {
     green::h5pp::archive ar(test_file, "r");
     G_shared.fence();
-    if (!green::utils::context.node_rank) ar["G_tau"] >> G_shared.object();
+    if (!green::utils::context().node_rank) ar["G_tau"] >> G_shared.object();
     G_shared.fence();
     ar["result/Sigma1"] >> Sigma1_test;
     ar.close();
@@ -121,10 +121,10 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
   {
     green::h5pp::archive ar(test_file, "r");
     G_shared.fence();
-    if (!green::utils::context.node_rank) ar["G_tau"] >> G_shared.object();
+    if (!green::utils::context().node_rank) ar["G_tau"] >> G_shared.object();
     G_shared.fence();
     S_shared_tst.fence();
-    if (!green::utils::context.node_rank) ar["result/Sigma_tau"] >> S_shared_tst.object();
+    if (!green::utils::context().node_rank) ar["result/Sigma_tau"] >> S_shared_tst.object();
     S_shared_tst.fence();
     ar.close();
   }
@@ -175,10 +175,10 @@ void solve_gf2(const std::string& df_int_path, const std::string& test_file, con
   {
     green::h5pp::archive ar(test_file, "r");
     G_shared.fence();
-    if (!green::utils::context.node_rank) ar["G_tau"] >> G_shared.object();
+    if (!green::utils::context().node_rank) ar["G_tau"] >> G_shared.object();
     G_shared.fence();
     S_shared_tst.fence();
-    if (!green::utils::context.node_rank) ar["result/Sigma_tau"] >> S_shared_tst.object();
+    if (!green::utils::context().node_rank) ar["result/Sigma_tau"] >> S_shared_tst.object();
     S_shared_tst.fence();
     ar.close();
   }
@@ -282,7 +282,7 @@ TEST_CASE("MBPT Solver") {
     auto S_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nao, nao));
     auto Sigma1   = green::sc::ztensor<4>(ns, ink, nao, nao);
     S_shared.fence();
-    if (!green::utils::context.node_rank) S_shared.object().set_zero();
+    if (!green::utils::context().node_rank) S_shared.object().set_zero();
     S_shared.fence();
     Sigma1(0) << sc.dyson_solver().bz_utils().full_to_ibz(tmp(0));
     Sigma1(1) << sc.dyson_solver().bz_utils().full_to_ibz(tmp(1));
@@ -409,7 +409,7 @@ TEST_CASE("SEET DC TEST") {
 }
 
 TEST_CASE("Context TEST") {
-  if(green::utils::mpi_context::context.global_rank > 1) {
+  if(green::utils::mpi_context::context().global_rank > 1) {
     return;
   }
   green::utils::mpi_context cntx(MPI_COMM_SELF);

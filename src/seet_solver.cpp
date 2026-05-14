@@ -74,15 +74,15 @@ namespace green::embedding {
     // (sigma_imp - DC) summed over impurities, ready to be added to the weak-coupling sigma.
     ztensor<3> sigma_inf_imp_loc(sigma_inf_weak_loc.shape());
     ztensor<4> sigma_tau_imp_loc(sigma_loc.shape());
-    if (!utils::context.global_rank) {
+    if (!utils::context().global_rank) {
       auto [sigma_inf_imp_, sigma_tau_imp_] = _solver.solve(_mu, ovlp_loc, h_core_loc,
                                                             sigma_inf_weak_loc, sigma_inf_full_loc,
                                                             sigma_loc, g_loc);
       sigma_inf_imp_loc << sigma_inf_imp_;
       sigma_tau_imp_loc << sigma_tau_imp_;
     }
-    MPI_Bcast(sigma_inf_imp_loc.data(), sigma_inf_imp_loc.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
-    MPI_Bcast(sigma_tau_imp_loc.data(), sigma_tau_imp_loc.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context.global);
+    MPI_Bcast(sigma_inf_imp_loc.data(), sigma_inf_imp_loc.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context().global);
+    MPI_Bcast(sigma_tau_imp_loc.data(), sigma_tau_imp_loc.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context().global);
 
     // Add impurity correction on top of the weak-coupling sigma (already in sigma_inf / sigma_tau).
     for (size_t is = 0; is < g.object().shape()[1]; ++is) {
@@ -91,7 +91,7 @@ namespace green::embedding {
         auto x_k_m = mbpt::matrix(x_k(ik));
         mbpt::matrix(sigma_inf(is, ik)) += x_k_m * mbpt::matrix(sigma_inf_imp_loc(is)) * x_k_m.adjoint();
         sigma_tau.fence();
-        for (size_t it = utils::context.node_rank; it < g.object().shape()[0]; it += utils::context.node_size) {
+        for (size_t it = utils::context().node_rank; it < g.object().shape()[0]; it += utils::context().node_size) {
           mbpt::matrix(sigma_tau.object()(it, is, ik)) += x_k_m * mbpt::matrix(sigma_tau_imp_loc(it, is)) * x_k_m.adjoint();
         }
         sigma_tau.fence();
@@ -103,7 +103,7 @@ namespace green::embedding {
     h5pp::archive ar(_weak_results_file, "r");
     ar[_base_path + "/Sigma1"] >> sigma_inf;
     sigma_tau.fence();
-    if (!utils::context.node_rank) {
+    if (!utils::context().node_rank) {
       ar[_base_path + "/Selfenergy/data"] >> sigma_tau.object();
     }
     sigma_tau.fence();

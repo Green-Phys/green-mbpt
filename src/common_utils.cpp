@@ -24,7 +24,7 @@ namespace green::mbpt {
     double    energy = 0.0;
     double    ehf    = 0.0;
     double    e1e    = 0.0;
-    for (size_t iwsk = utils::context.global_rank; iwsk < _nw * _ns * _ink; iwsk += utils::context.global_size) {
+    for (size_t iwsk = utils::context().global_rank; iwsk < _nw * _ns * _ink; iwsk += utils::context().global_size) {
       size_t iw = iwsk / (_ns * _ink);
       size_t is = (iwsk % (_ns * _ink)) / _ink;
       size_t ik = iwsk % _ink;
@@ -36,8 +36,8 @@ namespace green::mbpt {
     GS_t                    = TtBn * GS_w;
     double energy_prefactor = (_ns == 1 and !X2C) ? 1.0 : 0.5;
     energy                  = -GS_t(0, 0).real() * energy_prefactor;
-    MPI_Allreduce(MPI_IN_PLACE, &energy, 1, MPI_DOUBLE_PRECISION, MPI_SUM, utils::context.global);
-    for (size_t isk = utils::context.global_rank; isk < _ns * _ink; isk += utils::context.global_size) {
+    MPI_Allreduce(MPI_IN_PLACE, &energy, 1, MPI_DOUBLE_PRECISION, MPI_SUM, utils::context().global);
+    for (size_t isk = utils::context().global_rank; isk < _ns * _ink; isk += utils::context().global_size) {
       size_t is   = isk / _ink;
       size_t ik   = isk % _ink;
       size_t k_ir = bz.k_symmetry().full_point(ik);
@@ -45,8 +45,8 @@ namespace green::mbpt {
              bz.k_symmetry().weight()[k_ir];
       e1e += (matrix(dmr(is, ik)) * matrix(H_k(is, ik))).trace().real() * bz.k_symmetry().weight()[k_ir];
     }
-    MPI_Allreduce(MPI_IN_PLACE, &e1e, 1, MPI_DOUBLE_PRECISION, MPI_SUM, utils::context.global);
-    MPI_Allreduce(MPI_IN_PLACE, &ehf, 1, MPI_DOUBLE_PRECISION, MPI_SUM, utils::context.global);
+    MPI_Allreduce(MPI_IN_PLACE, &e1e, 1, MPI_DOUBLE_PRECISION, MPI_SUM, utils::context().global);
+    MPI_Allreduce(MPI_IN_PLACE, &ehf, 1, MPI_DOUBLE_PRECISION, MPI_SUM, utils::context().global);
     e1e *= bz.nkpw();
     ehf *= bz.nkpw();
     energy *= bz.nkpw();

@@ -137,10 +137,10 @@ namespace green::embedding {
                        utils::shared_object<mbpt::ztensor<5>>& Sigma_tau, mbpt::ztensor<4>& Sigma1) {
     /*read_hartree_fock_selfenergy(p, dyson.bz_utils(), Sigma1);
     G_tau.fence();
-    if (!utils::context.node_rank) G_tau.object().set_zero();
+    if (!utils::context().node_rank) G_tau.object().set_zero();
     G_tau.fence();
     Sigma_tau.fence();
-    if (!utils::context.node_rank) Sigma_tau.object().set_zero();
+    if (!utils::context().node_rank) Sigma_tau.object().set_zero();
     Sigma_tau.fence();*/
     params::params p2           = p;
     std::string    dc_data_path = p["dc_data_prefix"].as<std::string>();
@@ -156,10 +156,10 @@ namespace green::embedding {
                              mbpt::ztensor<4>& Sigma1) {
     /*read_hartree_fock_selfenergy(p, dyson.bz_utils(), Sigma1);
     G_tau.fence();
-    if (!utils::context.node_rank) G_tau.object().set_zero();
+    if (!utils::context().node_rank) G_tau.object().set_zero();
     G_tau.fence();
     Sigma_tau.fence();
-    if (!utils::context.node_rank) Sigma_tau.object().set_zero();
+    if (!utils::context().node_rank) Sigma_tau.object().set_zero();
     Sigma_tau.fence();*/
     params::params         p2           = p;
     std::string            dc_data_path = p["dc_data_prefix"].as<std::string>();
@@ -193,7 +193,7 @@ namespace green::embedding {
     } else if (embedding == FSC_SEET) {
       seet_job(sc, p, type, G_tau, Sigma_tau, Sigma1);
     }
-    if (!utils::context.global_rank) std::cout << "Completed." << std::endl;
+    if (!utils::context().global_rank) std::cout << "Completed." << std::endl;
   }
 
 }  // namespace green::embedding

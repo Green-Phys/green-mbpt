@@ -44,7 +44,7 @@ namespace green::mbpt::kernels {
       if(NQ_local > 0) {
         // TODO: We can save a lot of time here by reducing the loop over ikp, but that would require removing the NQ_local, NQ_offset framework.
         //        The symmetry speedup only works if we load all of NQ at once -- which shold be doable now that we have much smaller memory footprint.
-        for (int ikps = utils::context.internode_rank; ikps < _nk * _ns; ikps += utils::context.internode_size) {
+        for (int ikps = utils::context().internode_rank; ikps < _nk * _ns; ikps += utils::context().internode_size) {
           int is    = ikps % _ns;
           int ikp   = ikps / _ns;
           statistics.start("Read Coulomb Up");
@@ -64,7 +64,7 @@ namespace green::mbpt::kernels {
 
       upper_Coul /= double(_nk);
       if (NQ_local > 0) {
-        for (int ii = utils::context.internode_rank; ii < _ink * _ns; ii += utils::context.internode_size) {
+        for (int ii = utils::context().internode_rank; ii < _ink * _ns; ii += utils::context().internode_size) {
           int is   = ii / _ink;
           int ik   = ii % _ink;
           int k_ir = _bz_utils.k_symmetry().full_point(ik);
@@ -98,7 +98,7 @@ namespace green::mbpt::kernels {
       double     prefactor = (_ns == 2) ? 1.0 : 0.5;
       statistics.start("Exchange");
       if (NQ_local > 0) {
-        for (int ii = utils::context.internode_rank; ii < _ink * _ns; ii += utils::context.internode_size) {
+        for (int ii = utils::context().internode_rank; ii < _ink * _ns; ii += utils::context().internode_size) {
           int        is   = ii / _ink;
           int        ik   = ii % _ink;
           int        k_ir = _bz_utils.k_symmetry().full_point(ik);
@@ -183,7 +183,7 @@ namespace green::mbpt::kernels {
         ztensor<2> upper_Coul(_NQ, 1);
         upper_Coul.set_zero();
         MMatrixXcd upper_Coul_m(upper_Coul.data() + NQ_offset, NQ_local, 1);
-        for (int ikp = utils::context.internode_rank; ikp < _nk; ikp += utils::context.internode_size) {
+        for (int ikp = utils::context().internode_rank; ikp < _nk; ikp += utils::context().internode_size) {
           coul_int1.read_integrals(ikp, ikp);
           if(NQ_local > 0) {
             coul_int1.symmetrize(v, ikp, ikp, NQ_offset, NQ_local);
@@ -205,7 +205,7 @@ namespace green::mbpt::kernels {
 
         MatrixXcd  Fm(1, _nao * _nao);
         MMatrixXcd Fmm(Fm.data(), _nao, _nao);
-        for (int ik = utils::context.internode_rank; ik < _ink; ik += utils::context.internode_size) {
+        for (int ik = utils::context().internode_rank; ik < _ink; ik += utils::context().internode_size) {
           int k_ir = _bz_utils.k_symmetry().full_point(ik);
 
           coul_int1.read_integrals(k_ir, k_ir);

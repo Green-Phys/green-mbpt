@@ -50,13 +50,13 @@ namespace green::mbpt {
     // clean self_energy array
     Sigma_local                = Sigma_tau;
     sigma_tau.fence();
-    if (!utils::context.node_rank) Sigma_tau.set_zero();
+    if (!utils::context().node_rank) Sigma_tau.set_zero();
     sigma_tau.fence();
     statistics.start("GF2 total");
     auto [ntau_local, tau_offset] = compute_local_and_offset_node_comm(_nts);
     // start main loop
     MPI_Win_lock_all(MPI_MODE_NOCHECK, sigma_tau.win());
-    for (size_t k1k3k2 = utils::context.internode_rank; k1k3k2 < _nk * _nk * _ink; k1k3k2 += utils::context.internode_size) {
+    for (size_t k1k3k2 = utils::context().internode_rank; k1k3k2 < _nk * _nk * _ink; k1k3k2 += utils::context().internode_size) {
       size_t                k1_pos = k1k3k2 / (_nk * _nk);
       // Link the reduce index (k1_pos) to corresponding momentum
       size_t                k1_red = _bz_utils.k_symmetry().full_point(k1_pos);
@@ -76,14 +76,14 @@ namespace green::mbpt {
     }
     statistics.start("correction");
     if (_ewald) {
-      if (!utils::context.global_rank) std::cout << "Correction for selfenergy" << std::endl;
+      if (!utils::context().global_rank) std::cout << "Correction for selfenergy" << std::endl;
       compute_2nd_exch_correction(tau_offset, ntau_local, g_tau.object());
     }
     statistics.end();
     MPI_Win_sync(sigma_tau.win());
-    MPI_Barrier(utils::context.node_comm);
+    MPI_Barrier(utils::context().node_comm);
     MPI_Win_unlock_all(sigma_tau.win());
-    MPI_Barrier(utils::context.global);
+    MPI_Barrier(utils::context().global);
 
     statistics.start("reduce");
     // // collect data within a node
@@ -92,16 +92,16 @@ namespace green::mbpt {
     // MPI_Win_unlock(0, sigma_tau.win());
     // collect data among nodes
     sigma_tau.fence();
-    if (!utils::context.node_rank) {
+    if (!utils::context().node_rank) {
       utils::allreduce(MPI_IN_PLACE, Sigma_tau.data(), Sigma_tau.size() / (_nso * _nso), dt_matrix, matrix_sum_op,
-                       utils::context.internode_comm);
+                       utils::context().internode_comm);
       Sigma_tau /= (_nk * _nk);
     }
     sigma_tau.fence();
     statistics.end();
     statistics.end();
     // print execution time
-    statistics.print(utils::context.global);
+    statistics.print(utils::context().global);
     delete _coul_int_c_1;
     delete _coul_int_c_2;
     delete _coul_int_c_3;
