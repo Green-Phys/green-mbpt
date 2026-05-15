@@ -162,23 +162,19 @@ namespace green::mbpt::kernels {
       MMatrixX<prec>  X1mm(X1.data(), _nao * _nao, _NQ);
       MMatrixX<prec>  X2mm(X2.data(), _NQ, _nao * _nao);
 
+      size_t          pns       = _nso / _nao;  // spin blocks per dimension: 1 for non-X2C, 2 for X2C
       double          prefactor = (_ns == 2 or _X2C) ? 1.0 : 2.0;
+      size_t          pseudo_ns = (!_X2C) ? _ns : 4;  // 1: restricted, 2: unrestricted, 4: X2C (all spin blocks)
       // #pragma omp for
-      size_t          pseudo_ns = (!_X2C) ? _ns : 4;
-      size_t          a, b, i_shift, j_shift;
       for (size_t t = tau_offset, it = 0; it < local_tau; ++t, ++it) {  // Loop over half-tau
         size_t     tt = _nts - t - 1;                                   // beta - t
         MMatrixXcd P0(P0_tilde.data() + t * _NQ * _NQ, _NQ, _NQ);
         for (size_t s = 0; s < pseudo_ns; ++s) {
-          if (!_X2C) {
-            assign_G(k1_k1q[0], tt, s, G.object(), Gb_k1);
-            assign_G(k1_k1q[1], t, s, G.object(), G_k1q);
-          } else {
-            a       = s / 2;
-            b       = s % 2;
-            assign_G_nso(k1_k1q[0], tt, b, a, G.object(), Gb_k1);
-            assign_G_nso(k1_k1q[1], t, a, b, G.object(), G_k1q);
-          }
+          size_t is = s / (pns * pns);
+          size_t a  = (s / pns) % pns;  // row spin-block index of the G(k1+q) block
+          size_t b  = s % pns;          // col spin-block index; G^bar(k1) uses (b,a) to take the adjoint block
+          assign_G_nso(k1_k1q[0], tt, is, b, a, G.object(), Gb_k1);
+          assign_G_nso(k1_k1q[1], t,  is, a, b, G.object(), G_k1q);
           P0_contraction<prec>(Gb_k1, G_k1q, vm, VVm, VVmm, X1m, vmm, X2m, X1mm, X2mm, P0, prefactor);
         }
       }
@@ -186,34 +182,11 @@ namespace green::mbpt::kernels {
   }
 
   template <typename prec>
-  void gw_cpu_kernel::assign_G(size_t k, size_t t, size_t s, const ztensor<5>& G_fermi, MatrixX<prec>& G_k) {
-    G_k = _bz_utils.k_symmetry().value_AO(G_fermi(t, s), k).template cast<prec>();
-  }
-
-  template <typename prec>
-  void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t s1, size_t s2, const ztensor<5>& G_fermi, MatrixX<prec>& G_k) {
-    // Symmetry related k
-    // Find the position in the irreducible list
-    size_t k_pos   = _bz_utils.k_symmetry().reduced_point(k);
-
-    size_t i_shift = s1 * _nao;
-    size_t j_shift = s2 * _nao;
-    for (size_t i = 0; i < _nao; ++i) {
-      for (size_t j = 0; j < _nao; ++j) {
-        if (_bz_utils.k_symmetry().tr_conj_list()[k] == 0) {
-          G_k(i, j) = (prec)(G_fermi(t, 0, k_pos, i + i_shift, j + j_shift));
-        } else {
-          // Inverse spin s1 and s2
-          size_t ms1 = (s1 + 1) % 2;
-          size_t ms2 = (s2 + 1) % 2;
-          if (ms1 == ms2) {
-            G_k(i, j) = (prec)(std::conj(G_fermi(t, 0, k_pos, i + ms1 * _nao, j + ms2 * _nao)));
-          } else {
-            G_k(i, j) = (prec)(-1.0 * std::conj(G_fermi(t, 0, k_pos, i + ms1 * _nao, j + ms2 * _nao)));
-          }
-        }
-      }
-    }
+  void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t is, size_t s1, size_t s2,
+                                   const ztensor<5>& G_fermi, MatrixX<prec>& G_k) {
+    G_k = _bz_utils.k_symmetry().value_AO(G_fermi(t, is), k).block(
+      s1 * _nao, s2 * _nao, _nao, _nao
+    ).template cast<prec>();
   }
 
   /**
@@ -350,33 +323,24 @@ namespace green::mbpt::kernels {
       MMatrixX<prec>  X2mm(Y1.data(), _nao * _NQ, _nao);
 
       // #pragma omp for
-      size_t          pseudo_ns = (!_X2C) ? _ns : 4;
-      size_t          a, b, i_shift, j_shift;
+      size_t          pns       = _nso / _nao;  // spin blocks per dimension: 1 for non-X2C, 2 for X2C
+      size_t          pseudo_ns = (!_X2C) ? _ns : 4;  // 1: restricted, 2: unrestricted, 4: X2C (all spin blocks)
       size_t          sigma_shift;
       for (size_t t = tau_offset, it = 0; it < tau_local; ++t, ++it) {
         MatrixX<prec> P_sp = eval_p0_bz_from_ibz<prec>(P0_tilde(t, 0), q_idx);
         for (size_t s = 0; s < pseudo_ns; ++s) {
-          if (!_X2C) {
-            assign_G(k1_k1mq[1], t, s, G_fermi.object(), G_k1q);
-          } else {
-            a       = s / 2;
-            b       = s % 2;
-            i_shift = a * _nao;
-            j_shift = b * _nao;
-            assign_G_nso(k1_k1mq[1], t, a, b, G_fermi.object(), G_k1q);
-          }
+          size_t is = s / (pns * pns);
+          size_t a  = (s / pns) % pns;  // row spin-block index of the G and Sigma blocks
+          size_t b  = s % pns;          // col spin-block index
+          assign_G_nso(k1_k1mq[1], t, is, a, b, G_fermi.object(), G_k1q);
           selfenergy_contraction(G_k1q, vm, Y1m, Y1mm, Y2mm, X2m, Y2mmm, X2mm, P_sp, Sigma_ts);
-          // Write to shared memory self-energy
-          if (!_X2C) {
-            sigma_shift = t * _ns * _ink * _nao * _nao + s * _ink * _nao * _nao + k1_pos * _nao * _nao;
-            MMatrixXcd Sm(Sigma_fermi.data() + sigma_shift, _nao, _nao);
-            Sm.noalias() -= Sigma_ts;
-          } else {
-            sigma_shift = t * _ns * _ink * _nso * _nso + 0 * _ink * _nso * _nso + k1_pos * _nso * _nso;
-            MMatrixXcd Sm_nso(Sigma_fermi.data() + sigma_shift, _nso, _nso);
-
-            Sm_nso.block(a * _nao, b * _nao, _nao, _nao) -= Sigma_ts;
-          }
+          // sigma_shift locates the start of the nso x nso Sigma matrix for
+          // tau index t, spin is, and k-point k1_pos in the flat array
+          // Sigma[nts, ns, ink, nso, nso]. The (a,b) spin block then receives
+          // the nao x nao contraction result.
+          sigma_shift = t * _ns * _ink * _nso * _nso + is * _ink * _nso * _nso + k1_pos * _nso * _nso;
+          MMatrixXcd Sm_nso(Sigma_fermi.data() + sigma_shift, _nso, _nso);
+          Sm_nso.block(a * _nao, b * _nao, _nao, _nao) -= Sigma_ts;
         }
       }
     }
@@ -434,11 +398,9 @@ namespace green::mbpt::kernels {
                                                       MMatrixX<std::complex<double>>& X2m, MMatrixX<std::complex<double>>& Y2mmm,
                                                       MMatrixX<std::complex<double>>& X2mm, MatrixX<std::complex<double>>& P,
                                                       MatrixXcd& Sm_ts);
-  template void gw_cpu_kernel::assign_G(size_t k, size_t t, size_t s, const ztensor<5>&, MatrixX<std::complex<double>>& G_k);
-  template void gw_cpu_kernel::assign_G(size_t k, size_t t, size_t s, const ztensor<5>&, MatrixX<std::complex<float>>& G_k);
-  template void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t s1, size_t s2, const ztensor<5>&,
+  template void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t is, size_t s1, size_t s2, const ztensor<5>&,
                                             MatrixX<std::complex<double>>& G_k);
-  template void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t s1, size_t s2, const ztensor<5>&,
+  template void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t is, size_t s1, size_t s2, const ztensor<5>&,
                                             MatrixX<std::complex<float>>& G_k);
 
 }

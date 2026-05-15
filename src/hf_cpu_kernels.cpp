@@ -151,21 +151,6 @@ namespace green::mbpt::kernels {
     {
       df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils);
 
-      ztensor<3>    dm_spblks[3]{
-          {_ink, _nao, _nao},
-          {_ink, _nao, _nao},
-          {_ink, _nao, _nao}
-      };
-      for (int ik = 0; ik < _ink; ++ik) {
-        CMMatrixXcd dmm(dm.data() + ik * _nso * _nso, _nso, _nso);
-        // alpha-alpha
-        matrix(dm_spblks[0](ik)) = dmm.block(0, 0, _nao, _nao);
-        // beta-beta
-        matrix(dm_spblks[1](ik)) = dmm.block(_nao, _nao, _nao, _nao);
-        // alpha-beta
-        matrix(dm_spblks[2](ik)) = dmm.block(0, _nao, _nao, _nao);
-      }
-
       size_t NQ_local = _NQ / utils::context().node_size;
       NQ_local += (_NQ % utils::context().node_size > utils::context().node_rank) ? 1 : 0;
       size_t NQ_offset = NQ_local * utils::context().node_rank +
@@ -238,29 +223,24 @@ namespace green::mbpt::kernels {
       MMatrixXcd v2m(v2.data(), _nao, NQ_local * _nao);
       MMatrixXcd v2mm(v2.data(), _nao * NQ_local, _nao);
 
-      for (int iks = utils::context().internode_rank; iks < 3 * _ink; iks += utils::context().internode_size) {
-        size_t      ik = iks / 3;
-        size_t      is = iks % 3;
+      // 3 iterations per k-point: s=0 (aa), s=1 (bb), s=2 (ab); ba derived as adjoint of ab.
+      // The Madelung uses the AO overlap S_aa (= S_bb) on both sides for all blocks —
+      // this is S_AO (spin-independent), not the spinor off-diagonal S_ab which is zero.
+      for (int iks = utils::context().internode_rank; iks < 3 * (int)_ink; iks += utils::context().internode_size) {
+        size_t      ik  = iks / 3;
+        size_t      s   = iks % 3;
+        size_t      a   = s % 2;             // s=0→0 (alpha), s=1→1 (beta), s=2→0 (alpha)
+        size_t      b   = (s > 0) ? 1 : 0;  // s=0→0, s=1→1, s=2→1
         MMatrixXcd  Fm_nso(new_Fock.data() + ik * _nso * _nso, _nso, _nso);
-        MatrixXcd   Fm_spblk(_nao, _nao);
         CMMatrixXcd Sm_nso(_S_k.data() + ik * _nso * _nso, _nso, _nso);
-        MatrixXcd   S_aa = Sm_nso.block(0, 0, _nao, _nao);
-        if (is == 0) {
-          // alpha-alpha
-          Fm_nso.block(0, 0, _nao, _nao) +=
-              compute_exchange(ik, dm_spblks[0], dm_spblks[1], v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm, NQ_local, NQ_offset);
-          Fm_nso.block(0, 0, _nao, _nao) -= _madelung * S_aa * matrix(dm_spblks[0](ik)) * S_aa;
-        } else if (is == 1) {
-          // beta-beta
-          Fm_nso.block(_nao, _nao, _nao, _nao) +=
-              compute_exchange(ik, dm_spblks[1], dm_spblks[0], v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm, NQ_local, NQ_offset);
-          Fm_nso.block(_nao, _nao, _nao, _nao) -= _madelung * S_aa * matrix(dm_spblks[1](ik)) * S_aa;
-        } else if (is == 2) {
-          // alpha-beta
-          Fm_nso.block(0, _nao, _nao, _nao) +=
-              compute_exchange_ab(ik, dm_spblks[2], v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm, NQ_local, NQ_offset);
-          Fm_nso.block(0, _nao, _nao, _nao) -= _madelung * S_aa * matrix(dm_spblks[2](ik)) * S_aa;
-          // beta-alpha
+        CMMatrixXcd dm_nso(dm.data() + ik * _nso * _nso, _nso, _nso);
+        Fm_nso.block(a * _nao, b * _nao, _nao, _nao) +=
+            compute_exchange_block(ik, a, b, dm, v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm, NQ_local, NQ_offset);
+        if (a == b) {  // diagonal: aa (s=0) and bb (s=1)
+          MatrixXcd S_aa = Sm_nso.block(0, 0, _nao, _nao);  // = S_bb; same AO overlap for both spins
+          Fm_nso.block(a * _nao, a * _nao, _nao, _nao) -=
+              _madelung * S_aa * dm_nso.block(a * _nao, a * _nao, _nao, _nao).eval() * S_aa;
+        } else {  // off-diagonal: s=2 (ab); beta-alpha is adjoint of alpha-beta
           Fm_nso.block(_nao, 0, _nao, _nao) = Fm_nso.block(0, _nao, _nao, _nao).transpose().conjugate();
         }
       }
@@ -275,68 +255,21 @@ namespace green::mbpt::kernels {
     return new_Fock;
   }
 
-  MatrixXcd hf_x2c_cpu_kernel::compute_exchange(int ik, ztensor<3>& dm_s1_s2, ztensor<3>& dm_ms1_ms2, ztensor<3>& v,
-                                                df_integral_t& coul_int1, ztensor<3>& Y, MMatrixXcd& Ym, MMatrixXcd& Ymm,
-                                                ztensor<3>& Y1, MMatrixXcd& Y1m, MMatrixXcd& Y1mm, MMatrixXcd& vmm,
-                                                ztensor<3>& v2, MMatrixXcd& v2m, MMatrixXcd& v2mm, size_t NQ_local, size_t NQ_offset) {
+  MatrixXcd hf_x2c_cpu_kernel::compute_exchange_block(int ik, int a, int b, const dm_type& dm, ztensor<3>& v,
+                                                       df_integral_t& coul_int1, ztensor<3>& Y, MMatrixXcd& Ym,
+                                                       MMatrixXcd& Ymm, ztensor<3>& Y1, MMatrixXcd& Y1m, MMatrixXcd& Y1mm,
+                                                       MMatrixXcd& vmm, ztensor<3>& v2, MMatrixXcd& v2m, MMatrixXcd& v2mm,
+                                                       size_t NQ_local, size_t NQ_offset) {
     int       k_ir = _bz_utils.k_symmetry().full_point(ik);
     MatrixXcd Fock = MatrixXcd::Zero(_nao, _nao);
-
     for (int ikp = 0; ikp < _nk; ++ikp) {
-      int kp = _bz_utils.k_symmetry().reduced_point(ikp);
-
       coul_int1.read_integrals(k_ir, ikp);
-      if(NQ_local > 0) {
-        // (Q, i, b) or conj(Q, j, a)
+      if (NQ_local > 0) {
         coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
-
-        // (Qi, a) = (Qi, b) * (b, a)
-        if (_bz_utils.k_symmetry().tr_conj_list()[ikp] == 0) {
-          CMMatrixXcd dmm(dm_s1_s2.data() + kp * _nao * _nao, _nao, _nao);
-          Ym = vmm * dmm;
-        } else {
-          CMMatrixXcd dmm(dm_ms1_ms2.data() + kp * _nao * _nao, _nao, _nao);
-          Ym = vmm * dmm.conjugate();
-        }
-        // (ia, Q)
+        MatrixXcd dmm = _bz_utils.k_symmetry().value_AO(dm(0), ikp).block(a * _nao, b * _nao, _nao, _nao);
+        Ym  = vmm * dmm;
         Y1m = Ymm.transpose();
-        // (a, Qj)
         v2m = vmm.conjugate().transpose();
-        // (i, j) = (i, aQ) * (aQ, j)
-        Fock -= Y1mm * v2mm / double(_nk);
-      }
-    }
-    return Fock;
-  }
-
-  MatrixXcd hf_x2c_cpu_kernel::compute_exchange_ab(int ik, ztensor<3>& dm_ab, ztensor<3>& v, df_integral_t& coul_int1,
-                                                   ztensor<3>& Y, MMatrixXcd& Ym, MMatrixXcd& Ymm, ztensor<3>& Y1,
-                                                   MMatrixXcd& Y1m, MMatrixXcd& Y1mm, MMatrixXcd& vmm, ztensor<3>& v2,
-                                                   MMatrixXcd& v2m, MMatrixXcd& v2mm, size_t NQ_local, size_t NQ_offset) {
-    int       k_ir = _bz_utils.k_symmetry().full_point(ik);
-    MatrixXcd Fock = MatrixXcd::Zero(_nao, _nao);
-
-    for (int ikp = 0; ikp < _nk; ++ikp) {
-      int kp = _bz_utils.k_symmetry().reduced_point(ikp);
-
-      coul_int1.read_integrals(k_ir, ikp);
-      if(NQ_local > 0) {
-        // (Q, i, b) or conj(Q, j, a)
-        coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
-
-        // (Qi, a) = (Qi, b) * (b, a)
-        if (_bz_utils.k_symmetry().tr_conj_list()[ikp] == 0) {
-          CMMatrixXcd dmm(dm_ab.data() + kp * _nao * _nao, _nao, _nao);
-          Ym = vmm * dmm;
-        } else {
-          CMMatrixXcd dmm(dm_ab.data() + kp * _nao * _nao, _nao, _nao);
-          Ym = vmm * (-1.0) * dmm.transpose();
-        }
-        // (ia, Q)
-        Y1m = Ymm.transpose();
-        // (a, Qj)
-        v2m = vmm.conjugate().transpose();
-        // (i, j) = (i, aQ) * (aQ, j)
         Fock -= Y1mm * v2mm / double(_nk);
       }
     }
