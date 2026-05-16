@@ -234,13 +234,12 @@ namespace green::mbpt::kernels {
         MMatrixXcd  Fm_nso(new_Fock.data() + ik * _nso * _nso, _nso, _nso);
         CMMatrixXcd Sm_nso(_S_k.data() + ik * _nso * _nso, _nso, _nso);
         CMMatrixXcd dm_nso(dm.data() + ik * _nso * _nso, _nso, _nso);
+        MatrixXcd   S_aa = Sm_nso.block(0, 0, _nao, _nao);  // AO overlap; same for all spin blocks
         Fm_nso.block(a * _nao, b * _nao, _nao, _nao) +=
             compute_exchange_block(ik, a, b, dm, v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm, NQ_local, NQ_offset);
-        if (a == b) {  // diagonal: aa (s=0) and bb (s=1)
-          MatrixXcd S_aa = Sm_nso.block(0, 0, _nao, _nao);  // = S_bb; same AO overlap for both spins
-          Fm_nso.block(a * _nao, a * _nao, _nao, _nao) -=
-              _madelung * S_aa * dm_nso.block(a * _nao, a * _nao, _nao, _nao).eval() * S_aa;
-        } else {  // off-diagonal: s=2 (ab); beta-alpha is adjoint of alpha-beta
+        Fm_nso.block(a * _nao, b * _nao, _nao, _nao) -=
+            _madelung * S_aa * dm_nso.block(a * _nao, b * _nao, _nao, _nao).eval() * S_aa;
+        if (a != b) {  // s=2 (ab): derive beta-alpha as adjoint of alpha-beta
           Fm_nso.block(_nao, 0, _nao, _nao) = Fm_nso.block(0, _nao, _nao, _nao).transpose().conjugate();
         }
       }
