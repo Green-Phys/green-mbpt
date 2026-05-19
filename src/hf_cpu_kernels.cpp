@@ -223,25 +223,47 @@ namespace green::mbpt::kernels {
       MMatrixXcd v2m(v2.data(), _nao, NQ_local * _nao);
       MMatrixXcd v2mm(v2.data(), _nao * NQ_local, _nao);
 
-      // 3 iterations per k-point: s=0 (aa), s=1 (bb), s=2 (ab); ba derived as adjoint of ab.
+      // One iteration per IBZ k-point: compute aa, bb, and ab Fock contributions
+      // in a single ikp pass so that value_AO, read_integrals, and symmetrize are
+      // each called once per ikp instead of once per (spin block × ikp).
       // The Madelung uses the AO overlap S_aa (= S_bb) on both sides for all blocks —
       // this is S_AO (spin-independent), not the spinor off-diagonal S_ab which is zero.
-      for (int iks = utils::context().internode_rank; iks < 3 * (int)_ink; iks += utils::context().internode_size) {
-        size_t      ik  = iks / 3;
-        size_t      s   = iks % 3;
-        size_t      a   = s % 2;             // s=0→0 (alpha), s=1→1 (beta), s=2→0 (alpha)
-        size_t      b   = (s > 0) ? 1 : 0;  // s=0→0, s=1→1, s=2→1
+      for (int ik = utils::context().internode_rank; ik < (int)_ink; ik += utils::context().internode_size) {
+        int         k_ir  = _bz_utils.k_symmetry().full_point(ik);
         MMatrixXcd  Fm_nso(new_Fock.data() + ik * _nso * _nso, _nso, _nso);
         CMMatrixXcd Sm_nso(_S_k.data() + ik * _nso * _nso, _nso, _nso);
         CMMatrixXcd dm_nso(dm.data() + ik * _nso * _nso, _nso, _nso);
-        MatrixXcd   S_aa = Sm_nso.block(0, 0, _nao, _nao);  // AO overlap; same for all spin blocks
-        Fm_nso.block(a * _nao, b * _nao, _nao, _nao) +=
-            compute_exchange_block(ik, a, b, dm, v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm, NQ_local, NQ_offset);
-        Fm_nso.block(a * _nao, b * _nao, _nao, _nao) -=
-            _madelung * S_aa * dm_nso.block(a * _nao, b * _nao, _nao, _nao).eval() * S_aa;
-        if (a != b) {  // s=2 (ab): derive beta-alpha as adjoint of alpha-beta
-          Fm_nso.block(_nao, 0, _nao, _nao) = Fm_nso.block(0, _nao, _nao, _nao).transpose().conjugate();
+        MatrixXcd   S_aa   = Sm_nso.block(0, 0, _nao, _nao);
+        MatrixXcd   Fock_aa = MatrixXcd::Zero(_nao, _nao);
+        MatrixXcd   Fock_bb = MatrixXcd::Zero(_nao, _nao);
+        MatrixXcd   Fock_ab = MatrixXcd::Zero(_nao, _nao);
+
+        for (int ikp = 0; ikp < _nk; ++ikp) {
+          coul_int1.read_integrals(k_ir, ikp);
+          if (NQ_local > 0) {
+            coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
+            // value_AO called once per ikp; all three spin blocks extracted from result.
+            MatrixXcd dm_k = _bz_utils.k_symmetry().value_AO(dm(0), ikp);
+            v2m = vmm.conjugate().transpose();  // same for all spin blocks at this ikp
+            // alpha-alpha
+            Ym = vmm * dm_k.block(0, 0, _nao, _nao); Y1m = Ymm.transpose();
+            Fock_aa -= Y1mm * v2mm / double(_nk);
+            // beta-beta
+            Ym = vmm * dm_k.block(_nao, _nao, _nao, _nao); Y1m = Ymm.transpose();
+            Fock_bb -= Y1mm * v2mm / double(_nk);
+            // alpha-beta
+            Ym = vmm * dm_k.block(0, _nao, _nao, _nao); Y1m = Ymm.transpose();
+            Fock_ab -= Y1mm * v2mm / double(_nk);
+          }
         }
+
+        // Apply exchange + Madelung to aa and bb diagonal blocks.
+        Fm_nso.block(0,    0,    _nao, _nao) += Fock_aa - _madelung * S_aa * dm_nso.block(0,    0,    _nao, _nao).eval() * S_aa;
+        Fm_nso.block(_nao, _nao, _nao, _nao) += Fock_bb - _madelung * S_aa * dm_nso.block(_nao, _nao, _nao, _nao).eval() * S_aa;
+        // Apply to ab block; ba is its adjoint.
+        Fock_ab -= _madelung * S_aa * dm_nso.block(0, _nao, _nao, _nao).eval() * S_aa;
+        Fm_nso.block(0,    _nao, _nao, _nao) += Fock_ab;
+        Fm_nso.block(_nao, 0,    _nao, _nao)  = Fm_nso.block(0, _nao, _nao, _nao).transpose().conjugate();
       }
       statistics.end();
     }
@@ -254,24 +276,4 @@ namespace green::mbpt::kernels {
     return new_Fock;
   }
 
-  MatrixXcd hf_x2c_cpu_kernel::compute_exchange_block(int ik, int a, int b, const dm_type& dm, ztensor<3>& v,
-                                                       df_integral_t& coul_int1, ztensor<3>& Y, MMatrixXcd& Ym,
-                                                       MMatrixXcd& Ymm, ztensor<3>& Y1, MMatrixXcd& Y1m, MMatrixXcd& Y1mm,
-                                                       MMatrixXcd& vmm, ztensor<3>& v2, MMatrixXcd& v2m, MMatrixXcd& v2mm,
-                                                       size_t NQ_local, size_t NQ_offset) {
-    int       k_ir = _bz_utils.k_symmetry().full_point(ik);
-    MatrixXcd Fock = MatrixXcd::Zero(_nao, _nao);
-    for (int ikp = 0; ikp < _nk; ++ikp) {
-      coul_int1.read_integrals(k_ir, ikp);
-      if (NQ_local > 0) {
-        coul_int1.symmetrize(v, k_ir, ikp, NQ_offset, NQ_local);
-        MatrixXcd dmm = _bz_utils.k_symmetry().value_AO(dm(0), ikp).block(a * _nao, b * _nao, _nao, _nao);
-        Ym  = vmm * dmm;
-        Y1m = Ymm.transpose();
-        v2m = vmm.conjugate().transpose();
-        Fock -= Y1mm * v2mm / double(_nk);
-      }
-    }
-    return Fock;
-  }
 }

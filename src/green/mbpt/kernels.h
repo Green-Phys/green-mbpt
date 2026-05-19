@@ -252,11 +252,6 @@ namespace green::mbpt::kernels {
         hf_kernel(p, nao, nso, ns, NQ, madelung, bz_utils, S_k) {}
     S1_type solve(const dm_type& dm);
 
-  private:
-    MatrixXcd compute_exchange_block(int ik, int a, int b, const dm_type& dm, ztensor<3>& v, df_integral_t& coul_int1,
-                                     ztensor<3>& Y, MMatrixXcd& Ym, MMatrixXcd& Ymm, ztensor<3>& Y1, MMatrixXcd& Y1m,
-                                     MMatrixXcd& Y1mm, MMatrixXcd& vmm, ztensor<3>& v2, MMatrixXcd& v2m, MMatrixXcd& v2mm,
-                                     size_t NQ_local, size_t NQ_offset);
   };
 }  // namespace green::mbpt::kernels
 
