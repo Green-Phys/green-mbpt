@@ -169,25 +169,26 @@ namespace green::mbpt::kernels {
       for (size_t t = tau_offset, it = 0; it < local_tau; ++t, ++it) {  // Loop over half-tau
         size_t     tt = _nts - t - 1;                                   // beta - t
         MMatrixXcd P0(P0_tilde.data() + t * _NQ * _NQ, _NQ, _NQ);
+        // Cache value_AO once per (is, k) to avoid repeating the transform
+        // for each of the pns² spin-block combinations.
+        MatrixX<prec> G_k1_full[2], G_k1q_full[2];  // at most _ns=2 spin channels
+        for (size_t is = 0; is < _ns; ++is) {
+          G_k1_full[is]  = _bz_utils.k_symmetry().value_AO(G.object()(tt, is), k1_k1q[0]).template cast<prec>();
+          G_k1q_full[is] = _bz_utils.k_symmetry().value_AO(G.object()(t,  is), k1_k1q[1]).template cast<prec>();
+        }
         for (size_t s = 0; s < pseudo_ns; ++s) {
           size_t is = s / (pns * pns);
           size_t a  = (s / pns) % pns;  // row spin-block index of the G(k1+q) block
           size_t b  = s % pns;          // col spin-block index; G^bar(k1) uses (b,a) to take the adjoint block
-          assign_G_nso(k1_k1q[0], tt, is, b, a, G.object(), Gb_k1);
-          assign_G_nso(k1_k1q[1], t,  is, a, b, G.object(), G_k1q);
+          Gb_k1 = G_k1_full[is].block(b * _nao, a * _nao, _nao, _nao);
+          G_k1q = G_k1q_full[is].block(a * _nao, b * _nao, _nao, _nao);
           P0_contraction<prec>(Gb_k1, G_k1q, vm, VVm, VVmm, X1m, vmm, X2m, X1mm, X2mm, P0, prefactor);
         }
       }
     }
   }
 
-  template <typename prec>
-  void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t is, size_t s1, size_t s2,
-                                   const ztensor<5>& G_fermi, MatrixX<prec>& G_k) {
-    G_k = _bz_utils.k_symmetry().value_AO(G_fermi(t, is), k).block(
-      s1 * _nao, s2 * _nao, _nao, _nao
-    ).template cast<prec>();
-  }
+
 
   /**
    * Contraction of polarization function for given tau and k-point
@@ -328,11 +329,16 @@ namespace green::mbpt::kernels {
       size_t          sigma_shift;
       for (size_t t = tau_offset, it = 0; it < tau_local; ++t, ++it) {
         MatrixX<prec> P_sp = eval_p0_bz_from_ibz<prec>(P0_tilde(t, 0), q_idx);
+        // Cache value_AO once per (is, k) to avoid repeating the transform
+        // for each of the pns² spin-block combinations.
+        MatrixX<prec> G_k1q_full[2];  // at most _ns=2 spin channels
+        for (size_t is = 0; is < _ns; ++is)
+          G_k1q_full[is] = _bz_utils.k_symmetry().value_AO(G_fermi.object()(t, is), k1_k1mq[1]).template cast<prec>();
         for (size_t s = 0; s < pseudo_ns; ++s) {
           size_t is = s / (pns * pns);
           size_t a  = (s / pns) % pns;  // row spin-block index of the G and Sigma blocks
           size_t b  = s % pns;          // col spin-block index
-          assign_G_nso(k1_k1mq[1], t, is, a, b, G_fermi.object(), G_k1q);
+          G_k1q = G_k1q_full[is].block(a * _nao, b * _nao, _nao, _nao);
           selfenergy_contraction(G_k1q, vm, Y1m, Y1mm, Y2mm, X2m, Y2mmm, X2mm, P_sp, Sigma_ts);
           // sigma_shift locates the start of the nso x nso Sigma matrix for
           // tau index t, spin is, and k-point k1_pos in the flat array
@@ -398,9 +404,5 @@ namespace green::mbpt::kernels {
                                                       MMatrixX<std::complex<double>>& X2m, MMatrixX<std::complex<double>>& Y2mmm,
                                                       MMatrixX<std::complex<double>>& X2mm, MatrixX<std::complex<double>>& P,
                                                       MatrixXcd& Sm_ts);
-  template void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t is, size_t s1, size_t s2, const ztensor<5>&,
-                                            MatrixX<std::complex<double>>& G_k);
-  template void gw_cpu_kernel::assign_G_nso(size_t k, size_t t, size_t is, size_t s1, size_t s2, const ztensor<5>&,
-                                            MatrixX<std::complex<float>>& G_k);
 
 }

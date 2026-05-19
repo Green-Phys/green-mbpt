@@ -130,29 +130,6 @@ namespace green::mbpt::kernels {
                        size_t tau_offset);
 
     /**
-     * Extract the (s1, s2) spin block of G at full BZ k-point k, applying the
-     * space group symmetry transformation G(k) = U_k * G(ik) * U_k^dagger via
-     * value_AO (which also conjugates for time-reversal k-points).  For X2C,
-     * U_k is nso x nso and encodes both the spatial rotation and the spinor
-     * structure; for non-X2C, nso = nao so (s1, s2) = (0, 0) and the block
-     * covers the full nao x nao matrix, reproducing the old assign_G behaviour.
-     *
-     * Replaces the former assign_G (non-X2C, no block extraction) and
-     * assign_G_nso (X2C, manual element-wise TR spin-flip without space group
-     * rotation).  Both legacy versions are removed.
-     *
-     * @param k       k-point index in the full BZ
-     * @param t       imaginary-time index
-     * @param is      spin index into G_fermi (0..ns-1; always 0 for X2C)
-     * @param s1      row spin-block index (0 = alpha, 1 = beta for X2C; 0 otherwise)
-     * @param s2      col spin-block index
-     * @param G_fermi Green's function tensor [nts, ns, nk_ibz, nso, nso]
-     * @param G_k     output nao x nao block
-     */
-    template <typename prec>
-    void assign_G_nso(size_t k, size_t t, size_t is, size_t s1, size_t s2, const ztensor<5>& G_fermi, MatrixX<prec>& G_k);
-
-    /**
      * Contraction of polarization function for given tau and k-point
      * @param t - [INPUT] imaginary time
      * @param k - [INPUT] [k1, k2, k1, k2]
