@@ -205,6 +205,8 @@ void check_x2c_hubbard_symmetry(const std::string& scf_type) {
       if (!green::utils::context().node_rank) result(0) << Sigma1;
       nt_out = 1;
     }
+    // Broadcast result to all ranks so assertions run on consistent data.
+    MPI_Bcast(result.data(), result.size(), MPI_CXX_DOUBLE_COMPLEX, 0, utils::context().global);
     return std::make_pair(result, nt_out);
   };
 
