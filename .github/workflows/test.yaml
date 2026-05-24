@@ -19,6 +19,9 @@ jobs:
 
       - name: Build
         run: |
+          # manually source /etc/profile such that lmod is set up:
+          . /etc/profile
+
           module load BuildEnv/gcc-12.2.0.lua;
           mkdir -p build && cd build;
           cmake -DCMAKE_CXX_FLAGS=" --coverage -fno-inline -fno-inline-small-functions -fno-default-inline -fprofile-arcs -ftest-coverage " \
