@@ -135,17 +135,20 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
 
 // Check that one step of scf_type ("HF" or "GW") gives the same Sigma at every
 // IBZ k-point regardless of whether space-group, TR-only, or no symmetry is used.
-// Uses a Hubbard+Rashba model so agreement is tight (tol=1e-8, no grid noise).
-// Note: because the Hubbard model uses "s"-type orbitals only, the orbital
-// representation U_orbital(R) is trivially the identity for all rotations and
-// only the SU(2) spinor part of the double-group transform is exercised here.
-// Point-group symmetry of higher angular-momentum orbitals is not tested.
-void check_x2c_hubbard_symmetry(const std::string& scf_type) {
-  const std::string dir       = TEST_PATH + "/GW_X2C_Hubbard"s;
-  const std::string df_path   = dir + (scf_type == "GW" ? "/df_int"s : "/df_hf_int"s);
+// Uses a cubic Ar (def2-svp, --x2c 2, 3x3x1 k-mesh) reference that exercises
+// both the orbital point-group representation (the basis includes p-shells)
+// and the SU(2) spinor part of the double-group transform under full X2C
+// spin-orbit coupling.  The 3x3x1 mesh gives non-trivial TR reduction
+// (no_symm=9 ink, trs_only=5 ink, full_symm=3 ink).  Tolerance accommodates
+// the integral-storage-floor disagreement between symmetry-reduced and
+// no-symmetry runs.
+void check_x2c_ar_symmetry(const std::string& scf_type) {
+  const std::string dir       = TEST_PATH + "/GW_X2C_Ar"s;
+  // Shared integral dir for both HF and GW (saves test data footprint).
+  const std::string df_path   = dir + "/df_hf_int"s;
   const std::string grid_file = GRID_PATH + "/ir/1e4.h5"s;
-  constexpr size_t  ns = 1, nk = 36, nso = 4;
-  constexpr double  tol = 1e-8;
+  constexpr size_t  ns = 1, nk = 9, nso = 28;
+  constexpr double  tol = 1e-5;
 
   size_t nts = 0;
   {
@@ -156,17 +159,17 @@ void check_x2c_hubbard_symmetry(const std::string& scf_type) {
 
   // Run one SCF step and return Sigma: [nts,ns,ink,nso,nso] for GW,
   // [1,ns,ink,nso,nso] for HF (Sigma1 broadcast to uniform shape).
-  auto run = [&](const std::string& input_file, const std::string& sim_file, size_t ink) {
+  auto run = [&](const std::string& input_file, const std::string& data_file, size_t ink) {
     auto        p    = green::params::params("DESCR");
     std::string args = "test --restart 0 --itermax 1 --E_thr 1e-13 "
                        "--mixing_type SIGMA_MIXING --mixing_weight 0.7 "
-                       "--input_file=" + input_file + " --BETA 100 --grid_file=" + grid_file +
+                       "--input_file=" + input_file + " --BETA 10 --grid_file=" + grid_file +
                        (scf_type == "GW" ? " --dfintegral_file=" + df_path + " --q0_treatment IGNORE_G0"
                                          : " --dfintegral_hf_file=" + df_path);
     green::grids::define_parameters(p);
     green::mbpt::define_parameters(p);
     green::symmetry::define_parameters(p);
-    p.define<double>("BETA", "Inverse temperature", 100.0);
+    p.define<double>("BETA", "Inverse temperature", 10.0);
     p.parse(args);
     green::symmetry::brillouin_zone_utils bz(p);
 
@@ -182,9 +185,9 @@ void check_x2c_hubbard_symmetry(const std::string& scf_type) {
     auto G_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
     auto S_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
     {
-      green::h5pp::archive ar(sim_file, "r");
+      green::h5pp::archive ar(data_file, "r");
       G_shared.fence();
-      if (!green::utils::context().node_rank) ar["iter1/G_tau/data"] >> G_shared.object();
+      if (!green::utils::context().node_rank) ar["G_tau"] >> G_shared.object();
       G_shared.fence();
     }
 
@@ -210,13 +213,13 @@ void check_x2c_hubbard_symmetry(const std::string& scf_type) {
     return std::make_pair(result, nt_out);
   };
 
-  auto [Sigma_nosymm, nts_out] = run(dir + "/input_no_symm.h5"s, dir + "/sim_no_symm.h5"s, 36);
-  auto [Sigma_symm,   _1]      = run(dir + "/input_symm.h5"s,    dir + "/sim_symm.h5"s,     7);
-  auto [Sigma_trs,    _2]      = run(dir + "/input_trs_only.h5"s,dir + "/sim_trs_only.h5"s, 20);
+  auto [Sigma_nosymm, nts_out] = run(dir + "/input_no_symm.h5"s,   dir + "/data_no_symm.h5"s,   9);
+  auto [Sigma_symm,   _1]      = run(dir + "/input_full_symm.h5"s, dir + "/data_full_symm.h5"s, 3);
+  auto [Sigma_trs,    _2]      = run(dir + "/input_trs_only.h5"s,  dir + "/data_trs_only.h5"s,  5);
 
   std::vector<long> ibz2bz_symm, ibz2bz_trs;
   {
-    green::h5pp::archive ar(dir + "/input_symm.h5"s, "r");
+    green::h5pp::archive ar(dir + "/input_full_symm.h5"s, "r");
     ar["symmetry/k/ibz2bz"] >> ibz2bz_symm;
   }
   {
@@ -297,8 +300,8 @@ TEST_CASE("MBPT Solver") {
   SECTION("GW_C") { solve_gw("/GW/input_tr_symm.h5", "/GW/df_hf_int", "/GW/data_c.h5", "EXTRAPOLATE"); }
   SECTION("GW_X2C") { solve_gw("/GW_X2C/input.h5", "/GW_X2C/df_hf_int", "/GW_X2C/data.h5"); }
 
-  SECTION("HF_X2C_Hubbard_Symmetry") { check_x2c_hubbard_symmetry("HF"); }
-  SECTION("GW_X2C_Hubbard_Symmetry") { check_x2c_hubbard_symmetry("GW"); }
+  SECTION("HF_X2C_Ar_Symmetry") { check_x2c_ar_symmetry("HF"); }
+  SECTION("GW_X2C_Ar_Symmetry") { check_x2c_ar_symmetry("GW"); }
 
   SECTION("GF2") { solve_gf2(TEST_PATH + "/GF2/df_hf_int"s, TEST_PATH + "/GF2/data.h5"s, TEST_PATH + "/GF2/input.h5"s); }
 
