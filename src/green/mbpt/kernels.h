@@ -129,11 +129,6 @@ namespace green::mbpt::kernels {
     void eval_P0_tilde(const std::array<size_t, 2>& k1_k1q, const G_type& G, ztensor<4>& P0_tilde_s, size_t local_tau,
                        size_t tau_offset);
 
-    template <typename prec>
-    void assign_G(size_t k, size_t t, size_t s, const ztensor<5>& G_fermi, MatrixX<prec>& G_k);
-    template <typename prec>
-    void assign_G_nso(size_t k, size_t t, size_t s1, size_t s2, const ztensor<5>& G_fermi, MatrixX<prec>& G_k);
-
     /**
      * Contraction of polarization function for given tau and k-point
      * @param t - [INPUT] imaginary time
@@ -234,13 +229,6 @@ namespace green::mbpt::kernels {
         hf_kernel(p, nao, nso, ns, NQ, madelung, bz_utils, S_k) {}
     S1_type solve(const dm_type& dm);
 
-  private:
-    MatrixXcd compute_exchange(int ik, ztensor<3>& dm_s1_s2, ztensor<3>& dm_ms1_ms2, ztensor<3>& v, df_integral_t& coul_int1,
-                               ztensor<3>& Y, MMatrixXcd& Ym, MMatrixXcd& Ymm, ztensor<3>& Y1, MMatrixXcd& Y1m, MMatrixXcd& Y1mm,
-                               MMatrixXcd& vmm, ztensor<3>& v2, MMatrixXcd& v2m, MMatrixXcd& v2mm, size_t NQ_local, size_t NQ_offset);
-    MatrixXcd compute_exchange_ab(int ik, ztensor<3>& dm_ab, ztensor<3>& v, df_integral_t& coul_int1, ztensor<3>& Y,
-                                  MMatrixXcd& Ym, MMatrixXcd& Ymm, ztensor<3>& Y1, MMatrixXcd& Y1m, MMatrixXcd& Y1mm,
-                                  MMatrixXcd& vmm, ztensor<3>& v2, MMatrixXcd& v2m, MMatrixXcd& v2mm, size_t NQ_local, size_t NQ_offset);
   };
 }  // namespace green::mbpt::kernels
 

@@ -133,6 +133,112 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
   REQUIRE_THAT(S_shared.object(), IsCloseTo(S_shared_tst.object(), 1e-6));
 }
 
+// Check that one step of scf_type ("HF" or "GW") gives the same Sigma at every
+// IBZ k-point regardless of whether space-group, TR-only, or no symmetry is used.
+// Uses a cubic Ar (def2-svp, --x2c 2, 3x3x1 k-mesh) reference that exercises
+// both the orbital point-group representation (the basis includes p-shells)
+// and the SU(2) spinor part of the double-group transform under full X2C
+// spin-orbit coupling.  The 3x3x1 mesh gives non-trivial TR reduction
+// (no_symm=9 ink, trs_only=5 ink, full_symm=3 ink).  Tolerance accommodates
+// the integral-storage-floor disagreement between symmetry-reduced and
+// no-symmetry runs.
+void check_x2c_ar_symmetry(const std::string& scf_type) {
+  const std::string dir       = TEST_PATH + "/GW_X2C_Ar"s;
+  // Shared integral dir for both HF and GW (saves test data footprint).
+  const std::string df_path   = dir + "/df_hf_int"s;
+  const std::string grid_file = GRID_PATH + "/ir/1e4.h5"s;
+  constexpr size_t  ns = 1, nk = 9, nso = 36;
+  constexpr double  tol = 1e-5;
+
+  size_t nts = 0;
+  {
+    green::h5pp::archive ar(grid_file);
+    ar["fermi/metadata/ncoeff"] >> nts;
+    nts += 2;
+  }
+
+  // Run one SCF step and return Sigma: [nts,ns,ink,nso,nso] for GW,
+  // [1,ns,ink,nso,nso] for HF (Sigma1 broadcast to uniform shape).
+  auto run = [&](const std::string& input_file, const std::string& data_file, size_t ink) {
+    auto        p    = green::params::params("DESCR");
+    std::string args = "test --restart 0 --itermax 1 --E_thr 1e-13 "
+                       "--mixing_type SIGMA_MIXING --mixing_weight 0.7 "
+                       "--input_file=" + input_file + " --BETA 10 --grid_file=" + grid_file +
+                       (scf_type == "GW" ? " --dfintegral_file=" + df_path + " --q0_treatment IGNORE_G0"
+                                         : " --dfintegral_hf_file=" + df_path);
+    green::grids::define_parameters(p);
+    green::mbpt::define_parameters(p);
+    green::symmetry::define_parameters(p);
+    p.define<double>("BETA", "Inverse temperature", 10.0);
+    p.parse(args);
+    green::symmetry::brillouin_zone_utils bz(p);
+
+    green::sc::ztensor<4> tmp(ns, nk, nso, nso), Sigma1(ns, ink, nso, nso), Sk(ns, ink, nso, nso);
+    {
+      green::h5pp::archive  ar(input_file);
+      green::sc::dtensor<5> S_k;
+      ar["HF/S-k"] >> S_k;
+      tmp << S_k.view<std::complex<double>>().reshape(ns, nk, nso, nso);
+    }
+    for (size_t is = 0; is < ns; ++is) Sk(is) << bz.full_to_ibz(tmp(is));
+
+    auto G_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+    auto S_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+    {
+      green::h5pp::archive ar(data_file, "r");
+      G_shared.fence();
+      if (!green::utils::context().node_rank) ar["G_tau"] >> G_shared.object();
+      G_shared.fence();
+    }
+
+    size_t                nt_out = nts;
+    green::sc::ztensor<5> result;
+    if (scf_type == "GW") {
+      green::grids::transformer_t ft(p);
+      green::mbpt::gw_solver      solver(p, ft, bz, Sk);
+      solver.solve(G_shared, Sigma1, S_shared);
+      result.resize(nts, ns, ink, nso, nso);
+      S_shared.fence();
+      if (!green::utils::context().node_rank) result << S_shared.object();
+      S_shared.fence();
+    } else {
+      green::mbpt::hf_solver solver(p, bz, Sk);
+      solver.solve(G_shared, Sigma1, S_shared);
+      result.resize(1, ns, ink, nso, nso);
+      if (!green::utils::context().node_rank) result(0) << Sigma1;
+      nt_out = 1;
+    }
+    // Broadcast result to all ranks so assertions run on consistent data.
+    MPI_Bcast(result.data(), result.size(), MPI_CXX_DOUBLE_COMPLEX, 0, green::utils::context().global);
+    return std::make_pair(result, nt_out);
+  };
+
+  auto [Sigma_nosymm, nts_out] = run(dir + "/input_no_symm.h5"s,   dir + "/data_no_symm.h5"s,   9);
+  auto [Sigma_symm,   _1]      = run(dir + "/input_full_symm.h5"s, dir + "/data_full_symm.h5"s, 3);
+  auto [Sigma_trs,    _2]      = run(dir + "/input_trs_only.h5"s,  dir + "/data_trs_only.h5"s,  5);
+
+  std::vector<long> ibz2bz_symm, ibz2bz_trs;
+  {
+    green::h5pp::archive ar(dir + "/input_full_symm.h5"s, "r");
+    ar["symmetry/k/ibz2bz"] >> ibz2bz_symm;
+  }
+  {
+    green::h5pp::archive ar(dir + "/input_trs_only.h5"s, "r");
+    ar["symmetry/k/ibz2bz"] >> ibz2bz_trs;
+  }
+
+  auto check = [&](const green::sc::ztensor<5>& Sigma_ref, const green::sc::ztensor<5>& Sigma_sym,
+                   const std::vector<long>& ibz2bz) {
+    for (size_t i = 0; i < ibz2bz.size(); ++i) {
+      size_t k = ibz2bz[i];
+      for (size_t t = 0; t < nts_out; ++t)
+        REQUIRE_THAT(Sigma_sym(t, 0, i), IsCloseTo(Sigma_ref(t, 0, k), tol));
+    }
+  };
+  check(Sigma_nosymm, Sigma_symm, ibz2bz_symm);
+  check(Sigma_nosymm, Sigma_trs,  ibz2bz_trs);
+}
+
 void solve_gf2(const std::string& df_int_path, const std::string& test_file, const std::string& input_file) {
   auto        p         = green::params::params("DESCR");
 
@@ -193,6 +299,9 @@ TEST_CASE("MBPT Solver") {
   SECTION("GW") { solve_gw("/GW/input.h5", "/GW/df_int", "/GW/data.h5"); }
   SECTION("GW_C") { solve_gw("/GW/input_tr_symm.h5", "/GW/df_hf_int", "/GW/data_c.h5", "EXTRAPOLATE"); }
   SECTION("GW_X2C") { solve_gw("/GW_X2C/input.h5", "/GW_X2C/df_hf_int", "/GW_X2C/data.h5"); }
+
+  SECTION("HF_X2C_Ar_Symmetry") { check_x2c_ar_symmetry("HF"); }
+  SECTION("GW_X2C_Ar_Symmetry") { check_x2c_ar_symmetry("GW"); }
 
   SECTION("GF2") { solve_gf2(TEST_PATH + "/GF2/df_hf_int"s, TEST_PATH + "/GF2/data.h5"s, TEST_PATH + "/GF2/input.h5"s); }
 

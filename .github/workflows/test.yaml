@@ -19,6 +19,9 @@ jobs:
 
       - name: Build
         run: |
+          # manually source /etc/profile such that lmod is set up:
+          . /etc/profile
+
           module load BuildEnv/gcc-12.2.0.lua;
           mkdir -p build && cd build;
           cmake -DCMAKE_CXX_FLAGS=" --coverage -fno-inline -fno-inline-small-functions -fno-default-inline -fprofile-arcs -ftest-coverage " \
@@ -30,12 +33,18 @@ jobs:
           HDF5_USE_FILE_LOCKING: 'FALSE'
           OMP_NUM_THREADS: 1
         run: |
+            # manually source /etc/profile such that lmod is set up:
+            . /etc/profile
+
             module load BuildEnv/gcc-12.2.0.lua;
             cd build;
             ctest -j 1
 
       - name: Run coverage
         run: |
+          # manually source /etc/profile such that lmod is set up:
+          . /etc/profile
+
           module load BuildEnv/gcc-12.2.0.lua;
           cd build;
           lcov --capture --directory . --output-file coverage.info;
