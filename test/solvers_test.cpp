@@ -147,7 +147,7 @@ void check_x2c_ar_symmetry(const std::string& scf_type) {
   // Shared integral dir for both HF and GW (saves test data footprint).
   const std::string df_path   = dir + "/df_hf_int"s;
   const std::string grid_file = GRID_PATH + "/ir/1e4.h5"s;
-  constexpr size_t  ns = 1, nk = 9, nso = 28;
+  constexpr size_t  ns = 1, nk = 9, nso = 36;
   constexpr double  tol = 1e-5;
 
   size_t nts = 0;
