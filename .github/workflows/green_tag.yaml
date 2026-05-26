@@ -58,7 +58,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
         with:
           ref: main  # important: checkout main, not the tag
           token: ${{ steps.generate-token.outputs.token }}
