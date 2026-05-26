@@ -227,17 +227,16 @@ void check_x2c_ar_symmetry(const std::string& scf_type) {
     ar["symmetry/k/ibz2bz"] >> ibz2bz_trs;
   }
 
-  const size_t nts = nts_out;
   auto check = [&](const green::sc::ztensor<5>& Sigma_ref, const green::sc::ztensor<5>& Sigma_sym,
-                   const std::vector<long>& ibz2bz) {
+                   const std::vector<long>& ibz2bz, size_t n_ts) {
     for (size_t i = 0; i < ibz2bz.size(); ++i) {
       size_t k = ibz2bz[i];
-      for (size_t t = 0; t < nts; ++t)
+      for (size_t t = 0; t < n_ts; ++t)
         REQUIRE_THAT(Sigma_sym(t, 0, i), IsCloseTo(Sigma_ref(t, 0, k), tol));
     }
   };
-  check(Sigma_nosymm, Sigma_symm, ibz2bz_symm);
-  check(Sigma_nosymm, Sigma_trs,  ibz2bz_trs);
+  check(Sigma_nosymm, Sigma_symm, ibz2bz_symm, nts_out);
+  check(Sigma_nosymm, Sigma_trs,  ibz2bz_trs,  nts_out);
 }
 
 void solve_gf2(const std::string& df_int_path, const std::string& test_file, const std::string& input_file) {
