@@ -86,9 +86,16 @@ if __name__ == "__main__":
         nao = fff["params/nao"][()]
         nso = fff["params/nso"][()]
         ns = fff["params/ns"][()]
-        if nso == nao * 2 and args.orth_method != "symmetrical_orbitals":
-            raise RuntimeError("X2C supports only symmetrical orthogonalization")
         x2c = (nso == nao * 2)
+        if x2c and args.orth and args.orth_method not in (
+                "symmetrical_orbitals", "canonical_orbitals"):
+            raise RuntimeError(
+                "ortho not supported for 2-component / x2c1e calculations "
+                "with --orth_method={!r}; allowed methods are "
+                "symmetrical_orbitals and canonical_orbitals (Löwdin "
+                "variants; MO / natural rotations would have non-block-"
+                "diagonal X in the spinor basis).".format(args.orth_method)
+            )
 
     sys.stdout.write("Reading the input data...")
     sys.stdout.flush()
