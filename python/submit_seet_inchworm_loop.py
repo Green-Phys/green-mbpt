@@ -228,7 +228,7 @@ def process_inchworm_output(iteration: int, workdir: Path, args: argparse.Namesp
         # NOTE: Replace `get_inchworm_selfenergy` with a custom defined function for other applications
         sigma_inf, sigma_tau = get_inchworm_selfenergy(
             default_green_func_path, default_time_filename, f'imp_{i}_hopping.txt', f'imp_{i}_delta.txt',
-            nao_imp[i], args.ir_file, args.BETA, mu, args.uhf
+            nao_imp[i], args.ir_file, args.BETA, args.uhf
         )
         sigma_inf_inchworm.append(sigma_inf)
         sigma_tau_inchworm.append(sigma_tau)
