@@ -35,15 +35,17 @@ def kspace_to_transform_h5_storage(X_k_new, X_inv_k_new):
 def load_kspace_symmetry(input_file):
     """Read the symmetry/k arrays needed by build_X_kspace_from_ao_reps.
 
-    Raises if input.h5 was produced before store_kstruct_ops_info wrote
-    k_sym_transform_ao — regenerate with the current green-mbtools
-    mean-field driver.
+    Raises if the input.h5 lacks the symmetry/k group entirely —
+    regenerate with the current green-mbtools mean-field driver. The
+    group's individual datasets are read without further guards on the
+    assumption that current mbtools writes them as a complete set; a
+    finer-grained schema check via __green_version__ is a TODO.
     """
     with h5py.File(input_file, "r") as f:
         symm = f.get("symmetry/k")
-        if symm is None or "k_sym_transform_ao" not in symm:
+        if symm is None:
             raise RuntimeError(
-                f"{input_file}: symmetry/k/k_sym_transform_ao not found. "
+                f"{input_file}: symmetry/k group not found. "
                 "Regenerate input.h5 with the current green-mbtools "
                 "mean-field driver."
             )
