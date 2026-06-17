@@ -225,7 +225,7 @@ def interpolation(tau_grid_in, X_tau, tau_grid_new, kind="cubic"):
     return new_delta_tau
 
 
-def get_inchworm_selfenergy(green_path, time_file, hopping_file, delta_file, nao_imp, ir_file, beta, mu, uhf=True):
+def get_inchworm_selfenergy(green_path, time_file, hopping_file, delta_file, nao_imp, ir_file, beta, uhf=True):
     """Extract static and dynamic self-energies on IR grid from, e.g., Inchworm data
 
     Parameters
@@ -244,8 +244,6 @@ def get_inchworm_selfenergy(green_path, time_file, hopping_file, delta_file, nao
         Path to IR file
     beta : float
         Inverse temperature
-    mu : float
-        Chemical potential
     uhf : bool, optional
         Whether the data is for unrestricted Hartree-Fock, by default True
 
@@ -272,11 +270,18 @@ def get_inchworm_selfenergy(green_path, time_file, hopping_file, delta_file, nao
     green_omega_IR = myir.tau_to_w(green_tau_IR)
 
     # Compute self-energy in Matsubara frequency
+    #
+    # The hopping matrix written by inchworm_impurity_solver already has
+    # the chemical potential baked in:
+    #     H0_imp = h_core_eff + Sigma_dc_inf - mu * S
+    # (see green-impurity/src/inchworm_impurity_solver.cpp). Therefore
+    # g0_inv must be built as (iw)*I - H0_imp - Delta(iw); adding mu
+    # explicitly here would double-count it.
     ns = 2 if uhf else 1
     sigma_omega_IR = np.zeros_like(green_omega_IR, dtype=complex)
     for s in range(ns):
         for iw, w_val in enumerate(myir.wsample):
-            g0_inv = (1j * w_val + mu) * np.eye(nao_imp, dtype=complex) - hopping[s] - delta_omega_IR[iw, s]
+            g0_inv = (1j * w_val) * np.eye(nao_imp, dtype=complex) - hopping[s] - delta_omega_IR[iw, s]
             g_inv = LA.inv(green_omega_IR[iw, s])
             sigma_omega_IR[iw, s] = g0_inv - g_inv
 
