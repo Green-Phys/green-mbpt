@@ -4,6 +4,7 @@
  */
 
 #include <green/grids.h>
+#include <green/mbpt/common_utils.h>
 #include <green/mbpt/dyson.h>
 #include <green/mbpt/gf2_solver.h>
 #include <green/mbpt/gw_solver.h>
@@ -293,6 +294,95 @@ void solve_gf2(const std::string& df_int_path, const std::string& test_file, con
   REQUIRE_THAT(S_shared.object(), IsCloseTo(S_shared_tst.object(), 1e-6));
 }
 
+// Run one solver pass for an orth-fixture mode and return the
+// (e_1b, e_HF, e_corr) triple from mbpt::compute_energy.
+//
+// Inputs come from test/data/HF_orth_invariance/<mode>/; the post-Dyson
+// G_tau at /iter1/G_tau/data carries the basis-correct density, while
+// H_k and S come from input.h5. scf_kind chooses what gets layered onto
+// the HF self-energy before energy assembly: GW or GF2 fills Sigma_tau,
+// HF leaves it zero.
+enum class orth_scf_kind { HF, GW, GF2 };
+
+struct orth_energies {
+  double e_1b, e_HF, e_corr;
+};
+
+orth_energies run_orth_one_iter(const std::string& mode, orth_scf_kind kind) {
+  auto        p          = green::params::params("DESCR");
+  std::string mode_dir   = TEST_PATH + "/HF_orth_invariance/"s + mode;
+  std::string input_file = mode_dir + "/input.h5";
+  std::string df_path    = mode_dir + "/df_hf_int";
+  std::string data_file  = mode_dir + "/data.h5";
+  std::string grid_file  = GRID_PATH + "/ir/1e4.h5"s;
+  std::string args =
+      "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_MIXING --mixing_weight 0.8 --input_file=" + input_file +
+      " --BETA 100 --grid_file=" + grid_file + " --dfintegral_hf_file=" + df_path + " --dfintegral_file=" + df_path +
+      " --q0_treatment IGNORE_G0";
+  green::grids::define_parameters(p);
+  green::mbpt::define_parameters(p);
+  green::symmetry::define_parameters(p);
+  p.parse(args);
+
+  green::symmetry::brillouin_zone_utils bz(p);
+  green::grids::transformer_t           ft(p);
+  size_t                                nso, ns, nk, ink, nts;
+  green::sc::ztensor<4>                 Skfull;
+  green::sc::ztensor<4>                 Hkfull;
+  {
+    green::h5pp::archive ar(input_file);
+    ar["params/nso"] >> nso;
+    ar["params/ns"] >> ns;
+    ar["params/nk"] >> nk;
+    ar["symmetry/k/ink"] >> ink;
+    green::sc::dtensor<5> S_raw, H_raw;
+    ar["HF/S-k"] >> S_raw;
+    ar["HF/H-k"] >> H_raw;
+    ar.close();
+    Skfull.resize(ns, nk, nso, nso);
+    Hkfull.resize(ns, nk, nso, nso);
+    Skfull << S_raw.view<std::complex<double>>().reshape(ns, nk, nso, nso);
+    Hkfull << H_raw.view<std::complex<double>>().reshape(ns, nk, nso, nso);
+  }
+  nts = ft.sd().repn_fermi().nts();
+
+  auto                  G_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+  auto                  S_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+  green::sc::ztensor<4> Sigma1(ns, ink, nso, nso);
+  green::sc::ztensor<4> Sk(ns, ink, nso, nso);
+  green::sc::ztensor<4> Hk(ns, ink, nso, nso);
+  for (int is = 0; is < ns; ++is) {
+    Sk(is) << bz.full_to_ibz(Skfull(is));
+    Hk(is) << bz.full_to_ibz(Hkfull(is));
+  }
+  S_shared.fence();
+  if (!green::utils::context().node_rank) S_shared.object().set_zero();
+  S_shared.fence();
+  {
+    green::h5pp::archive ar(data_file, "r");
+    G_shared.fence();
+    if (!green::utils::context().node_rank) ar["iter1/G_tau/data"] >> G_shared.object();
+    G_shared.fence();
+    ar.close();
+  }
+
+  green::mbpt::hf_solver hf(p, bz, Sk);
+  hf.solve(G_shared, Sigma1, S_shared);
+
+  if (kind == orth_scf_kind::GW) {
+    green::mbpt::gw_solver gw(p, ft, bz, Sk);
+    gw.solve(G_shared, Sigma1, S_shared);
+  } else if (kind == orth_scf_kind::GF2) {
+    green::mbpt::gf2_solver gf2(p, ft, bz);
+    gf2.solve(G_shared, Sigma1, S_shared);
+  }
+
+  // X2C bool follows compute_energy's _nao != _nso convention; for this
+  // test data nso == nao == 10 so non-X2C.
+  auto [e1, ehf, ec] = green::mbpt::compute_energy(G_shared.object(), Sigma1, S_shared.object(), Hk, ft, bz, false);
+  return {e1, ehf, ec};
+}
+
 TEST_CASE("MBPT Solver") {
   SECTION("HF") { solve_hf("/HF/input.h5", "/HF/df_hf_int", "/HF/data.h5"); }
   SECTION("HF_X2C") { solve_hf("/HF_X2C/input.h5", "/HF_X2C/df_hf_int", "/HF_X2C/data.h5"); }
@@ -311,6 +401,70 @@ TEST_CASE("MBPT Solver") {
 
   SECTION("GF2_Ewald") {
     solve_gf2(TEST_PATH + "/GF2/df_hf_int_e"s, TEST_PATH + "/GF2/data_e.h5"s, TEST_PATH + "/GF2/input_e.h5"s);
+  }
+
+  // Orth basis-invariance: same physical H2 / cc-pvdz system written
+  // in four on-disk bases (--orth = none, lowdin, mo, natural). For
+  // each scf type, one iteration per mode is run via
+  // run_orth_one_iter; the returned (e_1b, e_HF, e_corr) triple must
+  // agree across modes to machine precision — the basis-invariance
+  // guarantee of orthogonalization. Fixtures under
+  // test/data/HF_orth_invariance/ are pre-built by generate.py.
+  SECTION("HF orth invariance (none/lowdin/mo/natural)") {
+    auto E_none    = run_orth_one_iter("none",    orth_scf_kind::HF);
+    auto E_lowdin  = run_orth_one_iter("lowdin",  orth_scf_kind::HF);
+    auto E_mo      = run_orth_one_iter("mo",      orth_scf_kind::HF);
+    auto E_natural = run_orth_one_iter("natural", orth_scf_kind::HF);
+    INFO("e_1b   none=" << E_none.e_1b   << "  lowdin=" << E_lowdin.e_1b   << "  mo=" << E_mo.e_1b   << "  natural=" << E_natural.e_1b);
+    INFO("e_HF   none=" << E_none.e_HF   << "  lowdin=" << E_lowdin.e_HF   << "  mo=" << E_mo.e_HF   << "  natural=" << E_natural.e_HF);
+    INFO("e_corr none=" << E_none.e_corr << "  lowdin=" << E_lowdin.e_corr << "  mo=" << E_mo.e_corr << "  natural=" << E_natural.e_corr);
+    REQUIRE(std::abs(E_lowdin.e_1b    - E_none.e_1b)   < 1e-10);
+    REQUIRE(std::abs(E_mo.e_1b        - E_none.e_1b)   < 1e-10);
+    REQUIRE(std::abs(E_natural.e_1b   - E_none.e_1b)   < 1e-10);
+    REQUIRE(std::abs(E_lowdin.e_HF    - E_none.e_HF)   < 1e-10);
+    REQUIRE(std::abs(E_mo.e_HF        - E_none.e_HF)   < 1e-10);
+    REQUIRE(std::abs(E_natural.e_HF   - E_none.e_HF)   < 1e-10);
+    REQUIRE(std::abs(E_lowdin.e_corr  - E_none.e_corr) < 1e-10);
+    REQUIRE(std::abs(E_mo.e_corr      - E_none.e_corr) < 1e-10);
+    REQUIRE(std::abs(E_natural.e_corr - E_none.e_corr) < 1e-10);
+  }
+
+  SECTION("GW orth invariance (none/lowdin/mo/natural)") {
+    auto E_none    = run_orth_one_iter("none",    orth_scf_kind::GW);
+    auto E_lowdin  = run_orth_one_iter("lowdin",  orth_scf_kind::GW);
+    auto E_mo      = run_orth_one_iter("mo",      orth_scf_kind::GW);
+    auto E_natural = run_orth_one_iter("natural", orth_scf_kind::GW);
+    INFO("e_1b   none=" << E_none.e_1b   << "  lowdin=" << E_lowdin.e_1b   << "  mo=" << E_mo.e_1b   << "  natural=" << E_natural.e_1b);
+    INFO("e_HF   none=" << E_none.e_HF   << "  lowdin=" << E_lowdin.e_HF   << "  mo=" << E_mo.e_HF   << "  natural=" << E_natural.e_HF);
+    INFO("e_corr none=" << E_none.e_corr << "  lowdin=" << E_lowdin.e_corr << "  mo=" << E_mo.e_corr << "  natural=" << E_natural.e_corr);
+    REQUIRE(std::abs(E_lowdin.e_1b    - E_none.e_1b)   < 1e-10);
+    REQUIRE(std::abs(E_mo.e_1b        - E_none.e_1b)   < 1e-10);
+    REQUIRE(std::abs(E_natural.e_1b   - E_none.e_1b)   < 1e-10);
+    REQUIRE(std::abs(E_lowdin.e_HF    - E_none.e_HF)   < 1e-10);
+    REQUIRE(std::abs(E_mo.e_HF        - E_none.e_HF)   < 1e-10);
+    REQUIRE(std::abs(E_natural.e_HF   - E_none.e_HF)   < 1e-10);
+    REQUIRE(std::abs(E_lowdin.e_corr  - E_none.e_corr) < 1e-10);
+    REQUIRE(std::abs(E_mo.e_corr      - E_none.e_corr) < 1e-10);
+    REQUIRE(std::abs(E_natural.e_corr - E_none.e_corr) < 1e-10);
+  }
+
+  SECTION("GF2 orth invariance (none/lowdin/mo/natural)") {
+    auto E_none    = run_orth_one_iter("none",    orth_scf_kind::GF2);
+    auto E_lowdin  = run_orth_one_iter("lowdin",  orth_scf_kind::GF2);
+    auto E_mo      = run_orth_one_iter("mo",      orth_scf_kind::GF2);
+    auto E_natural = run_orth_one_iter("natural", orth_scf_kind::GF2);
+    INFO("e_1b   none=" << E_none.e_1b   << "  lowdin=" << E_lowdin.e_1b   << "  mo=" << E_mo.e_1b   << "  natural=" << E_natural.e_1b);
+    INFO("e_HF   none=" << E_none.e_HF   << "  lowdin=" << E_lowdin.e_HF   << "  mo=" << E_mo.e_HF   << "  natural=" << E_natural.e_HF);
+    INFO("e_corr none=" << E_none.e_corr << "  lowdin=" << E_lowdin.e_corr << "  mo=" << E_mo.e_corr << "  natural=" << E_natural.e_corr);
+    REQUIRE(std::abs(E_lowdin.e_1b    - E_none.e_1b)   < 1e-10);
+    REQUIRE(std::abs(E_mo.e_1b        - E_none.e_1b)   < 1e-10);
+    REQUIRE(std::abs(E_natural.e_1b   - E_none.e_1b)   < 1e-10);
+    REQUIRE(std::abs(E_lowdin.e_HF    - E_none.e_HF)   < 1e-10);
+    REQUIRE(std::abs(E_mo.e_HF        - E_none.e_HF)   < 1e-10);
+    REQUIRE(std::abs(E_natural.e_HF   - E_none.e_HF)   < 1e-10);
+    REQUIRE(std::abs(E_lowdin.e_corr  - E_none.e_corr) < 1e-10);
+    REQUIRE(std::abs(E_mo.e_corr      - E_none.e_corr) < 1e-10);
+    REQUIRE(std::abs(E_natural.e_corr - E_none.e_corr) < 1e-10);
   }
 
   SECTION("Input Data Version") {
