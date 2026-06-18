@@ -31,6 +31,7 @@ jobs:
             "Green-Phys/green-symmetry"
             "Green-Phys/green-opt"
             "Green-Phys/green-gpu"
+            "Green-Phys/green-impurity"
           )
           
           failed_repos=()
