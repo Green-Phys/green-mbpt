@@ -102,6 +102,7 @@ namespace green::mbpt {
     statistics.end();
     // print execution time
     statistics.print(utils::context().global);
+    statistics.reset(); // Reset timings
     delete _coul_int_c_1;
     delete _coul_int_c_2;
     delete _coul_int_c_3;
