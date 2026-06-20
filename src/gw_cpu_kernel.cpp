@@ -65,6 +65,7 @@ namespace green::mbpt::kernels {
     statistics.end();
     statistics.end();
     statistics.print(cntx.global);
+    statistics.reset(); // Reset timings
     MPI_Type_free(&dt_matrix);
     MPI_Op_free(&matrix_sum_op);
     delete _coul_int1;
