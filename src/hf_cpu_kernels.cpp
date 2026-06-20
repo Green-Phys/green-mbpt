@@ -141,6 +141,7 @@ namespace green::mbpt::kernels {
     statistics.end();
     statistics.end();
     statistics.print(utils::context().global);
+    statistics.reset(); // Reset timings
     return new_Fock;
   }
 
@@ -273,6 +274,7 @@ namespace green::mbpt::kernels {
     statistics.end();
     statistics.end();
     statistics.print(utils::context().global);
+    statistics.reset(); // Reset timings
     return new_Fock;
   }
 

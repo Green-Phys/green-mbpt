@@ -4,6 +4,7 @@
 # IDE directories
 .idea/*
 .vscode/*
+.cache/*
 
 # Prerequisites
 *.d
