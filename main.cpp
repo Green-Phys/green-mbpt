@@ -28,16 +28,16 @@ int  main(int argc, char** argv) {
 
   auto        p    = green::params::params(
       name + "\n\nMichigan Weak-Coupling Many-Body perturbation solver.\n\n=====================================\nGit hashes:\n" +
-      hashes + "\n=====================================");
+      hashes + "\n=====================================", GREEN_RELEASE);
   green::sc::define_parameters(p);
   green::symmetry::define_parameters(p);
   green::grids::define_parameters(p);
   green::mbpt::define_parameters(p);
 
   if (!p.parse(argc, argv)) {
-    if (!green::utils::context().global_rank) p.help();
+    if (!green::utils::context().global_rank) p.help_or_version();
     MPI_Finalize();
-    return -1;
+    return 0;
   }
   if (!green::utils::context().global_rank) p.print();
 
