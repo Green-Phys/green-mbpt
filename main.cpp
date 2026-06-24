@@ -27,7 +27,7 @@ int  main(int argc, char** argv) {
  █▄▀▄█ ▀▀▀ ▀  ▀ ▀ ▀     █▄▄█ ▀▀▀▀  ▀▀▀ █▀▀▀ ▀▀▀ ▀▀▀ ▀  ▀ ▀▀▀▀)";
 
   auto        p    = green::params::params(
-      name + "\n\nMichigan Weak-Coupling Many-Body perturbation solver.\n\n=====================================\nGit hashes:\n" +
+      name + "\n\nWeak-Coupling Many-Body perturbation solver.\n\n=====================================\nGit hashes:\n" +
       hashes + "\n=====================================", GREEN_RELEASE);
   green::sc::define_parameters(p);
   green::symmetry::define_parameters(p);
