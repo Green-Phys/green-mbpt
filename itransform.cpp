@@ -36,18 +36,17 @@ green::transform::int_transform parse_input(int argc, char** argv) {
     ▀▀█▀▀ █▀▀█ █▀▀█ █▀▀▄ █▀▀ █▀▀ █▀▀█ █▀▀█ █▀▄▀█ █▀▀ █▀▀█
       █   █▄▄▀ █▄▄█ █  █ ▀▀█ █▀▀ █  █ █▄▄▀ █ ▀ █ █▀▀ █▄▄▀
       █   ▀ ▀▀ ▀  ▀ ▀  ▀ ▀▀▀ ▀   ▀▀▀▀ ▀ ▀▀ ▀   ▀ ▀▀▀ ▀ ▀▀)";
-  green::params::params p(name);
+  green::params::params p(name, GREEN_RELEASE);
   p.define<std::string>("input_file", "Path to input  HDF5 file with transformations", "transform.h5");
   p.define<std::string>("in_file", "Path to input HDF5 file with Weak Coupling input", "input.h5");
   p.define<std::string>("in_int_file", "Path to input HDF5 files with Coulomb integrals", "df_int");
   p.define<std::string>("dc_int_path", "Name for double counting integral-files", "dc_int");
   p.define<int>("verbose", "Verbosity level", 0);
   p.define<bool>("transform", "Evaluate transformed three-center integrals", false);
-  p.parse(argc, argv);
   if (!p.parse(argc, argv)) {
-    if (!green::utils::context().global_rank) p.help();
+    if (!green::utils::context().global_rank) p.help_or_version();
     MPI_Finalize();
-    std::exit(-1);
+    std::exit(0);
   }
   if (!green::utils::context().global_rank) p.print();
 
