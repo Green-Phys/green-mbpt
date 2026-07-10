@@ -45,6 +45,10 @@ add_green_dependency(green-h5pp)
 add_green_dependency(green-ndarray)
 add_green_dependency(green-params)
 add_green_dependency(green-symmetry)
+# Declare green-opt at the top level so FetchContent pins it to GREEN_RELEASE.
+# Must precede green-sc: green-sc shadows GREEN_RELEASE with origin/main, so if
+# green-sc declares green-opt first it is fetched from a moving branch.
+add_green_dependency(green-opt)
 add_green_dependency(green-sc)
 
 if (CUSTOM_KERNELS)
