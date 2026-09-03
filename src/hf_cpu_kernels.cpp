@@ -251,24 +251,46 @@ namespace green::mbpt::kernels {
         MatrixXcd   Fm_spblk(_nao, _nao);
         CMMatrixXcd Sm_nso(_S_k.data() + ik * _nso * _nso, _nso, _nso);
         MatrixXcd   S_aa = Sm_nso.block(0, 0, _nao, _nao);
+        // Exchange only. The Madelung/Ewald correction is NOT applied here: this
+        // loop is distributed over internode_rank while the exchange is partitioned
+        // over the auxiliary index NQ across the intranode ranks. Adding Madelung
+        // here (unpartitioned, no rank guard) would let every intranode rank
+        // contribute it, so the final allreduce would sum it node_size times
+        // (multiply-count bug). It is applied once per k in a separate global_rank
+        // loop below, matching the scalar hf_cpu_kernel and the GPU add_Ewald.
         if (is == 0) {
           // alpha-alpha
           Fm_nso.block(0, 0, _nao, _nao) +=
               compute_exchange(ik, dm_spblks[0], dm_spblks[1], v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm, NQ_local, NQ_offset);
-          Fm_nso.block(0, 0, _nao, _nao) -= _madelung * S_aa * matrix(dm_spblks[0](ik)) * S_aa;
         } else if (is == 1) {
           // beta-beta
           Fm_nso.block(_nao, _nao, _nao, _nao) +=
               compute_exchange(ik, dm_spblks[1], dm_spblks[0], v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm, NQ_local, NQ_offset);
-          Fm_nso.block(_nao, _nao, _nao, _nao) -= _madelung * S_aa * matrix(dm_spblks[1](ik)) * S_aa;
         } else if (is == 2) {
           // alpha-beta
           Fm_nso.block(0, _nao, _nao, _nao) +=
               compute_exchange_ab(ik, dm_spblks[2], v, coul_int1, Y, Ym, Ymm, Y1, Y1m, Y1mm, vmm, v2, v2m, v2mm, NQ_local, NQ_offset);
-          Fm_nso.block(0, _nao, _nao, _nao) -= _madelung * S_aa * matrix(dm_spblks[2](ik)) * S_aa;
           // beta-alpha
           Fm_nso.block(_nao, 0, _nao, _nao) = Fm_nso.block(0, _nao, _nao, _nao).transpose().conjugate();
         }
+      }
+      statistics.end();
+
+      // Finite-size (Madelung/Ewald) correction: applied exactly once per k-point.
+      // Distributed over global_rank (each ik owned by a single rank) so the final
+      // allreduce counts it once, independent of the MPI rank/node layout and of the
+      // NQ partitioning used by the exchange loop above. This mirrors the scalar
+      // hf_cpu_kernel and the GPU add_Ewald, both of which add Madelung once per k.
+      statistics.start("X2C Ewald correction");
+      for (int ik = utils::context.global_rank; ik < (int)_ink; ik += utils::context.global_size) {
+        MMatrixXcd  Fm_nso(new_Fock.data() + ik * _nso * _nso, _nso, _nso);
+        CMMatrixXcd Sm_nso(_S_k.data() + ik * _nso * _nso, _nso, _nso);
+        MatrixXcd   S_aa = Sm_nso.block(0, 0, _nao, _nao);
+        MatrixXcd   m_ab = _madelung * S_aa * matrix(dm_spblks[2](ik)) * S_aa;
+        Fm_nso.block(0,    0,    _nao, _nao) -= _madelung * S_aa * matrix(dm_spblks[0](ik)) * S_aa;
+        Fm_nso.block(_nao, _nao, _nao, _nao) -= _madelung * S_aa * matrix(dm_spblks[1](ik)) * S_aa;
+        Fm_nso.block(0,    _nao, _nao, _nao) -= m_ab;
+        Fm_nso.block(_nao, 0,    _nao, _nao) -= m_ab.transpose().conjugate();
       }
       statistics.end();
     }
