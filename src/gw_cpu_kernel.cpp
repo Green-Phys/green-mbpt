@@ -31,8 +31,8 @@ namespace green::mbpt::kernels {
   void gw_cpu_kernel::solve(G_type& g, St_type& sigma_tau) {
     auto cntx = g.cntx();
     _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils, cntx);
-    utils::shared_object<ztensor<4>> P0_tilde_s(std::array<size_t, 4>{_nts, 1, _NQ, _NQ}, cntx);
-    utils::shared_object<ztensor<4>> Pw_tilde_s(std::array<size_t, 4>{_nw_b, 1, _NQ, _NQ}, cntx);
+utils::shared_object<ztensor<4>> P0_tilde_s(std::array<size_t, 4>{_nts, 1, _trunc.NQ_eff, _trunc.NQ_eff}, cntx);
+    utils::shared_object<ztensor<4>> Pw_tilde_s(std::array<size_t, 4>{_nw_b, 1, _trunc.NQ_eff, _trunc.NQ_eff}, cntx);
     MPI_Datatype                     dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
     MPI_Op                           matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
     auto&                            sigma_fermi   = sigma_tau.object();
@@ -147,21 +147,31 @@ namespace green::mbpt::kernels {
     // (Q, p, m) or (Q', t, n)*
     tensor<prec, 3> v(_NQ, _nao, _nao);
     _coul_int1->symmetrize(v, k1_k1q[0], k1_k1q[1]);
-    MMatrixX<prec> vm(v.data(), _NQ, _nao * _nao);
-    MMatrixX<prec> vmm(v.data(), _NQ * _nao, _nao);
+    const size_t nao_eff = _trunc.nao_eff;
+    const size_t NQ_eff  = _trunc.NQ_eff;
+    const auto&  idx     = _trunc.valence_idx;
+    if (_trunc.orbitals_truncated()) {
+      statistics.start("Integral slice");
+      valence_slice_coulint_inplace(NQ_eff, idx, v);
+      statistics.end();
+    }
+    // v's buffer starts with a contiguous (NQ, nao_eff, nao_eff) block (Q outermost), so
+    // keeping only the first NQ_eff auxiliary functions is a pure size change.
+    MMatrixX<prec> vm(v.data(), NQ_eff, nao_eff * nao_eff);
+    MMatrixX<prec> vmm(v.data(), NQ_eff * nao_eff, nao_eff);
     // #pragma omp parallel
     {
       MatrixX<prec>   Gb_k1(_nao, _nao);
       MatrixX<prec>   G_k1q(_nao, _nao);
-      tensor<prec, 3> X1(_nao, _nao, _NQ);
-      tensor<prec, 3> X2(_NQ, _nao, _nao);
+      tensor<prec, 3> X1(nao_eff, nao_eff, NQ_eff);
+      tensor<prec, 3> X2(NQ_eff, nao_eff, nao_eff);
 
-      MMatrixX<prec>  VVm(X2.data(), _nao * _nao, _NQ);
-      MMatrixX<prec>  VVmm(X2.data(), _nao, _nao * _NQ);
-      MMatrixX<prec>  X1m(X1.data(), _nao, _nao * _NQ);
-      MMatrixX<prec>  X2m(X2.data(), _NQ * _nao, _nao);
-      MMatrixX<prec>  X1mm(X1.data(), _nao * _nao, _NQ);
-      MMatrixX<prec>  X2mm(X2.data(), _NQ, _nao * _nao);
+      MMatrixX<prec>  VVm(X2.data(), nao_eff * nao_eff, NQ_eff);
+      MMatrixX<prec>  VVmm(X2.data(), nao_eff, nao_eff * NQ_eff);
+      MMatrixX<prec>  X1m(X1.data(), nao_eff, nao_eff * NQ_eff);
+      MMatrixX<prec>  X2m(X2.data(), NQ_eff * nao_eff, nao_eff);
+      MMatrixX<prec>  X1mm(X1.data(), nao_eff * nao_eff, NQ_eff);
+      MMatrixX<prec>  X2mm(X2.data(), NQ_eff, nao_eff * nao_eff);
 
       size_t          pns       = _nso / _nao;  // spin blocks per dimension: 1 for non-X2C, 2 for X2C
       double          prefactor = (_ns == 2 or _X2C) ? 1.0 : 2.0;
@@ -169,7 +179,7 @@ namespace green::mbpt::kernels {
       // #pragma omp for
       for (size_t t = tau_offset, it = 0; it < local_tau; ++t, ++it) {  // Loop over half-tau
         size_t     tt = _nts - t - 1;                                   // beta - t
-        MMatrixXcd P0(P0_tilde.data() + t * _NQ * _NQ, _NQ, _NQ);
+        MMatrixXcd P0(P0_tilde.data() + t * NQ_eff * NQ_eff, NQ_eff, NQ_eff);
         // Cache value_AO once per (is, k) to avoid repeating the transform
         // for each of the pns² spin-block combinations.
         MatrixX<prec> G_k1_full[2], G_k1q_full[2];  // at most _ns=2 spin channels
@@ -183,7 +193,16 @@ namespace green::mbpt::kernels {
           size_t b  = s % pns;          // col spin-block index; G^bar(k1) uses (b,a) to take the adjoint block
           Gb_k1 = G_k1_full[is].block(b * _nao, a * _nao, _nao, _nao);
           G_k1q = G_k1q_full[is].block(a * _nao, b * _nao, _nao, _nao);
-          P0_contraction<prec>(Gb_k1, G_k1q, vm, VVm, VVmm, X1m, vmm, X2m, X1mm, X2mm, P0, prefactor);
+          if (_trunc.orbitals_truncated()) {
+	    statistics.start("G slice");
+	    // slice into the top-left (nao_eff x nao_eff) block, no allocation
+	    valence_slice_matrix_inplace(idx, Gb_k1);
+	    valence_slice_matrix_inplace(idx, G_k1q);
+	    statistics.end();
+	  }
+          // topLeftCorner is a view; P0_contraction takes Eigen::Ref, so no temporary is created
+          P0_contraction<prec>(Gb_k1.topLeftCorner(nao_eff, nao_eff), G_k1q.topLeftCorner(nao_eff, nao_eff), vm, VVm, VVmm, X1m,
+                               vmm, X2m, X1mm, X2mm, P0, prefactor);
         }
       }
     }
@@ -198,7 +217,8 @@ namespace green::mbpt::kernels {
    * @param q - [INPUT] k1 - k2
    */
   template <typename prec>
-  void gw_cpu_kernel::P0_contraction(const MatrixX<prec>& Gb_k1, const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm,
+  void gw_cpu_kernel::P0_contraction(const Eigen::Ref<const MatrixX<prec>>& Gb_k1,
+                                     const Eigen::Ref<const MatrixX<prec>>& G_k1q, MMatrixX<prec>& vm,
                                      MMatrixX<prec>& VVm, MMatrixX<prec>& VVmm, MMatrixX<prec>& X1m, MMatrixX<prec>& vmm,
                                      MMatrixX<prec>& X2m, MMatrixX<prec>& X1mm, MMatrixX<prec>& X2mm, MMatrixXcd& P0,
                                      double& prefactor) {
@@ -240,9 +260,9 @@ namespace green::mbpt::kernels {
 
     statistics.start("GW-BSE");
     // Solve Dyson-like eqn for ncheb frequency points
-    MatrixXcd              identity = MatrixXcd::Identity(_NQ, _NQ);
+    MatrixXcd              identity = MatrixXcd::Identity(_trunc.NQ_eff, _trunc.NQ_eff);
     // Eigen::FullPivLU<MatrixXcd> lusolver(_NQ,_NQ);
-    Eigen::LDLT<MatrixXcd> ldltsolver(_NQ);
+    Eigen::LDLT<MatrixXcd> ldltsolver(_trunc.NQ_eff);
     for (size_t n = w_offset, loc_n = 0; loc_n < nw_local; ++n, ++loc_n) {
       MatrixXcd temp     = identity - matrix(P0_w(n, 0));
       // temp = lusolver.compute(temp).inverse().eval();
@@ -280,12 +300,17 @@ namespace green::mbpt::kernels {
 
   template <typename prec>
   MatrixX<prec> gw_cpu_kernel::eval_p0_bz_from_ibz(const ztensor<2>& p0_tilde_q_ibz, size_t q_bz) {
+    const size_t  NQ_eff = _trunc.NQ_eff;
     MatrixX<prec> U_q(_NQ, _NQ);
+    // Read the full symmetry operation
     _bz_utils.q_symmetry().q_sym_transform_p0(U_q, q_bz);
+    // then restrict it to the retained NQ_eff subspace, consistent with the truncated P0/P storage
+    auto U_q_eff = U_q.topLeftCorner(NQ_eff, NQ_eff);
+
     // Symmetry transform P to current q point and apply conjugation if needed
-    CMMatrixXcd P_q_ibz_matrix(p0_tilde_q_ibz.data(), _NQ, _NQ);
+    CMMatrixXcd P_q_ibz_matrix(p0_tilde_q_ibz.data(), NQ_eff, NQ_eff);
     MatrixX<prec> P_q = P_q_ibz_matrix.template cast<prec>();
-    P_q = U_q * P_q * U_q.adjoint();
+    P_q = U_q_eff * P_q * U_q_eff.adjoint();
     if (_bz_utils.q_symmetry().tr_conj_list()[q_bz] == 1) {
       P_q = P_q.conjugate();
     }
@@ -309,7 +334,15 @@ namespace green::mbpt::kernels {
     // (Q, i, m) or (Q', j, n)*
     tensor<prec, 3> v(_NQ, _nao, _nao);
     _coul_int1->symmetrize(v, k1_k1mq[0], k1_k1mq[1]);
-    MMatrixX<prec> vm(v.data(), _NQ * _nao, _nao);
+    const size_t nao_eff = _trunc.nao_eff;
+    const size_t NQ_eff  = _trunc.NQ_eff;
+    const auto&  idx     = _trunc.valence_idx;
+    if (_trunc.orbitals_truncated()) {
+      statistics.start("Integral slice");
+      valence_slice_coulint_inplace(NQ_eff, idx, v);
+      statistics.end();
+    }
+    MMatrixX<prec> vm(v.data(), NQ_eff * nao_eff, nao_eff);
 
     // bosonic momentum q index in FBZ
     size_t q_idx = _bz_utils.k_q_map().q_from_k1k2(k1_k1mq[0], k1_k1mq[1]);
@@ -317,16 +350,16 @@ namespace green::mbpt::kernels {
     // #pragma omp parallel
     {
       MatrixX<prec>   G_k1q(_nao, _nao);
-      MatrixXcd       Sigma_ts(_nao, _nao);
-      tensor<prec, 3> Y1(_NQ, _nao, _nao);
-      tensor<prec, 3> Y2(_nao, _nao, _NQ);
+      MatrixXcd       Sigma_ts(nao_eff, nao_eff);
+      tensor<prec, 3> Y1(NQ_eff, nao_eff, nao_eff);
+      tensor<prec, 3> Y2(nao_eff, nao_eff, NQ_eff);
 
-      MMatrixX<prec>  Y1m(Y1.data(), _NQ * _nao, _nao);
-      MMatrixX<prec>  Y1mm(Y1.data(), _NQ, _nao * _nao);
-      MMatrixX<prec>  Y2mm(Y2.data(), _nao * _nao, _NQ);
-      MMatrixX<prec>  X2m(Y1.data(), _nao, _NQ * _nao);
-      MMatrixX<prec>  Y2mmm(Y2.data(), _nao, _nao * _NQ);
-      MMatrixX<prec>  X2mm(Y1.data(), _nao * _NQ, _nao);
+      MMatrixX<prec>  Y1m(Y1.data(), NQ_eff * nao_eff, nao_eff);
+      MMatrixX<prec>  Y1mm(Y1.data(), NQ_eff, nao_eff * nao_eff);
+      MMatrixX<prec>  Y2mm(Y2.data(), nao_eff * nao_eff, NQ_eff);
+      MMatrixX<prec>  X2m(Y1.data(), nao_eff, NQ_eff * nao_eff);
+      MMatrixX<prec>  Y2mmm(Y2.data(), nao_eff, nao_eff * NQ_eff);
+      MMatrixX<prec>  X2mm(Y1.data(), nao_eff * NQ_eff, nao_eff);
 
       // #pragma omp for
       size_t          pns       = _nso / _nao;  // spin blocks per dimension: 1 for non-X2C, 2 for X2C
@@ -344,14 +377,26 @@ namespace green::mbpt::kernels {
           size_t a  = (s / pns) % pns;  // row spin-block index of the G and Sigma blocks
           size_t b  = s % pns;          // col spin-block index
           G_k1q = G_k1q_full[is].block(a * _nao, b * _nao, _nao, _nao);
-          selfenergy_contraction(G_k1q, vm, Y1m, Y1mm, Y2mm, X2m, Y2mmm, X2mm, P_sp, Sigma_ts);
+	  if (_trunc.orbitals_truncated()) {
+	      statistics.start("G slice");
+	      valence_slice_matrix_inplace(idx, G_k1q);
+	      statistics.end();
+	  }
+          selfenergy_contraction<prec>(G_k1q.topLeftCorner(nao_eff, nao_eff), vm, Y1m, Y1mm, Y2mm, X2m, Y2mmm, X2mm, P_sp,
+                                       Sigma_ts);
           // sigma_shift locates the start of the nso x nso Sigma matrix for
           // tau index t, spin is, and k-point k1_pos in the flat array
           // Sigma[nts, ns, ink, nso, nso]. The (a,b) spin block then receives
           // the nao x nao contraction result.
           sigma_shift = t * _ns * _ink * _nso * _nso + is * _ink * _nso * _nso + k1_pos * _nso * _nso;
           MMatrixXcd Sm_nso(Sigma_fermi.data() + sigma_shift, _nso, _nso);
-          Sm_nso.block(a * _nao, b * _nao, _nao, _nao) -= Sigma_ts;
+          if (_trunc.orbitals_truncated()) {
+            // Scatter the (nao_eff x nao_eff) result back to the retained AO indices of the (a,b) block.
+            for (size_t r = 0; r < nao_eff; ++r)
+              for (size_t c = 0; c < nao_eff; ++c) Sm_nso(a * _nao + idx[r], b * _nao + idx[c]) -= Sigma_ts(r, c);
+          } else {
+            Sm_nso.block(a * _nao, b * _nao, _nao, _nao) -= Sigma_ts;
+          }
         }
       }
     }
@@ -361,7 +406,7 @@ namespace green::mbpt::kernels {
    * Contraction for evaluating self-energy for given tau and k-point
    */
   template <typename prec>
-  void gw_cpu_kernel::selfenergy_contraction(const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm,
+  void gw_cpu_kernel::selfenergy_contraction(const Eigen::Ref<const MatrixX<prec>>& G_k1q, MMatrixX<prec>& vm,
                                              MMatrixX<prec>& Y1m, MMatrixX<prec>& Y1mm, MMatrixX<prec>& Y2mm, MMatrixX<prec>& X2m,
                                              MMatrixX<prec>& Y2mmm, MMatrixX<prec>& X2mm, MatrixX<prec>& P, MatrixXcd& Sm_ts) {
     statistics.start("Selfenergy_zgemm");
@@ -381,14 +426,14 @@ namespace green::mbpt::kernels {
                                                                   size_t, size_t);
   template void gw_cpu_kernel::eval_P0_tilde<std::complex<double>>(const std::array<size_t, 2>& k, const G_type&, ztensor<4>&,
                                                                    size_t, size_t);
-  template void gw_cpu_kernel::P0_contraction(const MatrixX<std::complex<float>>& Gb_k1,
-                                              const MatrixX<std::complex<float>>& G_k1q, MMatrixX<std::complex<float>>& vm,
+  template void gw_cpu_kernel::P0_contraction(const Eigen::Ref<const MatrixX<std::complex<float>>>& Gb_k1,
+                                              const Eigen::Ref<const MatrixX<std::complex<float>>>& G_k1q, MMatrixX<std::complex<float>>& vm,
                                               MMatrixX<std::complex<float>>& VVm, MMatrixX<std::complex<float>>& VVmm,
                                               MMatrixX<std::complex<float>>& X1m, MMatrixX<std::complex<float>>& vmm,
                                               MMatrixX<std::complex<float>>& X2m, MMatrixX<std::complex<float>>& X1mm,
                                               MMatrixX<std::complex<float>>& X2mm, MMatrixXcd& P0, double& prefactor);
-  template void gw_cpu_kernel::P0_contraction(const MatrixX<std::complex<double>>& Gb_k1,
-                                              const MatrixX<std::complex<double>>& G_k1q, MMatrixX<std::complex<double>>& vm,
+  template void gw_cpu_kernel::P0_contraction(const Eigen::Ref<const MatrixX<std::complex<double>>>& Gb_k1,
+                                              const Eigen::Ref<const MatrixX<std::complex<double>>>& G_k1q, MMatrixX<std::complex<double>>& vm,
                                               MMatrixX<std::complex<double>>& VVm, MMatrixX<std::complex<double>>& VVmm,
                                               MMatrixX<std::complex<double>>& X1m, MMatrixX<std::complex<double>>& vmm,
                                               MMatrixX<std::complex<double>>& X2m, MMatrixX<std::complex<double>>& X1mm,
@@ -397,13 +442,13 @@ namespace green::mbpt::kernels {
                                                                     ztensor<4>&);
   template void gw_cpu_kernel::eval_selfenergy<std::complex<double>>(const std::array<size_t, 2>& k1_k1mq, const G_type&, St_type&,
                                                                      ztensor<4>&);
-  template void gw_cpu_kernel::selfenergy_contraction(const MatrixX<std::complex<float>>& G_k1q,
+  template void gw_cpu_kernel::selfenergy_contraction(const Eigen::Ref<const MatrixX<std::complex<float>>>& G_k1q,
                                                       MMatrixX<std::complex<float>>& vm, MMatrixX<std::complex<float>>& Y1m,
                                                       MMatrixX<std::complex<float>>& Y1mm, MMatrixX<std::complex<float>>& Y2mm,
                                                       MMatrixX<std::complex<float>>& X2m, MMatrixX<std::complex<float>>& Y2mmm,
                                                       MMatrixX<std::complex<float>>& X2mm, MatrixX<std::complex<float>>& P,
                                                       MatrixXcd& Sm_ts);
-  template void gw_cpu_kernel::selfenergy_contraction(const MatrixX<std::complex<double>>& G_k1q,
+  template void gw_cpu_kernel::selfenergy_contraction(const Eigen::Ref<const MatrixX<std::complex<double>>>& G_k1q,
                                                       MMatrixX<std::complex<double>>& vm, MMatrixX<std::complex<double>>& Y1m,
                                                       MMatrixX<std::complex<double>>& Y1mm, MMatrixX<std::complex<double>>& Y2mm,
                                                       MMatrixX<std::complex<double>>& X2m, MMatrixX<std::complex<double>>& Y2mmm,

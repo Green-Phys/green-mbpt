@@ -31,6 +31,7 @@
 #include "df_integral_t.h"
 #include "except.h"
 #include "mbpt_q0_utils_t.h"
+#include "orbital_truncation.h"
 
 namespace green::mbpt::kernels {
   class gw_cpu_kernel {
@@ -48,8 +49,11 @@ namespace green::mbpt::kernels {
         _q0_utils(bz_utils.inq(), 0, S_k, _path, p["q0_treatment"]),
         // _P0_tilde(0, 0, 0, 0),
         _eps_inv_wq(ft.wsample_bose().size(), bz_utils.inq()),
-        _coul_int1(nullptr) {
+        _coul_int1(nullptr),
+	_trunc(read_orbital_truncation(p, nao, NQ)) {
       _q0_utils.resize(_NQ);
+      if ((_trunc.orb_truncated() || _trunc.aux_truncated()) && p["q0_treatment"].as<sigma_q0_treatment_e>() == extrapolate)
+        throw mbpt_invalid_truncation("Orb and aux truncation are not supported with q0_treatment=extrapolate");
     }
 
     void solve(G_type& g, St_type& sigma_tau);
@@ -100,7 +104,9 @@ namespace green::mbpt::kernels {
     // Pre-computed fitted densities
     // This object reads 3-index tensors into Vij_Q
     df_integral_t*              _coul_int1;
-
+    // Frozen-core / FNO / NAF truncation of the correlated self-energy
+    orbital_truncation_t        _trunc;
+      
   private:
     /**
      * Evaluate self-energy contribution from P^{q_ir}
@@ -136,7 +142,8 @@ namespace green::mbpt::kernels {
      * @param q - [INPUT] k1 - k2
      */
     template <typename prec>
-    void P0_contraction(const MatrixX<prec>& Gb_k1, const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm, MMatrixX<prec>& VVm,
+    void P0_contraction(const Eigen::Ref<const MatrixX<prec>>& Gb_k1, const Eigen::Ref<const MatrixX<prec>>& G_k1q,
+			MMatrixX<prec>& vm, MMatrixX<prec>& VVm,
                         MMatrixX<prec>& VVmm, MMatrixX<prec>& X1m, MMatrixX<prec>& vmm, MMatrixX<prec>& X2m, MMatrixX<prec>& X1mm,
                         MMatrixX<prec>& X2mm, MMatrixXcd& P0, double& prefactor);
 
@@ -161,7 +168,7 @@ namespace green::mbpt::kernels {
      * Contraction for evaluating self-energy for given tau and k-point
      */
     template <typename prec>
-    void selfenergy_contraction(const MatrixX<prec>& G_k1q, MMatrixX<prec>& vm,
+    void selfenergy_contraction(const Eigen::Ref<const MatrixX<prec>>& G_k1q, MMatrixX<prec>& vm,
                                 MMatrixX<prec>& Y1m, MMatrixX<prec>& Y1mm, MMatrixX<prec>& Y2mm, MMatrixX<prec>& X2m,
                                 MMatrixX<prec>& Y2mmm, MMatrixX<prec>& X2mm, MatrixX<prec>& P, MatrixXcd& Sm_ts);
 
