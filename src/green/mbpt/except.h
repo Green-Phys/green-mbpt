@@ -55,5 +55,10 @@ namespace green::mbpt {
     explicit mbpt_wrong_results_file(const std::string& what) : std::runtime_error(what) {}
   };
 
+  class mbpt_invalid_truncation : public std::runtime_error {
+  public:
+    explicit mbpt_invalid_truncation(const std::string& what) : std::runtime_error(what) {}
+  };
+
 }  // namespace green::mbpt
 #endif  // GREEN_MBPT_EXCEPT_H
