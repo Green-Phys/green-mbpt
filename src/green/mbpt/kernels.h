@@ -52,7 +52,7 @@ namespace green::mbpt::kernels {
         _coul_int1(nullptr),
 	_trunc(read_orbital_truncation(p, nao, NQ)) {
       _q0_utils.resize(_NQ);
-      if ((_trunc.orb_truncated() || _trunc.aux_truncated()) && p["q0_treatment"].as<sigma_q0_treatment_e>() == extrapolate)
+      if ((_trunc.orbitals_truncated() || _trunc.aux_truncated()) && p["q0_treatment"].as<sigma_q0_treatment_e>() == extrapolate)
         throw mbpt_invalid_truncation("Orb and aux truncation are not supported with q0_treatment=extrapolate");
     }
 
