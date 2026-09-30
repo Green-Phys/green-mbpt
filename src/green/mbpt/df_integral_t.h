@@ -14,6 +14,8 @@
 #include "common_defs.h"
 #include "except.h"
 
+#include <hdf5.h>
+
 #include <Eigen/Core>
 #include <Eigen/Sparse>
 #include <vector>
@@ -37,8 +39,15 @@ namespace green::mbpt {
     using MatrixXcd = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
     using MatrixXcf = Eigen::Matrix<std::complex<float>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
     using MatrixXd  = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
-    df_integral_t(const std::string& path, int nao, int NQ, const bz_utils_t& bz_utils, const utils::mpi_context & cntx = utils::mpi_context::context()) :
-        _base_path(path), _k0(-1), _current_chunk(-1), _chunk_size(0), _NQ(NQ), _bz_utils(bz_utils) {
+    /**
+     * @param NQ_read number of leading auxiliary functions to read from disk (0 -> all NQ). Only Q < NQ_read is read.
+     */
+    df_integral_t(const std::string& path, int nao, int NQ, const bz_utils_t& bz_utils,
+                  const utils::mpi_context& cntx = utils::mpi_context::context(), size_t NQ_read = 0) :
+        _base_path(path), _k0(-1), _current_chunk(-1), _chunk_size(0), _NQ(NQ), _NQ_read(NQ_read == 0 ? NQ : NQ_read),
+        _bz_utils(bz_utils) {
+      if (_NQ_read > _NQ)
+        throw mbpt_kernel_error("df_integral_t: NQ_read (" + std::to_string(_NQ_read) + ") > NQ (" + std::to_string(_NQ) + ")");
       h5pp::archive ar(path + "/meta.h5");
       if(ar.has_attribute("__green_version__")) {
         std::string int_version = ar.get_attribute<std::string>("__green_version__");
@@ -50,7 +59,7 @@ namespace green::mbpt {
       }
       ar["chunk_size"] >> _chunk_size;
       ar.close();
-      _vij_Q = std::make_shared<int_data>(std::array<size_t, 4>{size_t(_chunk_size), size_t(NQ), size_t(nao), size_t(nao)}, cntx);
+      _vij_Q = std::make_shared<int_data>(std::array<size_t, 4>{size_t(_chunk_size), size_t(_NQ_read), size_t(nao), size_t(nao)}, cntx);
     }
 
     virtual ~df_integral_t() {}
@@ -79,7 +88,12 @@ namespace green::mbpt {
 
       size_t c_id    = _current_chunk * _chunk_size;
       (*_vij_Q).fence();
-      if (!_vij_Q->cntx().node_rank) read_a_chunk(c_id, _vij_Q->object());
+      if (!_vij_Q->cntx().node_rank) {
+        if (_NQ_read == _NQ)
+          read_a_chunk(c_id, _vij_Q->object());
+        else
+          read_a_Q_slab(c_id, _vij_Q->object());
+      }
       (*_vij_Q).fence();
     }
 
@@ -89,6 +103,46 @@ namespace green::mbpt {
       h5pp::archive ar(fname);
       ar["/" + std::to_string(c_id)] >> reinterpret_cast<double*>(V_buffer.data());
       ar.close();
+    }
+
+    /**
+     * Partial read of a chunk file: all k-pairs of the chunk, but only auxiliary functions Q < _NQ_read.
+     * The dataset is stored as (chunk_size, NQ, nao, 2*nao) doubles (complex viewed as float by h5py),
+     * so the selection is a hyperslab over the second dimension only, and it lands contiguously in
+     * V_buffer of shape (chunk_size, _NQ_read, nao, nao).
+     */
+    void read_a_Q_slab(size_t c_id, ztensor<4>& V_buffer) {
+      V_buffer.set_zero();
+      std::string fname = _base_path + "/" + _chunk_basename + "_" + std::to_string(c_id) + ".h5";
+      std::string dname = "/" + std::to_string(c_id);
+      hid_t       file  = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+      if (file < 0) throw mbpt_kernel_error("Cannot open integral file " + fname);
+      hid_t dset = H5Dopen2(file, dname.c_str(), H5P_DEFAULT);
+      if (dset < 0) {
+        H5Fclose(file);
+        throw mbpt_kernel_error("Cannot open dataset " + dname + " in " + fname);
+      }
+      hid_t                fspace = H5Dget_space(dset);
+      int                  rank   = H5Sget_simple_extent_ndims(fspace);
+      std::vector<hsize_t> dims(rank);
+      H5Sget_simple_extent_dims(fspace, dims.data(), nullptr);
+      if (rank < 3 || dims[0] != hsize_t(_chunk_size) || dims[1] != hsize_t(_NQ)) {
+        H5Sclose(fspace);
+        H5Dclose(dset);
+        H5Fclose(file);
+        throw mbpt_kernel_error("Unexpected layout of dataset " + dname + " in " + fname);
+      }
+      // select (all k-pairs, Q < _NQ_read, everything else)
+      std::vector<hsize_t> start(rank, 0), count(dims);
+      count[1] = _NQ_read;
+      H5Sselect_hyperslab(fspace, H5S_SELECT_SET, start.data(), nullptr, count.data(), nullptr);
+      hid_t  mspace = H5Screate_simple(rank, count.data(), nullptr);
+      herr_t err    = H5Dread(dset, H5T_NATIVE_DOUBLE, mspace, fspace, H5P_DEFAULT, reinterpret_cast<double*>(V_buffer.data()));
+      H5Sclose(mspace);
+      H5Sclose(fspace);
+      H5Dclose(dset);
+      H5Fclose(file);
+      if (err < 0) throw mbpt_kernel_error("Failed to read hyperslab of " + dname + " in " + fname);
     }
 
     void Complex_DoubleToType(const std::complex<double>* in, std::complex<double>* out, size_t size) {
@@ -163,8 +217,8 @@ namespace green::mbpt {
     void symmetrize(tensor<prec, 3>& vij_Q_k1k2, size_t k1, size_t k2, size_t NQ_offset = 0, size_t NQ_local = 0) {
       int                                      k1k2_wrap = wrap(k1, k2);
       std::pair<int, integral_symmetry_type_e> vtype     = v_type(k1, k2);
-      int                                      NQ        = _NQ;
-      NQ_local                                           = (NQ_local == 0) ? NQ : NQ_local;
+      NQ_local                                           = (NQ_local == 0) ? size_t(_NQ_read) - NQ_offset : NQ_local;
+      assert(NQ_offset + NQ_local <= size_t(_NQ_read));
       auto& vij_Q                                        = _vij_Q->object();
       if (vtype.first < 0) {
         for (int Q = NQ_offset, Q_loc = 0; Q_loc < NQ_local; ++Q, ++Q_loc) {
@@ -220,6 +274,8 @@ namespace green::mbpt {
     long                      _current_chunk;
     long                      _chunk_size;
     long                      _NQ;
+    // number of leading auxiliary functions kept in memory (NAF truncation)
+    long                      _NQ_read;
     const bz_utils_t&         _bz_utils;
 
     // base path to integral files
