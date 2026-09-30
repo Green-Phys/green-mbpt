@@ -30,8 +30,9 @@ namespace green::mbpt::kernels {
 
   void gw_cpu_kernel::solve(G_type& g, St_type& sigma_tau) {
     auto cntx = g.cntx();
-    _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils, cntx);
-utils::shared_object<ztensor<4>> P0_tilde_s(std::array<size_t, 4>{_nts, 1, _trunc.NQ_eff, _trunc.NQ_eff}, cntx);
+    // Read only the Q < NQ_eff auxiliary functions kept by NAF.
+    _coul_int1 = new df_integral_t(_path, _nao, _NQ, _bz_utils, cntx, _trunc.NQ_eff);
+    utils::shared_object<ztensor<4>> P0_tilde_s(std::array<size_t, 4>{_nts, 1, _trunc.NQ_eff, _trunc.NQ_eff}, cntx);
     utils::shared_object<ztensor<4>> Pw_tilde_s(std::array<size_t, 4>{_nw_b, 1, _trunc.NQ_eff, _trunc.NQ_eff}, cntx);
     MPI_Datatype                     dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
     MPI_Op                           matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
@@ -145,8 +146,8 @@ utils::shared_object<ztensor<4>> P0_tilde_s(std::array<size_t, 4>{_nts, 1, _trun
                                     size_t tau_offset) {
     // NOTE: k = (k1, k1+q_ir)
     // (Q, p, m) or (Q', t, n)*
-    tensor<prec, 3> v(_NQ, _nao, _nao);
-    _coul_int1->symmetrize(v, k1_k1q[0], k1_k1q[1]);
+    tensor<prec, 3> v(_trunc.NQ_eff, _nao, _nao);
+    _coul_int1->symmetrize(v, k1_k1q[0], k1_k1q[1], 0, _trunc.NQ_eff);
     const size_t nao_eff = _trunc.nao_eff;
     const size_t NQ_eff  = _trunc.NQ_eff;
     const auto&  idx     = _trunc.valence_idx;
@@ -332,8 +333,8 @@ utils::shared_object<ztensor<4>> P0_tilde_s(std::array<size_t, 4>{_nts, 1, _trun
 
     size_t          k1_pos       = _bz_utils.k_symmetry().reduced_point(k1_k1mq[0]);
     // (Q, i, m) or (Q', j, n)*
-    tensor<prec, 3> v(_NQ, _nao, _nao);
-    _coul_int1->symmetrize(v, k1_k1mq[0], k1_k1mq[1]);
+    tensor<prec, 3> v(_trunc.NQ_eff, _nao, _nao);
+    _coul_int1->symmetrize(v, k1_k1mq[0], k1_k1mq[1], 0, _trunc.NQ_eff);
     const size_t nao_eff = _trunc.nao_eff;
     const size_t NQ_eff  = _trunc.NQ_eff;
     const auto&  idx     = _trunc.valence_idx;
