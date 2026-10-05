@@ -200,16 +200,21 @@ if __name__ == "__main__":
                 tfile["{}/UU_ERI".format(i)] = UU_ERIs[i].view(np.float64)
                 tfile["{}/UU".format(i)] = UUs[i].view(np.float64)
     else:
+        # No orthogonalization: X is the identity, but the correlated
+        # subspace projectors (UU / UU_ERI) are still the active-space
+        # selectors built above, exactly as in the orth=True branch.
+        # X_k / X_inv_k live in the full (spinor) space (nso); X_ERI_k
+        # lives in the spatial ERI space (nao).
+        X_k     = np.array([np.eye(nso, dtype=np.complex128)] * kmesh.shape[0])
+        X_ERI_k = np.array([np.eye(nao, dtype=np.complex128)] * kmesh.shape[0])
         with h5py.File(args.transform_file, "w") as tfile:
-            X_k = np.array([np.eye(F.shape[2], dtype=np.complex128)]*kmesh.shape[0])
-            UU  = np.eye(F.shape[2], dtype=np.float64)
-            tfile["X_k"] = np.array(X_k)
-            tfile["X_ERI_k"] = np.array(X_ERI_k)
-            tfile["X_inv_k"] = np.array(X_k)
-            tfile["nimp"] = len(args.active_space)
+            tfile["X_k"]     = X_k
+            tfile["X_ERI_k"] = X_ERI_k
+            tfile["X_inv_k"] = X_k
+            tfile["nimp"]    = len(args.active_space)
             for i in range(len(UUs)):
-                tfile["{}/UU_ERI".format(i)] = UU.view(np.float64)
-                tfile["{}/UU".format(i)] = UU.view(np.float64)
+                tfile["{}/UU_ERI".format(i)] = UU_ERIs[i].view(np.float64)
+                tfile["{}/UU".format(i)]     = UUs[i].view(np.float64)
     print("Done")
 
     if args.tau_grid == "even":
