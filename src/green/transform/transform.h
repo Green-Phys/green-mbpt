@@ -64,7 +64,7 @@ namespace green::transform {
       int myid;
       MPI_Comm_rank(MPI_COMM_WORLD, &myid);
       dtensor<2>    kgrid(0ul, 0ul);
-      std::string   grid     = "/grid/k_mesh";
+      std::string   grid     = "/symmetry/k/mesh";
 
       std::string   basename = _params.in_int_file;
       std::string   meta     = basename + "/meta.h5";
@@ -73,15 +73,15 @@ namespace green::transform {
       meta_file.close();
 
       h5pp::archive ar(_params.in_file, "r");
-      ar["/grid/num_kpair_stored"] >> _num_kpair_stored;
+      ar["/symmetry/pairs/num_kpair_stored"] >> _num_kpair_stored;
       ar[grid] >> kgrid;
       _nkpts = kgrid.shape()[0];
       _kpair_irre_list.resize(_num_kpair_stored);
       _conj_kpair_list.resize(_nkpts * (_nkpts + 1) / 2);
       _trans_kpair_list.resize(_nkpts * (_nkpts + 1) / 2);
-      ar["/grid/conj_pairs_list"] >> _conj_kpair_list;
-      ar["/grid/trans_pairs_list"] >> _trans_kpair_list;
-      ar["/grid/kpair_irre_list"] >> _kpair_irre_list;
+      ar["/symmetry/pairs/conj_pairs_list"] >> _conj_kpair_list;
+      ar["/symmetry/pairs/trans_pairs_list"] >> _trans_kpair_list;
+      ar["/symmetry/pairs/kpair_irre_list"] >> _kpair_irre_list;
       _nchunks = std::ceil(double(_num_kpair_stored) / _chunk_size);
       _q_ind.resize(_nkpts, _nkpts);
       _q_ind2.resize(_nkpts, _nkpts);
