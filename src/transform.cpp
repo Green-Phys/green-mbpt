@@ -244,7 +244,7 @@ namespace green::transform {
         ar["/" + std::to_string(chunkid)] << tmp.view<double>();
         ar.close();
 
-        int           nq        = VijQ.shape()[0];
+        int           naux      = VijQ.shape()[0];
         int           chunksize = 1;
         std::string   metaname  = dir_name + "/meta.h5";
         std::string   version   = green::mbpt::INPUT_VERSION;
@@ -257,7 +257,7 @@ namespace green::transform {
         ar.open(dir_name + "/dummy.h5", "w");
         ar["params/nao"] << nno;
         ar["params/nso"] << (nso == nao ? nno : 2*nno);
-        ar["params/NQ"] << nq;
+        ar["params/NQ"] << naux;
         ar["params/ns"] << (nso == nao ? 2 : 1);
         ar["params/nk"] << 1;
         
@@ -279,12 +279,13 @@ namespace green::transform {
         ztensor<3> k_sym_ao(1, nso_imp, nso_imp);
         k_sym_ao.set_zero();
         for (int a = 0; a < nso_imp; ++a) k_sym_ao(0, a, a) = 1.0;
-        ztensor<3> q_sym_j2c(1, nq, nq);
+        // One q-point, with identity transforms in the auxiliary basis.
+        ztensor<3> q_sym_j2c(1, naux, naux);
         q_sym_j2c.set_zero();
-        for (int a = 0; a < nq; ++a) q_sym_j2c(0, a, a) = 1.0;
-        ztensor<3> q_sym_p0(1, nq, nq);
+        for (int a = 0; a < naux; ++a) q_sym_j2c(0, a, a) = 1.0;
+        ztensor<3> q_sym_p0(1, naux, naux);
         q_sym_p0.set_zero();
-        for (int a = 0; a < nq; ++a) q_sym_p0(0, a, a) = 1.0;
+        for (int a = 0; a < naux; ++a) q_sym_p0(0, a, a) = 1.0;
 
         // fermi k-mesh
         ar["symmetry/k/nk"]                 << 1;
