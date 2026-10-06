@@ -60,7 +60,7 @@ namespace green::transform {
 
   void int_transformer::get_mom_cons(h5pp::archive& file, int nk) {
     tensor<double, 2> kmesh(nk, 3);
-    file["grid/k_mesh_scaled"] >> kmesh;
+    file["symmetry/k/mesh_scaled"] >> kmesh;
 
     tensor<double, 2> qmesh(kmesh.shape());
     for (int j = 0; j < nk; ++j) {
@@ -244,10 +244,10 @@ namespace green::transform {
         ar["/" + std::to_string(chunkid)] << tmp.view<double>();
         ar.close();
 
-        int           nq        = VijQ.shape()[0];
+        int           naux      = VijQ.shape()[0];
         int           chunksize = 1;
         std::string   metaname  = dir_name + "/meta.h5";
-        std::string   version   = "0.2.4";
+        std::string   version   = green::mbpt::INPUT_VERSION;
         h5pp::archive meta(metaname, "w");
         meta["/chunk_indices"] << chunkid;
         meta["/chunk_size"] << chunksize;
@@ -257,31 +257,68 @@ namespace green::transform {
         ar.open(dir_name + "/dummy.h5", "w");
         ar["params/nao"] << nno;
         ar["params/nso"] << (nso == nao ? nno : 2*nno);
-        ar["params/NQ"] << nq;
+        ar["params/NQ"] << naux;
         ar["params/ns"] << (nso == nao ? 2 : 1);
         ar["params/nk"] << 1;
         
-        dtensor<2> kgrid(1,3);
-        kgrid(0,0) = kgrid(0,1) = kgrid(0,2) = 0.0;
-        grids::itensor<1> list(1), conj_list(1), ir_list(1), conj_pairs_list(1), kpair_irre_list(1), trans_pairs_list(1), index(1);
-        grids::itensor<2> kpair_idx(1,2);
-        kpair_idx(0,0) = kpair_idx(0,1) = 0;
+        // Single-k / single-q "molecular" symmetry metadata for the impurity.
+        // green::symmetry::brillouin_zone_utils (used by embedding.exe) builds
+        // both a fermi (/symmetry/k) and a bose (/symmetry/q) mesh from this
+        // file, so emit the full 1.0.0 /symmetry schema with nk = nq = 1.
+        int nso_imp = (nso == nao) ? nno : 2 * nno;
+
+        dtensor<2> kgrid(1, 3);
+        kgrid.set_zero();
         dtensor<1> weight(1);
         weight(0) = 1.0;
-        ar["grid/ink"] << 1;
-        ar["grid/nk"] << 1;
-        ar["grid/num_kpair_stored"] << 1;
+        grids::itensor<1> zero1(1);   // bz2ibz / ibz2bz / tr_conj / pair lists
+        zero1.set_zero();
+        grids::itensor<1> star0(1);   // single star contains k-point 0
+        star0.set_zero();
 
-        ar["grid/conj_list"] << list;
-        ar["grid/conj_pairs_list"] << list;
-        ar["grid/index"] << list;
-        ar["grid/ir_list"] << list;
-        ar["grid/k_mesh"] << kgrid;
-        ar["grid/k_mesh_scaled"] << kgrid;
-        ar["grid/kpair_idx"] <<kpair_idx;
-        ar["grid/kpair_irre_list"] << list;
-        ar["grid/trans_pairs_list"] << list;
-        ar["grid/weight"] << weight;
+        ztensor<3> k_sym_ao(1, nso_imp, nso_imp);
+        k_sym_ao.set_zero();
+        for (int a = 0; a < nso_imp; ++a) k_sym_ao(0, a, a) = 1.0;
+        // One q-point, with identity transforms in the auxiliary basis.
+        ztensor<3> q_sym_j2c(1, naux, naux);
+        q_sym_j2c.set_zero();
+        for (int a = 0; a < naux; ++a) q_sym_j2c(0, a, a) = 1.0;
+        ztensor<3> q_sym_p0(1, naux, naux);
+        q_sym_p0.set_zero();
+        for (int a = 0; a < naux; ++a) q_sym_p0(0, a, a) = 1.0;
+
+        // fermi k-mesh
+        ar["symmetry/k/nk"]                 << 1;
+        ar["symmetry/k/ink"]                << 1;
+        ar["symmetry/k/n_stars"]            << 1;
+        ar["symmetry/k/mesh"]               << kgrid;
+        ar["symmetry/k/mesh_scaled"]        << kgrid;
+        ar["symmetry/k/weight_ibz"]         << weight;
+        ar["symmetry/k/bz2ibz"]             << zero1;
+        ar["symmetry/k/ibz2bz"]             << zero1;
+        ar["symmetry/k/tr_conj"]            << zero1;
+        ar["symmetry/k/k_sym_transform_ao"] << k_sym_ao;
+        ar["symmetry/k/stars/0"]            << star0;
+
+        // k-point pairs
+        ar["symmetry/pairs/num_kpair_stored"] << 1;
+        ar["symmetry/pairs/conj_pairs_list"]  << zero1;
+        ar["symmetry/pairs/trans_pairs_list"] << zero1;
+        ar["symmetry/pairs/kpair_irre_list"]  << zero1;
+
+        // bose q-mesh
+        ar["symmetry/q/nq"]                  << 1;
+        ar["symmetry/q/inq"]                 << 1;
+        ar["symmetry/q/n_stars"]             << 1;
+        ar["symmetry/q/mesh"]                << kgrid;
+        ar["symmetry/q/mesh_scaled"]         << kgrid;
+        ar["symmetry/q/weight_ibz"]          << weight;
+        ar["symmetry/q/bz2ibz"]              << zero1;
+        ar["symmetry/q/ibz2bz"]              << zero1;
+        ar["symmetry/q/tr_conj"]             << zero1;
+        ar["symmetry/q/k_sym_transform_j2c"] << q_sym_j2c;
+        ar["symmetry/q/k_sym_transform_p0"]  << q_sym_p0;
+        ar["symmetry/q/stars/0"]             << star0;
 
         ar["HF/madelung"] << 0.0;
         ar.close();
