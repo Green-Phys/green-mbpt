@@ -41,8 +41,8 @@ namespace green::mbpt {
     shape[1]                    = bz.nk();
     ztensor<4> tmp(shape);
     ztensor<4> tmp2(shape);
-    ar["HF/Fock-k"] >> tmp.reshape(shape + 1).view<double>();
-    ar["HF/H-k"] >> tmp2.reshape(shape + 1).view<double>();
+    ar["HF/Fock-k"] >> tmp;
+    ar["HF/H-k"] >> tmp2;
     tmp -= tmp2;
     for (size_t is = 0; is < Sigma1.shape()[0]; ++is) {
       Sigma1(is) << bz.full_to_ibz(tmp(is));
@@ -243,10 +243,12 @@ namespace green::mbpt {
     if (ar.has_attribute("__green_version__")) {
       std::string int_version = ar.get_attribute<std::string>("__green_version__");
       if (!CheckVersion(int_version)) {
-        throw mbpt_outdated_input("Input file at '" + path + "' is outdated, please run migration script python/migrate.py");
+        throw mbpt_outdated_input("Input file at '" + path + "' requires input format 1.1.0 or newer. "
+                                  "Run: python python/migrate.py --input <file> --output <new-file>");
       }
     } else {
-      throw mbpt_outdated_input("Input file at '" + path + "' is outdated, please run migration script python/migrate.py");
+      throw mbpt_outdated_input("Input file at '" + path + "' requires input format 1.1.0 or newer. "
+                                  "Run: python python/migrate.py --input <file> --output <new-file>");
     }
     ar.close();
   }

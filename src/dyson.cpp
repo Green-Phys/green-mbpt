@@ -21,8 +21,8 @@ namespace green::mbpt {
       _ft(p), _bz_utils(p), _ncheb(_ft.sd().repn_fermi().ni()), _nts(_ft.sd().repn_fermi().nts()),
       _nw(_ft.sd().repn_fermi().nw()), _nk(_bz_utils.nk()), _ink(_bz_utils.ink()), _X2C(false), _mu(0.0),
       _const_density(p["const_density"]), _tol(p["tolerance"]), _verbose(p["verbose"]) {
-    dtensor<5>    S_k_tmp;
-    dtensor<5>    H_k_tmp;
+    ztensor<4>    S_k_tmp;
+    ztensor<4>    H_k_tmp;
     h5pp::archive in_file(p["input_file"]);
     in_file["HF/S-k"] >> S_k_tmp;
     in_file["HF/H-k"] >> H_k_tmp;
@@ -33,13 +33,11 @@ namespace green::mbpt {
     in_file["params/nel_cell"] >> _nel;
     in_file.close();
     _X2C = _nso == 2 * _nao;
-    std::array<size_t, 4> shape;
-    std::copy(S_k_tmp.shape().begin(), S_k_tmp.shape().end() - 1, shape.begin());
     _S_k.resize(_ns, _ink, _nso, _nso);
     _H_k.resize(_ns, _ink, _nso, _nso);
     for (size_t is = 0; is < _ns; ++is) {
-      _S_k(is) << _bz_utils.full_to_ibz(S_k_tmp.view<std::complex<double>>().reshape(shape)(is));
-      _H_k(is) << _bz_utils.full_to_ibz(H_k_tmp.view<std::complex<double>>().reshape(shape)(is));
+      _S_k(is) << _bz_utils.full_to_ibz(S_k_tmp(is));
+      _H_k(is) << _bz_utils.full_to_ibz(H_k_tmp(is));
     }
     make_hermitian(_S_k);
     make_hermitian(_H_k);

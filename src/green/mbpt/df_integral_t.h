@@ -42,7 +42,8 @@ namespace green::mbpt {
       h5pp::archive ar(path + "/meta.h5");
       if(ar.has_attribute("__green_version__")) {
         std::string int_version = ar.get_attribute<std::string>("__green_version__");
-        if (!CheckVersion(int_version)) {
+        // Integral storage is unchanged by the native-complex input format.
+        if (!CheckVersion(int_version, "1.0.0")) {
           throw mbpt_outdated_input("Integral files at '" + path +"' are outdated, please run migration script python/migrate.py");
         }
       } else {

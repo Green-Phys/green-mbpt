@@ -44,8 +44,8 @@ namespace green::embedding {
     shape[1]                    = bz.nk();
     mbpt::ztensor<4> tmp(shape);
     mbpt::ztensor<4> tmp2(shape);
-    ar["HF/Fock-k"] >> tmp.reshape(shape + 1).view<double>();
-    ar["HF/H-k"] >> tmp2.reshape(shape + 1).view<double>();
+    ar["HF/Fock-k"] >> tmp;
+    ar["HF/H-k"] >> tmp2;
     tmp -= tmp2;
     for (size_t is = 0; is < Sigma1.shape()[0]; ++is) {
       Sigma1(is) << bz.full_to_ibz(tmp(is));

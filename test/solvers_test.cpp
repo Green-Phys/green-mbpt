@@ -46,11 +46,11 @@ void solve_hf(const std::string& input, const std::string& int_hf, const std::st
     ar["params/ns"] >> ns;
     ar["params/nk"] >> nk;
     ar["symmetry/k/ink"] >> ink;
-    green::sc::dtensor<5> S_k;
+    green::sc::ztensor<4> S_k;
     ar["HF/S-k"] >> S_k;
     ar.close();
     tmp.resize(ns, nk, nso, nso);
-    tmp << S_k.view<std::complex<double>>().reshape(ns, nk, nso, nso);
+    tmp << S_k;
   }
   {
     green::h5pp::archive ar(grid_file);
@@ -101,11 +101,11 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
     ar["params/ns"] >> ns;
     ar["params/nk"] >> nk;
     ar["symmetry/k/ink"] >> ink;
-    green::sc::dtensor<5> S_k;
+    green::sc::ztensor<4> S_k;
     ar["HF/S-k"] >> S_k;
     ar.close();
     tmp.resize(ns, nk, nso, nso);
-    tmp << S_k.view<std::complex<double>>().reshape(ns, nk, nso, nso);
+    tmp << S_k;
   }
   {
     green::h5pp::archive ar(grid_file);
@@ -177,9 +177,9 @@ void check_x2c_ar_symmetry(const std::string& scf_type) {
     green::sc::ztensor<4> tmp(ns, nk, nso, nso), Sigma1(ns, ink, nso, nso), Sk(ns, ink, nso, nso);
     {
       green::h5pp::archive  ar(input_file);
-      green::sc::dtensor<5> S_k;
+      green::sc::ztensor<4> S_k;
       ar["HF/S-k"] >> S_k;
-      tmp << S_k.view<std::complex<double>>().reshape(ns, nk, nso, nso);
+      tmp << S_k;
     }
     for (size_t is = 0; is < ns; ++is) Sk(is) << bz.full_to_ibz(tmp(is));
 
@@ -261,11 +261,11 @@ void solve_gf2(const std::string& df_int_path, const std::string& test_file, con
     ar["params/ns"] >> ns;
     ar["params/nk"] >> nk;
     ar["symmetry/k/ink"] >> ink;
-    green::sc::dtensor<5> S_k;
+    green::sc::ztensor<4> S_k;
     ar["HF/S-k"] >> S_k;
     ar.close();
     tmp.resize(ns, nk, nso, nso);
-    tmp << S_k.view<std::complex<double>>().reshape(ns, nk, nso, nso);
+    tmp << S_k;
   }
   {
     green::h5pp::archive ar(grid_file);
@@ -335,14 +335,14 @@ orth_energies run_orth_one_iter(const std::string& mode, orth_scf_kind kind) {
     ar["params/ns"] >> ns;
     ar["params/nk"] >> nk;
     ar["symmetry/k/ink"] >> ink;
-    green::sc::dtensor<5> S_raw, H_raw;
+    green::sc::ztensor<4> S_raw, H_raw;
     ar["HF/S-k"] >> S_raw;
     ar["HF/H-k"] >> H_raw;
     ar.close();
     Skfull.resize(ns, nk, nso, nso);
     Hkfull.resize(ns, nk, nso, nso);
-    Skfull << S_raw.view<std::complex<double>>().reshape(ns, nk, nso, nso);
-    Hkfull << H_raw.view<std::complex<double>>().reshape(ns, nk, nso, nso);
+    Skfull << S_raw;
+    Hkfull << H_raw;
   }
   nts = ft.sd().repn_fermi().nts();
 
@@ -488,7 +488,7 @@ TEST_CASE("MBPT Solver") {
     REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_1, 2, 36, bz_utils), green::mbpt::mbpt_outdated_input);
     REQUIRE_THROWS_AS(green::mbpt::df_integral_t(df_int_path_2, 2, 36, bz_utils), green::mbpt::mbpt_outdated_input);
     REQUIRE_NOTHROW(green::mbpt::df_integral_t(df_int_path_3, 2, 36, bz_utils));
-    REQUIRE_NOTHROW(green::mbpt::df_integral_t(df_int_path_3, 2, 36, bz_utils));
+    REQUIRE_NOTHROW(green::mbpt::df_integral_t(df_int_path_4, 2, 36, bz_utils));
     REQUIRE_NOTHROW(green::mbpt::check_input(p));
     p["input_file"] = TEST_PATH + "/Input/input_old.h5"s;
     REQUIRE_THROWS_AS(green::mbpt::check_input(p), green::mbpt::mbpt_outdated_input);
@@ -496,13 +496,13 @@ TEST_CASE("MBPT Solver") {
 
   SECTION("Test Version Strings") {
     std::vector<std::string> fail_versions = {
-      "0.2.4", "0.2.4b10", "0.3.0", "0.3.0b8", "0.3.1", "0.3.1b10"
+      "0.2.4", "0.2.4b10", "0.3.0", "0.3.0b8", "0.3.1", "0.3.1b10", "1.0.0", "1.0.9"
     };
-    std::vector<std::string> pass_versions = {"1.0.0", "1.1.0", "1.1.2b"};
-    for (int i=0; i < fail_versions.size() - 1; i++) {
+    std::vector<std::string> pass_versions = {"1.1.0", "1.1.2b", "1.2.0"};
+    for (size_t i=0; i < fail_versions.size(); i++) {
       REQUIRE_FALSE(green::mbpt::CheckVersion(fail_versions[i]));
     }
-    for (size_t i=0; i < pass_versions.size() - 1; i++) {
+    for (size_t i=0; i < pass_versions.size(); i++) {
       REQUIRE(green::mbpt::CheckVersion(pass_versions[i]));
     }
   }
@@ -530,17 +530,23 @@ TEST_CASE("MBPT Solver") {
     green::sc::ztensor<4>                             tmp;
     {
       green::h5pp::archive  ar(input_file);
-      green::sc::dtensor<5> H_k;
-      green::sc::dtensor<5> F_k;
+      green::sc::ztensor<4> H_k;
+      green::sc::ztensor<4> F_k;
       ar["HF/H-k"] >> H_k;
       ar["HF/Fock-k"] >> F_k;
       ar.close();
       F_k -= H_k;
       tmp.resize(ns, nk, nao, nao);
-      tmp << F_k.view<std::complex<double>>().reshape(ns, nk, nao, nao);
+      tmp << F_k;
     }
     nts = sc.dyson_solver().ft().sd().repn_fermi().nts();
     green::symmetry::brillouin_zone_utils bz(p);
+    green::sc::ztensor<4> expected(ns, ink, nso, nso), actual(ns, ink, nso, nso);
+    for (size_t is = 0; is < ns; ++is) expected(is) << bz.full_to_ibz(tmp(is));
+    green::mbpt::read_hartree_fock_selfenergy(p, bz, actual);
+    REQUIRE_THAT(actual, IsCloseTo(expected));
+    green::embedding::read_hartree_fock_selfenergy(p, bz, actual);
+    REQUIRE_THAT(actual, IsCloseTo(expected));
     auto G_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nao, nao));
     auto S_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nao, nao));
     auto Sigma1   = green::sc::ztensor<4>(ns, ink, nao, nao);
@@ -574,14 +580,14 @@ TEST_CASE("MBPT Solver") {
       ar["params/ns"] >> ns;
       ar["params/nk"] >> nk;
       ar["symmetry/k/ink"] >> ink;
-      green::sc::dtensor<5> H_k;
-      green::sc::dtensor<5> F_k;
+      green::sc::ztensor<4> H_k;
+      green::sc::ztensor<4> F_k;
       ar["HF/H-k"] >> H_k;
       ar["HF/Fock-k"] >> F_k;
       ar.close();
       F_k -= H_k;
       tmp.resize(ns, nk, nao, nao);
-      tmp << F_k.view<std::complex<double>>().reshape(ns, nk, nao, nao);
+      tmp << F_k;
     }
     {
       green::h5pp::archive ar(grid_file);
@@ -803,6 +809,25 @@ TEST_CASE("DC comparison to GFmole TEST") {
   REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));
   REQUIRE_THAT(Sigma_t.object(), IsCloseTo(Sigma_t_test, 1e-6));
 
+}
+
+TEST_CASE("Native-complex input version gate") {
+  const std::string path = "input_version_test." + std::to_string(green::utils::context().global_rank) + ".h5";
+  auto p = green::params::params("Input version test");
+  p.define<std::string>("input_file", "Input file", path);
+  p.parse("test");
+  for (const std::string version : {"", "1.0.0", "1.1.0"}) {
+    {
+      green::h5pp::archive ar(path, "w");
+      if (!version.empty()) ar.set_attribute<std::string>("__green_version__", version);
+    }
+    if (version == "1.1.0") {
+      REQUIRE_NOTHROW(green::mbpt::check_input(p));
+    } else {
+      REQUIRE_THROWS_AS(green::mbpt::check_input(p), green::mbpt::mbpt_outdated_input);
+    }
+  }
+  std::filesystem::remove(path);
 }
 
 int main(int argc, char** argv) {
