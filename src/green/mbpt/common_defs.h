@@ -32,7 +32,7 @@
 
 namespace green::mbpt {
 
-  static const std::string INPUT_VERSION = "1.0.0";
+  static const std::string INPUT_VERSION = "1.1.0";
 
   // Matrix types
   template <typename prec>
@@ -184,11 +184,12 @@ namespace green::mbpt {
    * @brief Compare two version strings
    * 
    * @param v (std::string)
-   * @return true if v >= INPUT_VERSION
+   * @param minimum_version Minimum supported version (defaults to the input format version)
+   * @return true if v >= minimum_version
    * @return false otherwise
    * @throws std::runtime_error if version string format is incorrect
    */
-  inline bool CheckVersion(const std::string& v) {
+  inline bool CheckVersion(const std::string& v, const std::string& minimum_version = INPUT_VERSION) {
     int major_Vin = 0, minor_Vin = 0, patch_Vin = 0;
     int major_Vref = 0, minor_Vref = 0, patch_Vref = 0;
   
@@ -196,7 +197,7 @@ namespace green::mbpt {
     char suffixM[32] = "";
   
     int parsed_in = std::sscanf(v.c_str(), "%d.%d.%d%31s", &major_Vin, &minor_Vin, &patch_Vin, suffixV);
-    int parsed_ref = std::sscanf(INPUT_VERSION.c_str(), "%d.%d.%d%31s", &major_Vref, &minor_Vref, &patch_Vref, suffixM);
+    int parsed_ref = std::sscanf(minimum_version.c_str(), "%d.%d.%d%31s", &major_Vref, &minor_Vref, &patch_Vref, suffixM);
 
     if (parsed_in < 3 || parsed_ref < 3) {
       throw std::runtime_error("Version string format is incorrect. Expected format: major.minor.patch[suffix]");
