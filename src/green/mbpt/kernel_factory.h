@@ -85,6 +85,11 @@ namespace green::mbpt::kernels {
     static std::tuple<std::shared_ptr<void>, std::function<void(G_type&, G_type&)>> get_kernel(
         bool X2C, const params::params& p, size_t nao, size_t nso, size_t ns, size_t NQ, const grids::transformer_t& ft,
         const bz_utils_t& bz_utils, const ztensor<4>& S_k) {
+      // Orbital / auxiliary truncation is only implemented in the CPU GW kernel
+      if (p["kernel"].as<kernel_type>() != CPU &&
+          (p["frozen_core"].as<bool>() || p["nv_del"].as<size_t>() > 0 || p["NQ_del"].as<size_t>() > 0)) {
+        throw mbpt_invalid_truncation("frozen_core / nv_del / NQ_del are only supported with kernel=CPU");
+      }
       if (p["kernel"].as<kernel_type>() == CPU) {
         std::shared_ptr<void> kernel(new gw_cpu_kernel(p, nao, nso, ns, NQ, ft, bz_utils, S_k, X2C));
         std::function callback = [kernel](G_type& g, G_type& s) { static_cast<gw_cpu_kernel*>(kernel.get())->solve(g, s); };

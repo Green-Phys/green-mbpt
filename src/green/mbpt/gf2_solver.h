@@ -20,6 +20,8 @@
 
 #include "common_defs.h"
 #include "df_integral_t.h"
+#include "except.h"
+#include "orbital_truncation.h"
 
 namespace green::mbpt {
   /**
@@ -49,6 +51,9 @@ namespace green::mbpt {
       ar["params/ns"] >> _ns;
       ar["params/NQ"] >> _NQ;
       ar.close();
+      _trunc = read_orbital_truncation(p, _nao, _NQ);
+      if (_trunc.frozen_core || _trunc.nv_del > 0 || _trunc.aux_truncated())
+        throw mbpt_invalid_truncation("GF2 does not support frozen_core; nv_del and NQ_del must be 0");
     }
 
      /**
@@ -72,6 +77,8 @@ namespace green::mbpt {
     size_t            _nso;
     size_t            _ns;
     size_t            _NQ;
+    //  Frozen-core / FNO / NAF truncation of the correlated self-energy
+    orbital_truncation_t _trunc;
 
     // Path to H5 file
     const std::string _path;
