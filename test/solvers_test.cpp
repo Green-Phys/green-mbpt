@@ -750,9 +750,9 @@ TEST_CASE("Context TEST") {
   REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));
 }
 
-TEST_CASE("DC comparison to GFmole TEST") {
+TEST_CASE("DC Comparison GW") {
   auto        p           = green::params::params("DESCR");
-  std::string input_file  = TEST_PATH + "/embedding/dc_int_gfmol_test.0/dummy.h5"s;  
+  std::string input_file  = TEST_PATH + "/embedding/dc_int_gfmol_test.0/dummy.h5"s;
   std::string df_int_path = TEST_PATH + "/embedding/dc_int_gfmol_test"s; 
   std::string grid_file   = GRID_PATH + "/ir/1e4.h5"s; 
   std::string test_file  = TEST_PATH + "/embedding/dc.h5"s; 
@@ -771,6 +771,67 @@ TEST_CASE("DC comparison to GFmole TEST") {
   size_t                                nso = 2, ns = 2, nk = 1, ink = 1, nts = 110;
 
  
+  auto G_tau     = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+  auto Sigma_t     = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+  auto Sigma_t_test = green::sc::ztensor<5>(nts, ns, ink, nso, nso);
+  auto Sigma1       = green::sc::ztensor<4>(ns, ink, nso, nso);
+  auto Sigma1_test  = green::sc::ztensor<4>(ns, ink, nso, nso);
+  auto Sk           = green::sc::ztensor<4>(ns, ink, nso, nso);
+
+  int imp = 0;
+
+
+  {
+    green::h5pp::archive ar(test_file, "r");
+    ar["gtau"] >> G_tau.object();
+    ar["sigma1"] >> Sigma1_test;
+    ar["sigma_tau"] >> Sigma_t_test;
+    ar.close();
+
+    green::sc::ztensor<5> S_w(ft.sd().repn_fermi().nw(), ns, ink, nso, nso);
+    ft.tau_to_omega(Sigma_t_test,S_w);
+    ft.omega_to_tau(S_w, Sigma_t_test);
+
+    Sigma_t.fence();
+    Sigma_t.object().set_zero();
+    Sigma_t.fence();
+
+    S_w.set_zero();
+    ft.tau_to_omega(G_tau.object(),S_w);
+    ft.omega_to_tau(S_w, G_tau.object());
+
+  }
+  p["seet_root_dir"] = TEST_PATH;
+  auto solver = green::embedding::get_dc_solver(p);
+  solver(df_int_path, imp, G_tau, Sigma1, Sigma_t);
+
+
+  REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));
+  REQUIRE_THAT(Sigma_t.object(), IsCloseTo(Sigma_t_test, 1e-6));
+
+}
+
+TEST_CASE("DC Comparison GF2") {
+  auto        p           = green::params::params("DESCR");
+  std::string input_file  = TEST_PATH + "/embedding/dc_int.0/dummy.h5"s;
+  std::string df_int_path = TEST_PATH + "/embedding/dc_int"s;
+  std::string grid_file   = GRID_PATH + "/ir/1e4.h5"s;
+  std::string test_file  = TEST_PATH + "/embedding/dc_int.0/data_gf2.h5"s;
+  std::string args =
+      "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_MIXING --mixing_weight 0.8 --scf_type GF2 --input_file=" + input_file +
+      " --BETA 100 --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path +  " --dfintegral_hf_file=" + df_int_path +
+      " --q0_treatment IGNORE_G0";
+  green::grids::define_parameters(p);
+  green::embedding::define_parameters(p);
+  green::mbpt::define_parameters(p);
+  green::symmetry::define_parameters(p);
+  p.define<double>("BETA", "Inverse temperature", 100.0);
+  p.parse(args);
+  green::symmetry::brillouin_zone_utils bz(p);
+  green::grids::transformer_t           ft(p);
+  size_t                                nso = 2, ns = 2, nk = 1, ink = 1, nts = 110;
+
+
   auto G_tau     = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
   auto Sigma_t     = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
   auto Sigma_t_test = green::sc::ztensor<5>(nts, ns, ink, nso, nso);
