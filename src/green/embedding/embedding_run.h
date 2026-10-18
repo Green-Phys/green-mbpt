@@ -96,6 +96,20 @@ namespace green::embedding {
           MPI_Barrier(G.cntx().global);
           break;
         }
+        case mbpt::GF2: {
+          green::mbpt::hf_solver hf(p2, bz, Sk);
+          green::mbpt::gf2_solver gf2(p2, ft, bz);
+          green::sc::composition_solver<green::mbpt::hf_solver, green::mbpt::gf2_solver> solver(hf, gf2);
+          solver.solve(G, Sigma1, Sigma_t);
+          if(!G.cntx().global_rank) {
+            h5pp::archive ar(p2["seet_root_dir"].as<std::string>() + "/dc." + std::to_string(imp) + ".result.h5", "w");
+            ar["Sigma1/data"] << Sigma1;
+            ar["Sigma_t/data"] << Sigma_t.object();
+            ar.close();
+          }
+          MPI_Barrier(G.cntx().global);
+          break;
+        }
         default: {
           std::cout << "scf type not implemented." << std::endl;
           break;
