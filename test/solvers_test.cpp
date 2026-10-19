@@ -785,23 +785,29 @@ TEST_CASE("DC Comparison GW") {
 
   {
     green::h5pp::archive ar(test_file, "r");
-    ar["gtau"] >> G_tau.object();
     ar["sigma1"] >> Sigma1_test;
     ar["sigma_tau"] >> Sigma_t_test;
-    ar.close();
 
     green::sc::ztensor<5> S_w(ft.sd().repn_fermi().nw(), ns, ink, nso, nso);
     ft.tau_to_omega(Sigma_t_test,S_w);
     ft.omega_to_tau(S_w, Sigma_t_test);
 
+    // G_tau and Sigma_t are node-shared buffers: load and transform only on the
+    // node leader, bracketed by fences, so ranks sharing the buffer do not race.
+    G_tau.fence();
+    if (!green::utils::context().node_rank) {
+      ar["gtau"] >> G_tau.object();
+      S_w.set_zero();
+      ft.tau_to_omega(G_tau.object(), S_w);
+      ft.omega_to_tau(S_w, G_tau.object());
+    }
+    G_tau.fence();
+
     Sigma_t.fence();
-    Sigma_t.object().set_zero();
+    if (!green::utils::context().node_rank) Sigma_t.object().set_zero();
     Sigma_t.fence();
 
-    S_w.set_zero();
-    ft.tau_to_omega(G_tau.object(),S_w);
-    ft.omega_to_tau(S_w, G_tau.object());
-
+    ar.close();
   }
   // Dedicated output dir so concurrent ctest -j runs of the GW/GF2 DC tests do
   // not both truncate the same dc.0.result.h5 (get_dc_solver writes
@@ -852,23 +858,29 @@ TEST_CASE("DC Comparison GF2") {
 
   {
     green::h5pp::archive ar(test_file, "r");
-    ar["gtau"] >> G_tau.object();
     ar["sigma1"] >> Sigma1_test;
     ar["sigma_tau"] >> Sigma_t_test;
-    ar.close();
 
     green::sc::ztensor<5> S_w(ft.sd().repn_fermi().nw(), ns, ink, nso, nso);
     ft.tau_to_omega(Sigma_t_test,S_w);
     ft.omega_to_tau(S_w, Sigma_t_test);
 
+    // G_tau and Sigma_t are node-shared buffers: load and transform only on the
+    // node leader, bracketed by fences, so ranks sharing the buffer do not race.
+    G_tau.fence();
+    if (!green::utils::context().node_rank) {
+      ar["gtau"] >> G_tau.object();
+      S_w.set_zero();
+      ft.tau_to_omega(G_tau.object(), S_w);
+      ft.omega_to_tau(S_w, G_tau.object());
+    }
+    G_tau.fence();
+
     Sigma_t.fence();
-    Sigma_t.object().set_zero();
+    if (!green::utils::context().node_rank) Sigma_t.object().set_zero();
     Sigma_t.fence();
 
-    S_w.set_zero();
-    ft.tau_to_omega(G_tau.object(),S_w);
-    ft.omega_to_tau(S_w, G_tau.object());
-
+    ar.close();
   }
   // Dedicated output dir so concurrent ctest -j runs of the GW/GF2 DC tests do
   // not both truncate the same dc.0.result.h5 (get_dc_solver writes
