@@ -43,7 +43,7 @@ namespace green::mbpt {
     int old_k1 = -1;
     // start main loop
     // execution will proceed while current point is non-negative
-    for (size_t k1i = utils::context().internode_rank; k1i < _ink * _nao; k1i += utils::context().internode_size) {
+    for (size_t k1i = _cntx.internode_rank; k1i < _ink * _nao; k1i += _cntx.internode_size) {
       size_t k1_pos   = k1i / _nao;
       int    k1_red   = _bz_utils.k_symmetry().full_point(k1_pos);
       size_t i        = k1i % _nao;
@@ -85,7 +85,7 @@ namespace green::mbpt {
     int old_k2 = -1;
     // start main loop
     // execution will proceed while current point is non-negative
-    for (size_t k1k2 = utils::context().internode_rank; k1k2 < _ink * _nk; k1k2 += utils::context().internode_size) {
+    for (size_t k1k2 = _cntx.internode_rank; k1k2 < _ink * _nk; k1k2 += _cntx.internode_size) {
       // k1k2 = k1 * _nk + k2
       size_t k1_pos   = k1k2 / (_nk);
       int    k1_red   = _bz_utils.k_symmetry().full_point(k1_pos);
@@ -132,7 +132,7 @@ namespace green::mbpt {
     _coul_int_x_3->reset();
     _coul_int_x_4->reset();
     // start main loop
-    for (size_t k1k2 = utils::context().internode_rank; k1k2 < _ink * _nk; k1k2 += utils::context().internode_size) {
+    for (size_t k1k2 = _cntx.internode_rank; k1k2 < _ink * _nk; k1k2 += _cntx.internode_size) {
       // k1k2 = k1 * _nk + k2
       size_t k1_pos   = k1k2 / (_nk);
       int    k1_red   = _bz_utils.k_symmetry().full_point(k1_pos);

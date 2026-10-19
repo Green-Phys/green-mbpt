@@ -30,6 +30,9 @@
 
 namespace green::mbpt {
   void gf2_solver::solve(G_type& g_tau, S1_type& sigma1, St_type& sigma_tau) {
+    // Run all collectives/partitioning over the Green's function's communicator
+    // (global for the standalone path, the DC subcommunicator in SEET).
+    _cntx = g_tau.cntx();
     _G_k1_tmp.resize(_nao, _nao);
     _Gb_k2_tmp.resize(_nao, _nao);
     _G_k3_tmp.resize(_nao, _nao);
@@ -40,23 +43,23 @@ namespace green::mbpt {
     //
     MPI_Datatype dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
     MPI_Op       matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
-    _coul_int_c_1              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    _coul_int_c_2              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    _coul_int_c_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    _coul_int_c_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    _coul_int_x_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
-    _coul_int_x_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils);
+    _coul_int_c_1              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx);
+    _coul_int_c_2              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx);
+    _coul_int_c_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx);
+    _coul_int_c_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx);
+    _coul_int_x_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx);
+    _coul_int_x_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx);
     auto& Sigma_tau            = sigma_tau.object();
     // clean self_energy array
     Sigma_local                = Sigma_tau;
     sigma_tau.fence();
-    if (!utils::context().node_rank) Sigma_tau.set_zero();
+    if (!_cntx.node_rank) Sigma_tau.set_zero();
     sigma_tau.fence();
     statistics.start("GF2 total");
-    auto [ntau_local, tau_offset] = compute_local_and_offset_node_comm(_nts);
+    auto [ntau_local, tau_offset] = compute_local_and_offset_node_comm(_nts, _cntx);
     // start main loop
     MPI_Win_lock_all(MPI_MODE_NOCHECK, sigma_tau.win());
-    for (size_t k1k3k2 = utils::context().internode_rank; k1k3k2 < _nk * _nk * _ink; k1k3k2 += utils::context().internode_size) {
+    for (size_t k1k3k2 = _cntx.internode_rank; k1k3k2 < _nk * _nk * _ink; k1k3k2 += _cntx.internode_size) {
       size_t                k1_pos = k1k3k2 / (_nk * _nk);
       // Link the reduce index (k1_pos) to corresponding momentum
       size_t                k1_red = _bz_utils.k_symmetry().full_point(k1_pos);
@@ -76,14 +79,14 @@ namespace green::mbpt {
     }
     statistics.start("correction");
     if (_ewald) {
-      if (!utils::context().global_rank) std::cout << "Correction for selfenergy" << std::endl;
+      if (!_cntx.global_rank) std::cout << "Correction for selfenergy" << std::endl;
       compute_2nd_exch_correction(tau_offset, ntau_local, g_tau.object());
     }
     statistics.end();
     MPI_Win_sync(sigma_tau.win());
-    MPI_Barrier(utils::context().node_comm);
+    MPI_Barrier(_cntx.node_comm);
     MPI_Win_unlock_all(sigma_tau.win());
-    MPI_Barrier(utils::context().global);
+    MPI_Barrier(_cntx.global);
 
     statistics.start("reduce");
     // // collect data within a node
@@ -92,16 +95,16 @@ namespace green::mbpt {
     // MPI_Win_unlock(0, sigma_tau.win());
     // collect data among nodes
     sigma_tau.fence();
-    if (!utils::context().node_rank) {
+    if (!_cntx.node_rank) {
       utils::allreduce(MPI_IN_PLACE, Sigma_tau.data(), Sigma_tau.size() / (_nso * _nso), dt_matrix, matrix_sum_op,
-                       utils::context().internode_comm);
+                       _cntx.internode_comm);
       Sigma_tau /= (_nk * _nk);
     }
     sigma_tau.fence();
     statistics.end();
     statistics.end();
     // print execution time
-    statistics.print(utils::context().global);
+    statistics.print(_cntx.global);
     statistics.reset(); // Reset timings
     delete _coul_int_c_1;
     delete _coul_int_c_2;
