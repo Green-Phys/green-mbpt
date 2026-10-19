@@ -15,6 +15,8 @@
 #include <green/h5pp/archive.h>
 #include <green/embedding/embedding_run.h>
 
+#include <filesystem>
+
 #include <hdf5.h>
 #include <hdf5_hl.h>
 
@@ -801,9 +803,15 @@ TEST_CASE("DC Comparison GW") {
     ft.omega_to_tau(S_w, G_tau.object());
 
   }
-  p["seet_root_dir"] = TEST_PATH;
+  // Dedicated output dir so concurrent ctest -j runs of the GW/GF2 DC tests do
+  // not both truncate the same dc.0.result.h5 (get_dc_solver writes
+  // seet_root_dir/dc.<imp>.result.h5). Removed right after the solve.
+  std::string out_dir = TEST_PATH + "/embedding/dc_out_gw"s;
+  std::filesystem::create_directories(out_dir);
+  p["seet_root_dir"] = out_dir;
   auto solver = green::embedding::get_dc_solver(p);
   solver(df_int_path, imp, G_tau, Sigma1, Sigma_t);
+  std::filesystem::remove_all(out_dir);
 
 
   REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));
@@ -862,9 +870,15 @@ TEST_CASE("DC Comparison GF2") {
     ft.omega_to_tau(S_w, G_tau.object());
 
   }
-  p["seet_root_dir"] = TEST_PATH;
+  // Dedicated output dir so concurrent ctest -j runs of the GW/GF2 DC tests do
+  // not both truncate the same dc.0.result.h5 (get_dc_solver writes
+  // seet_root_dir/dc.<imp>.result.h5). Removed right after the solve.
+  std::string out_dir = TEST_PATH + "/embedding/dc_out_gf2"s;
+  std::filesystem::create_directories(out_dir);
+  p["seet_root_dir"] = out_dir;
   auto solver = green::embedding::get_dc_solver(p);
   solver(df_int_path, imp, G_tau, Sigma1, Sigma_t);
+  std::filesystem::remove_all(out_dir);
 
 
   REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));

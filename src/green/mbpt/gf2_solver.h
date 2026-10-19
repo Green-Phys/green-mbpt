@@ -154,6 +154,13 @@ namespace green::mbpt {
 
     const bz_utils_t& _bz_utils;
 
+    // MPI context used for the current solve. Taken from the Green's function
+    // tensor at the top of solve() so that all collectives and work partitioning
+    // run over the tensor's communicator (e.g. the rank-local DC subcommunicator
+    // in SEET), mirroring how the GW kernel uses g.cntx(). Defaults to the global
+    // context, which is what the standalone weak-coupling path uses.
+    utils::mpi_context _cntx = utils::mpi_context::context();
+
     //
     utils::timing     statistics;
   };
