@@ -27,7 +27,7 @@ namespace green::mbpt::kernels {
     ztensor<4> new_Fock(_ns, _ink, _nao, _nao);
     new_Fock.set_zero();
     {
-      df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils);
+      df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils, cntx);
       size_t        NQ_local = _NQ / cntx.node_size;
       NQ_local += (_NQ % cntx.node_size > cntx.node_rank) ? 1 : 0;
       size_t NQ_offset = NQ_local * cntx.node_rank +
@@ -150,7 +150,7 @@ namespace green::mbpt::kernels {
     ztensor<4> new_Fock(1, _ink, _nso, _nso);
     new_Fock.set_zero();
     {
-      df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils);
+      df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils, cntx);
 
       size_t NQ_local = _NQ / cntx.node_size;
       NQ_local += (_NQ % cntx.node_size > cntx.node_rank) ? 1 : 0;
