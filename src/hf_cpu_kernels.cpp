@@ -22,16 +22,16 @@
 #include "green/mbpt/kernels.h"
 
 namespace green::mbpt::kernels {
-  ztensor<4> hf_scalar_cpu_kernel::solve(const ztensor<4>& dm) {
+  ztensor<4> hf_scalar_cpu_kernel::solve(const ztensor<4>& dm, const utils::mpi_context& cntx) {
     statistics.start("Hartree-Fock");
     ztensor<4> new_Fock(_ns, _ink, _nao, _nao);
     new_Fock.set_zero();
     {
       df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils);
-      size_t        NQ_local = _NQ / utils::context().node_size;
-      NQ_local += (_NQ % utils::context().node_size > utils::context().node_rank) ? 1 : 0;
-      size_t NQ_offset = NQ_local * utils::context().node_rank +
-                         ((_NQ % utils::context().node_size > utils::context().node_rank) ? 0 : (_NQ % utils::context().node_size));
+      size_t        NQ_local = _NQ / cntx.node_size;
+      NQ_local += (_NQ % cntx.node_size > cntx.node_rank) ? 1 : 0;
+      size_t NQ_offset = NQ_local * cntx.node_rank +
+                         ((_NQ % cntx.node_size > cntx.node_rank) ? 0 : (_NQ % cntx.node_size));
       NQ_offset = (NQ_offset >= _NQ) ? 0 : NQ_offset;
       statistics.start("Direct");
       // Direct diagram
@@ -44,7 +44,7 @@ namespace green::mbpt::kernels {
       if(NQ_local > 0) {
         // TODO: We can save a lot of time here by reducing the loop over ikp, but that would require removing the NQ_local, NQ_offset framework.
         //        The symmetry speedup only works if we load all of NQ at once -- which shold be doable now that we have much smaller memory footprint.
-        for (int ikps = utils::context().internode_rank; ikps < _nk * _ns; ikps += utils::context().internode_size) {
+        for (int ikps = cntx.internode_rank; ikps < _nk * _ns; ikps += cntx.internode_size) {
           int is    = ikps % _ns;
           int ikp   = ikps / _ns;
           statistics.start("Read Coulomb Up");
@@ -59,12 +59,12 @@ namespace green::mbpt::kernels {
         }
       }
       statistics.start("Reduce Direct");
-      MPI_Allreduce(MPI_IN_PLACE, upper_Coul.data(), upper_Coul.size(), MPI_CXX_DOUBLE_COMPLEX, MPI_SUM, utils::context().global);
+      MPI_Allreduce(MPI_IN_PLACE, upper_Coul.data(), upper_Coul.size(), MPI_CXX_DOUBLE_COMPLEX, MPI_SUM, cntx.global);
       statistics.end();
 
       upper_Coul /= double(_nk);
       if (NQ_local > 0) {
-        for (int ii = utils::context().internode_rank; ii < _ink * _ns; ii += utils::context().internode_size) {
+        for (int ii = cntx.internode_rank; ii < _ink * _ns; ii += cntx.internode_size) {
           int is   = ii / _ink;
           int ik   = ii % _ink;
           int k_ir = _bz_utils.k_symmetry().full_point(ik);
@@ -98,7 +98,7 @@ namespace green::mbpt::kernels {
       double     prefactor = (_ns == 2) ? 1.0 : 0.5;
       statistics.start("Exchange");
       if (NQ_local > 0) {
-        for (int ii = utils::context().internode_rank; ii < _ink * _ns; ii += utils::context().internode_size) {
+        for (int ii = cntx.internode_rank; ii < _ink * _ns; ii += cntx.internode_size) {
           int        is   = ii / _ink;
           int        ik   = ii % _ink;
           int        k_ir = _bz_utils.k_symmetry().full_point(ik);
@@ -126,7 +126,7 @@ namespace green::mbpt::kernels {
       statistics.end();
 
       statistics.start("Ewald correction");
-      for (int ii = utils::context().global_rank; ii < _ns * _ink; ii += utils::context().global_size) {
+      for (int ii = cntx.global_rank; ii < _ns * _ink; ii += cntx.global_size) {
         int         is = ii / _ink;
         int         ik = ii % _ink;
         CMMatrixXcd dmm(dm.data() + is * _ink * _nao * _nao + ik * _nao * _nao, _nao, _nao);
@@ -137,25 +137,25 @@ namespace green::mbpt::kernels {
       statistics.end();
     }
     statistics.start("Reduce Fock");
-    utils::allreduce(MPI_IN_PLACE, new_Fock.data(), new_Fock.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, utils::context().global);
+    utils::allreduce(MPI_IN_PLACE, new_Fock.data(), new_Fock.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, cntx.global);
     statistics.end();
     statistics.end();
-    statistics.print(utils::context().global);
+    statistics.print(cntx.global);
     statistics.reset(); // Reset timings
     return new_Fock;
   }
 
-  ztensor<4> hf_x2c_cpu_kernel::solve(const ztensor<4>& dm) {
+  ztensor<4> hf_x2c_cpu_kernel::solve(const ztensor<4>& dm, const utils::mpi_context& cntx) {
     statistics.start("X2C Hartree-Fock");
     ztensor<4> new_Fock(1, _ink, _nso, _nso);
     new_Fock.set_zero();
     {
       df_integral_t coul_int1(_hf_path, _nao, _NQ, _bz_utils);
 
-      size_t NQ_local = _NQ / utils::context().node_size;
-      NQ_local += (_NQ % utils::context().node_size > utils::context().node_rank) ? 1 : 0;
-      size_t NQ_offset = NQ_local * utils::context().node_rank +
-                         ((_NQ % utils::context().node_size > utils::context().node_rank) ? 0 : (_NQ % utils::context().node_size));
+      size_t NQ_local = _NQ / cntx.node_size;
+      NQ_local += (_NQ % cntx.node_size > cntx.node_rank) ? 1 : 0;
+      size_t NQ_offset = NQ_local * cntx.node_rank +
+                         ((_NQ % cntx.node_size > cntx.node_rank) ? 0 : (_NQ % cntx.node_size));
       NQ_offset = (NQ_offset >= _NQ) ? 0 : NQ_offset;
       ztensor<3> v(NQ_local, _nao, _nao);
       // Direct diagram
@@ -169,7 +169,7 @@ namespace green::mbpt::kernels {
         ztensor<2> upper_Coul(_NQ, 1);
         upper_Coul.set_zero();
         MMatrixXcd upper_Coul_m(upper_Coul.data() + NQ_offset, NQ_local, 1);
-        for (int ikp = utils::context().internode_rank; ikp < _nk; ikp += utils::context().internode_size) {
+        for (int ikp = cntx.internode_rank; ikp < _nk; ikp += cntx.internode_size) {
           coul_int1.read_integrals(ikp, ikp);
           if(NQ_local > 0) {
             coul_int1.symmetrize(v, ikp, ikp, NQ_offset, NQ_local);
@@ -185,13 +185,13 @@ namespace green::mbpt::kernels {
           }
         }
         statistics.start("Reduce Direct");
-        MPI_Allreduce(MPI_IN_PLACE, upper_Coul.data(), upper_Coul.size(), MPI_CXX_DOUBLE_COMPLEX, MPI_SUM, utils::context().global);
+        MPI_Allreduce(MPI_IN_PLACE, upper_Coul.data(), upper_Coul.size(), MPI_CXX_DOUBLE_COMPLEX, MPI_SUM, cntx.global);
         statistics.end();
         upper_Coul /= double(_nk);
 
         MatrixXcd  Fm(1, _nao * _nao);
         MMatrixXcd Fmm(Fm.data(), _nao, _nao);
-        for (int ik = utils::context().internode_rank; ik < _ink; ik += utils::context().internode_size) {
+        for (int ik = cntx.internode_rank; ik < _ink; ik += cntx.internode_size) {
           int k_ir = _bz_utils.k_symmetry().full_point(ik);
 
           coul_int1.read_integrals(k_ir, k_ir);
@@ -229,7 +229,7 @@ namespace green::mbpt::kernels {
       // each called once per ikp instead of once per (spin block × ikp).
       // The Madelung uses the AO overlap S_aa (= S_bb) on both sides for all blocks —
       // this is S_AO (spin-independent), not the spinor off-diagonal S_ab which is zero.
-      for (int ik = utils::context().internode_rank; ik < (int)_ink; ik += utils::context().internode_size) {
+      for (int ik = cntx.internode_rank; ik < (int)_ink; ik += cntx.internode_size) {
         int         k_ir  = _bz_utils.k_symmetry().full_point(ik);
         MMatrixXcd  Fm_nso(new_Fock.data() + ik * _nso * _nso, _nso, _nso);
         CMMatrixXcd Sm_nso(_S_k.data() + ik * _nso * _nso, _nso, _nso);
@@ -277,7 +277,7 @@ namespace green::mbpt::kernels {
       // NQ partitioning used by the exchange loop above. This mirrors the scalar
       // hf_cpu_kernel and the GPU add_Ewald, both of which add Madelung once per k.
       statistics.start("X2C Ewald correction");
-      for (int ik = utils::context().global_rank; ik < (int)_ink; ik += utils::context().global_size) {
+      for (int ik = cntx.global_rank; ik < (int)_ink; ik += cntx.global_size) {
         MMatrixXcd  Fm_nso(new_Fock.data() + ik * _nso * _nso, _nso, _nso);
         CMMatrixXcd Sm_nso(_S_k.data() + ik * _nso * _nso, _nso, _nso);
         CMMatrixXcd dm_nso(dm.data() + ik * _nso * _nso, _nso, _nso);
@@ -292,10 +292,10 @@ namespace green::mbpt::kernels {
     }
 
     statistics.start("Reduce Fock");
-    utils::allreduce(MPI_IN_PLACE, new_Fock.data(), new_Fock.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, utils::context().global);
+    utils::allreduce(MPI_IN_PLACE, new_Fock.data(), new_Fock.size(), MPI_C_DOUBLE_COMPLEX, MPI_SUM, cntx.global);
     statistics.end();
     statistics.end();
-    statistics.print(utils::context().global);
+    statistics.print(cntx.global);
     statistics.reset(); // Reset timings
     return new_Fock;
   }
