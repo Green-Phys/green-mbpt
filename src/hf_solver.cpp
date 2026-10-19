@@ -12,6 +12,8 @@ namespace green::mbpt {
     ztensor<4> dm(shape);
     dm << g.object()(g.object().shape()[0] - 1);
     dm *= _spin_prefactor;
-    sigma1 << _callback(dm);
+    // Use the Green's function's communicator (global for the standalone path,
+    // the DC subcommunicator in SEET) so collectives match the caller's scope.
+    sigma1 << _callback(dm, g.cntx());
   }
 }  // namespace green::mbpt
