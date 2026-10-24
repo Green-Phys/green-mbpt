@@ -84,7 +84,7 @@ namespace green::mbpt::kernels {
     if (!cntx.node_rank) P0_tilde_s.object().set_zero();
     P0_tilde_s.fence();
 
-    auto [local_tau, tau_offset] = compute_local_and_offset_node_comm(_nts / 2, cntx);
+    auto [local_tau, tau_offset] = compute_local_and_offset_node_comm(_nts, cntx);
     MPI_Win_lock_all(MPI_MODE_NOCHECK, P0_tilde_s.win());
     for (size_t k1 = 0; k1 < _nk; ++k1) {
       size_t k1_plus_q = _bz_utils.k_q_map().k1_from_k2q(k1, q_ir);
@@ -167,7 +167,7 @@ namespace green::mbpt::kernels {
       double          prefactor = (_ns == 2 or _X2C) ? 1.0 : 2.0;
       size_t          pseudo_ns = (!_X2C) ? _ns : 4;  // 1: restricted, 2: unrestricted, 4: X2C (all spin blocks)
       // #pragma omp for
-      for (size_t t = tau_offset, it = 0; it < local_tau; ++t, ++it) {  // Loop over half-tau
+      for (size_t t = tau_offset, it = 0; it < local_tau; ++t, ++it) {
         size_t     tt = _nts - t - 1;                                   // beta - t
         MMatrixXcd P0(P0_tilde.data() + t * _NQ * _NQ, _NQ, _NQ);
         // Cache value_AO once per (is, k) to avoid repeating the transform
@@ -215,12 +215,10 @@ namespace green::mbpt::kernels {
   }
 
   void gw_cpu_kernel::symmetrize_P0(ztensor<4>& P0_tilde, size_t local_tau, size_t tau_offset) {
-    for (size_t it = tau_offset, t = 0; t < local_tau; ++it, ++t) {  // Symmetry of tau: P0(t) = P0(beta - t)
-      // Hermitization
+    for (size_t it = tau_offset, t = 0; t < local_tau; ++it, ++t) {
       auto P0_t = P0_tilde(it);
       P0_t /= (_nk);
       make_hermitian(P0_t);
-      matrix(P0_tilde(_nts - it - 1, 0)) = matrix(P0_tilde(it, 0));
     }
   }
 
