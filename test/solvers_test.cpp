@@ -79,7 +79,8 @@ void solve_hf(const std::string& input, const std::string& int_hf, const std::st
   REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));
 }
 
-void solve_gw(const std::string& input, const std::string& int_f, const std::string& data, const std::string& q0 = "IGNORE_G0") {
+void solve_gw(const std::string& input, const std::string& int_f, const std::string& data, const std::string& q0 = "IGNORE_G0",
+              double beta = 100) {
   auto        p           = green::params::params("DESCR");
   std::string input_file  = TEST_PATH + input;
   std::string df_int_path = TEST_PATH + int_f;
@@ -87,7 +88,8 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
   std::string grid_file   = GRID_PATH + "/ir/1e4.h5"s;
   std::string args =
       "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_MIXING --mixing_weight 0.8 --input_file=" + input_file +
-      " --BETA 100 --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path + " --q0_treatment " + q0;
+      " --BETA " + std::to_string(beta) + " --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path +
+      " --q0_treatment " + q0;
   green::grids::define_parameters(p);
   green::mbpt::define_parameters(p);
   green::symmetry::define_parameters(p);
@@ -134,6 +136,75 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
   green::mbpt::gw_solver solver(p, ft, bz, Sk);
   solver.solve(G_shared, Sigma1, S_shared);
   REQUIRE_THAT(S_shared.object(), IsCloseTo(S_shared_tst.object(), 1e-6));
+}
+
+// Golden generator for GW fixtures: reads G_tau from <data>, runs one GW step,
+// and writes result/Sigma_tau back into <data>. Mirrors solve_gw but stores
+// instead of comparing. Hidden (tagged) so it is not run in the normal suite;
+// invoke explicitly to regenerate a committed golden, e.g.:
+//   ./solvers_test "[gen_hchain]"
+void generate_gw_golden(const std::string& input, const std::string& int_f, const std::string& data,
+                        const std::string& q0 = "IGNORE_G0", double beta = 100) {
+  auto        p           = green::params::params("DESCR");
+  std::string input_file  = TEST_PATH + input;
+  std::string df_int_path = TEST_PATH + int_f;
+  std::string test_file   = TEST_PATH + data;
+  std::string grid_file   = GRID_PATH + "/ir/1e4.h5"s;
+  std::string args =
+      "test --restart 0 --itermax 1 --E_thr 1e-13 --mixing_type SIGMA_MIXING --mixing_weight 0.8 --input_file=" + input_file +
+      " --BETA " + std::to_string(beta) + " --grid_file=" + grid_file + " --dfintegral_file=" + df_int_path +
+      " --q0_treatment " + q0;
+  green::grids::define_parameters(p);
+  green::mbpt::define_parameters(p);
+  green::symmetry::define_parameters(p);
+  p.define<double>("BETA", "Inverse temperature", 10.0);
+  p.parse(args);
+  green::symmetry::brillouin_zone_utils bz(p);
+  green::grids::transformer_t           ft(p);
+  size_t                                nso, ns, nk, ink, nts;
+  green::sc::ztensor<4>                 tmp;
+  {
+    green::h5pp::archive ar(input_file);
+    ar["params/nso"] >> nso;
+    ar["params/ns"] >> ns;
+    ar["params/nk"] >> nk;
+    ar["symmetry/k/ink"] >> ink;
+    green::sc::ztensor<4> S_k;
+    ar["HF/S-k"] >> S_k;
+    ar.close();
+    tmp.resize(ns, nk, nso, nso);
+    tmp << S_k;
+  }
+  {
+    green::h5pp::archive ar(grid_file);
+    ar["fermi/metadata/ncoeff"] >> nts;
+    ar.close();
+    nts += 2;
+  }
+  auto G_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+  auto S_shared = green::utils::shared_object(green::sc::ztensor<5>(nullptr, nts, ns, ink, nso, nso));
+  auto Sigma1   = green::sc::ztensor<4>(ns, ink, nso, nso);
+  auto Sk       = green::sc::ztensor<4>(ns, ink, nso, nso);
+  for (int is = 0; is < ns; ++is) Sk(is) << bz.full_to_ibz(tmp(is));
+  {
+    green::h5pp::archive ar(test_file, "r");
+    G_shared.fence();
+    if (!green::utils::context().node_rank) ar["G_tau"] >> G_shared.object();
+    G_shared.fence();
+    ar.close();
+  }
+  green::mbpt::gw_solver solver(p, ft, bz, Sk);
+  solver.solve(G_shared, Sigma1, S_shared);
+  if (!green::utils::context().node_rank) {
+    green::h5pp::archive ar(test_file, "a");
+    ar["result/Sigma_tau"] << S_shared.object();
+    ar.close();
+    std::cout << "[gen] wrote result/Sigma_tau to " << test_file << std::endl;
+  }
+}
+
+TEST_CASE("Generate GW_Hchain golden", "[.gen_hchain]") {
+  generate_gw_golden("/GW_Hchain/input.h5", "/GW_Hchain/df_int", "/GW_Hchain/data.h5", "IGNORE_G0", 25);
 }
 
 // Check that one step of scf_type ("HF" or "GW") gives the same Sigma at every
@@ -391,6 +462,16 @@ TEST_CASE("MBPT Solver") {
   SECTION("GW") { solve_gw("/GW/input.h5", "/GW/df_int", "/GW/data.h5"); }
   SECTION("GW_C") { solve_gw("/GW/input_tr_symm.h5", "/GW/df_hf_int", "/GW/data_c.h5", "EXTRAPOLATE"); }
   SECTION("GW_X2C") { solve_gw("/GW_X2C/input.h5", "/GW_X2C/df_hf_int", "/GW_X2C/data.h5"); }
+  // Regression guard for the periodic-GW polarization bug (PR #77): the old code
+  // built P0 on half the tau grid and mirrored with P(q, beta-tau) = P(q, tau),
+  // but the correct bosonic KMS relation is P(q, tau) = P(-q, beta-tau). This
+  // STO-6G hydrogen chain (R=1.4 bohr, beta=25, mu=0, nk=4) is generated WITHOUT
+  // space-group or time-reversal symmetry (full q mesh); that is essential - with
+  // TR symmetry the solver reconstructs P(-q) by conjugation and the bug is masked.
+  // With the full mesh the buggy code differs from the golden by ~17% (relative),
+  // so this section fails on the old code and passes on the fix. See
+  // GW_Hchain/init.sh and gen_gtau.py; golden from the corrected solver.
+  SECTION("GW_Hchain") { solve_gw("/GW_Hchain/input.h5", "/GW_Hchain/df_int", "/GW_Hchain/data.h5", "IGNORE_G0", 25); }
 
   SECTION("HF_X2C_Ar_Symmetry") { check_x2c_ar_symmetry("HF"); }
   SECTION("GW_X2C_Ar_Symmetry") { check_x2c_ar_symmetry("GW"); }
