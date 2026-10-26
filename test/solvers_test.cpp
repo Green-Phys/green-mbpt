@@ -195,7 +195,10 @@ void generate_gw_golden(const std::string& input, const std::string& int_f, cons
   }
   green::mbpt::gw_solver solver(p, ft, bz, Sk);
   solver.solve(G_shared, Sigma1, S_shared);
-  if (!green::utils::context().node_rank) {
+  // Only the single global leader writes the golden: node_rank==0 is true on
+  // every node, so gating on it would have multiple node leaders open/overwrite
+  // the same HDF5 file concurrently on a multi-node run (matches src/dyson.cpp).
+  if (!green::utils::context().global_rank) {
     green::h5pp::archive ar(test_file, "a");
     ar["result/Sigma_tau"] << S_shared.object();
     ar.close();

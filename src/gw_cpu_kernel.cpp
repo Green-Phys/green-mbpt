@@ -218,6 +218,10 @@ namespace green::mbpt::kernels {
     for (size_t it = tau_offset, t = 0; t < local_tau; ++it, ++t) {
       auto P0_t = P0_tilde(it);
       P0_t /= (_nk);
+      // P0(q, tau) is Hermitian in the auxiliary (Q, Q') indices at each tau;
+      // this only cleans up numerical noise. NOTE: it does NOT make P0(q, iOmega)
+      // Hermitian - that holds only if P0 is even in tau (centrosymmetric/even-q),
+      // which is why the Matsubara Dyson solve below must be a general complex solve.
       make_hermitian(P0_t);
     }
   }
@@ -238,14 +242,16 @@ namespace green::mbpt::kernels {
 
     statistics.start("GW-BSE");
     // Solve Dyson-like eqn for ncheb frequency points
-    MatrixXcd              identity = MatrixXcd::Identity(_NQ, _NQ);
-    // Eigen::FullPivLU<MatrixXcd> lusolver(_NQ,_NQ);
-    Eigen::LDLT<MatrixXcd> ldltsolver(_NQ);
+    // P0(q, iOmega) is NOT Hermitian when P0(q, tau) is not even in tau (i.e. for
+    // q != -q / non-centrosymmetric inputs), so the screened-polarization Dyson
+    // equation (I - P0) P = P0 must use a general complex solve. A Hermitian solver
+    // (LDLT) plus Hermitization of the inverse would discard the physical
+    // anti-Hermitian part and give the wrong W / self-energy.
+    MatrixXcd                      identity = MatrixXcd::Identity(_NQ, _NQ);
+    Eigen::PartialPivLU<MatrixXcd> lusolver(_NQ);
     for (size_t n = w_offset, loc_n = 0; loc_n < nw_local; ++n, ++loc_n) {
       MatrixXcd temp     = identity - matrix(P0_w(n, 0));
-      // temp = lusolver.compute(temp).inverse().eval();
-      temp               = ldltsolver.compute(temp).solve(identity).eval();
-      temp               = 0.5 * (temp + temp.conjugate().transpose().eval());
+      temp               = lusolver.compute(temp).solve(identity).eval();
       matrix(P0_w(n, 0)) = (temp * matrix(P0_w(n, 0))).eval();
     }
     statistics.start("P reduce");
