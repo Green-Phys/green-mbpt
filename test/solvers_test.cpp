@@ -79,8 +79,7 @@ void solve_hf(const std::string& input, const std::string& int_hf, const std::st
   REQUIRE_THAT(Sigma1, IsCloseTo(Sigma1_test));
 }
 
-void solve_gw(const std::string& input, const std::string& int_f, const std::string& data, const std::string& q0 = "IGNORE_G0",
-              double beta = 100) {
+void solve_gw(const std::string& input, const std::string& int_f, const std::string& data, const std::string& q0, double beta) {
   auto        p           = green::params::params("DESCR");
   std::string input_file  = TEST_PATH + input;
   std::string df_int_path = TEST_PATH + int_f;
@@ -138,13 +137,13 @@ void solve_gw(const std::string& input, const std::string& int_f, const std::str
   REQUIRE_THAT(S_shared.object(), IsCloseTo(S_shared_tst.object(), 1e-6));
 }
 
-// Golden generator for GW fixtures: reads G_tau from <data>, runs one GW step,
+// Reference generator for GW fixtures: reads G_tau from <data>, runs one GW step,
 // and writes result/Sigma_tau back into <data>. Mirrors solve_gw but stores
 // instead of comparing. Hidden (tagged) so it is not run in the normal suite;
-// invoke explicitly to regenerate a committed golden, e.g.:
+// invoke explicitly to regenerate a committed reference, e.g.:
 //   ./solvers_test "[gen_hchain]"
-void generate_gw_golden(const std::string& input, const std::string& int_f, const std::string& data,
-                        const std::string& q0 = "IGNORE_G0", double beta = 100) {
+void generate_gw_reference(const std::string& input, const std::string& int_f, const std::string& data,
+                           const std::string& q0, double beta) {
   auto        p           = green::params::params("DESCR");
   std::string input_file  = TEST_PATH + input;
   std::string df_int_path = TEST_PATH + int_f;
@@ -195,7 +194,7 @@ void generate_gw_golden(const std::string& input, const std::string& int_f, cons
   }
   green::mbpt::gw_solver solver(p, ft, bz, Sk);
   solver.solve(G_shared, Sigma1, S_shared);
-  // Only the single global leader writes the golden: node_rank==0 is true on
+  // Only the single global leader writes the reference: node_rank==0 is true on
   // every node, so gating on it would have multiple node leaders open/overwrite
   // the same HDF5 file concurrently on a multi-node run (matches src/dyson.cpp).
   if (!green::utils::context().global_rank) {
@@ -206,8 +205,8 @@ void generate_gw_golden(const std::string& input, const std::string& int_f, cons
   }
 }
 
-TEST_CASE("Generate GW_Hchain golden", "[.gen_hchain]") {
-  generate_gw_golden("/GW_Hchain/input.h5", "/GW_Hchain/df_int", "/GW_Hchain/data.h5", "IGNORE_G0", 25);
+TEST_CASE("Generate GW_Hchain reference", "[.gen_hchain]") {
+  generate_gw_reference("/GW_Hchain/input.h5", "/GW_Hchain/df_int", "/GW_Hchain/data.h5", "IGNORE_G0", 25);
 }
 
 // Check that one step of scf_type ("HF" or "GW") gives the same Sigma at every
@@ -462,18 +461,18 @@ orth_energies run_orth_one_iter(const std::string& mode, orth_scf_kind kind) {
 TEST_CASE("MBPT Solver") {
   SECTION("HF") { solve_hf("/HF/input.h5", "/HF/df_hf_int", "/HF/data.h5"); }
   SECTION("HF_X2C") { solve_hf("/HF_X2C/input.h5", "/HF_X2C/df_hf_int", "/HF_X2C/data.h5"); }
-  SECTION("GW") { solve_gw("/GW/input.h5", "/GW/df_int", "/GW/data.h5"); }
-  SECTION("GW_C") { solve_gw("/GW/input_tr_symm.h5", "/GW/df_hf_int", "/GW/data_c.h5", "EXTRAPOLATE"); }
-  SECTION("GW_X2C") { solve_gw("/GW_X2C/input.h5", "/GW_X2C/df_hf_int", "/GW_X2C/data.h5"); }
+  SECTION("GW") { solve_gw("/GW/input.h5", "/GW/df_int", "/GW/data.h5", "IGNORE_G0", 100); }
+  SECTION("GW_C") { solve_gw("/GW/input_tr_symm.h5", "/GW/df_hf_int", "/GW/data_c.h5", "EXTRAPOLATE", 100); }
+  SECTION("GW_X2C") { solve_gw("/GW_X2C/input.h5", "/GW_X2C/df_hf_int", "/GW_X2C/data.h5", "IGNORE_G0", 100); }
   // Regression guard for the periodic-GW polarization bug (PR #77): the old code
   // built P0 on half the tau grid and mirrored with P(q, beta-tau) = P(q, tau),
   // but the correct bosonic KMS relation is P(q, tau) = P(-q, beta-tau). This
   // STO-6G hydrogen chain (R=1.4 bohr, beta=25, mu=0, nk=4) is generated WITHOUT
   // space-group or time-reversal symmetry (full q mesh); that is essential - with
   // TR symmetry the solver reconstructs P(-q) by conjugation and the bug is masked.
-  // With the full mesh the buggy code differs from the golden by ~17% (relative),
+  // With the full mesh the buggy code differs from the reference by ~17% (relative),
   // so this section fails on the old code and passes on the fix. See
-  // GW_Hchain/init.sh and gen_gtau.py; golden from the corrected solver.
+  // GW_Hchain/init.sh and gen_gtau.py; reference from the corrected solver.
   SECTION("GW_Hchain") { solve_gw("/GW_Hchain/input.h5", "/GW_Hchain/df_int", "/GW_Hchain/data.h5", "IGNORE_G0", 25); }
 
   SECTION("HF_X2C_Ar_Symmetry") { check_x2c_ar_symmetry("HF"); }

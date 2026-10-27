@@ -27,6 +27,6 @@ rm -rf df_hf_int
 rm -f dm.h5 tmp.chk cderi* tmp[0-9]* tmp_* 2>/dev/null || true
 
 # Build the input Green's function G_tau (beta=25, mu=0) into data.h5, then
-# produce the golden result/Sigma_tau by running the corrected GW solver:
+# produce the reference result/Sigma_tau by running the corrected GW solver:
 #   ./solvers_test "[gen_hchain]"
 python gen_gtau.py
