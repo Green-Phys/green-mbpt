@@ -140,9 +140,6 @@ namespace green::mbpt::kernels {
                         MMatrixX<prec>& VVmm, MMatrixX<prec>& X1m, MMatrixX<prec>& vmm, MMatrixX<prec>& X2m, MMatrixX<prec>& X1mm,
                         MMatrixX<prec>& X2mm, MMatrixXcd& P0, double& prefactor);
 
-    /**
-     * Symmetrize polarization function by ultilizing P0(t) = P0(beta-t)
-     */
     void symmetrize_P0(ztensor<4>& P0_tilde, size_t local_tau, size_t tau_offset);
 
     /**
