@@ -1,5 +1,8 @@
 project(_test)
 
+add_executable(frozen_integral_probe frozen_integral_probe.cpp)
+target_link_libraries(frozen_integral_probe PRIVATE GREEN::MBPT GREEN::SC)
+
 Include(FetchContent)
 
 FetchContent_Declare(
