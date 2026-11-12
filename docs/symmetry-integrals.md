@@ -37,12 +37,13 @@ mbpt.exe --input_file /path/to/input.h5 \
   --integral_symmetry space_group \
   --scf_type GW --kernel CPU --BETA 10 \
   --grid_file /path/to/ir/1e4.h5 --itermax 2 --restart false \
-  --cuda_low_cpu_memory true --cuda_low_gpu_memory true \
-  --P_sp false --Sigma_sp false --results_file result.h5
+  --results_file result.h5
 ```
 
 CPU HF/GW/GF2 and GPU HF/GW are covered. `GF2 --kernel GPU` uses GPU HF and
 CPU GF2 correlation. No GPU GF2 correlation implementation is added.
+For GPU use, select `--kernel GPU`, set `--cuda_low_cpu_memory` and
+`--cuda_low_gpu_memory` explicitly, and choose the precision flags below.
 The existing GPU precision behavior uses single precision when both `P_sp`
 and `Sigma_sp` are true. Mixed flag combinations retain existing behavior.
 
