@@ -13,7 +13,7 @@ the official upstream repositories and revisions follow `GREEN_RELEASE`.
 CMake cache variables
 `GREEN_SYMMETRY_GIT_REPOSITORY`, `GREEN_SYMMETRY_GIT_TAG`,
 `GREEN_GPU_GIT_REPOSITORY` and `GREEN_GPU_GIT_TAG` allow explicit overrides.
-allow explicit dependency overrides. To test coordinated source checkouts:
+To test coordinated source checkouts:
 
 ```bash
 cmake -S . -B build \
