@@ -43,12 +43,12 @@ namespace green::mbpt {
     //
     MPI_Datatype dt_matrix     = utils::create_matrix_datatype<std::complex<double>>(_nso * _nso);
     MPI_Op       matrix_sum_op = utils::create_matrix_operation<std::complex<double>>();
-    _coul_int_c_1              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx);
-    _coul_int_c_2              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx);
-    _coul_int_c_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx);
-    _coul_int_c_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx);
-    _coul_int_x_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx);
-    _coul_int_x_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx);
+    _coul_int_c_1              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx, _integral_options);
+    _coul_int_c_2              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx, _integral_options);
+    _coul_int_c_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx, _integral_options);
+    _coul_int_c_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx, _integral_options);
+    _coul_int_x_3              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx, _integral_options);
+    _coul_int_x_4              = new df_integral_t(_path, _nao, _NQ, _bz_utils, _cntx, _integral_options);
     auto& Sigma_tau            = sigma_tau.object();
     // clean self_energy array
     Sigma_local                = Sigma_tau;

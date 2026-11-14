@@ -74,6 +74,10 @@ Currently, we provide IR (`ir` subdirectory) and Chebyshev grids (`cheb` subdire
 After succesful completetion results will be written to a file located at `--results_file` (by default set to `sim.h5`)
 To get information about other parameters and their default values call `mbpt.exe --help`.
 
+The feature branch's opt-in space-group integral reader is documented in
+[docs/symmetry-integrals.md](docs/symmetry-integrals.md), including coordinated
+dependencies, resource bounds, supported kernels and validation probe usage.
+
 ## Acknowledgements
 
 This work is supported by the National Science Foundation under the award OAC-2310582

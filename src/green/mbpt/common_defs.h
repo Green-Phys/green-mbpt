@@ -22,11 +22,12 @@
 #ifndef MBPT_COMMON_DEFS_H
 #define MBPT_COMMON_DEFS_H
 
-#include <cstdio>
 #include <green/grids/itime_mesh_t.h>
 #include <green/ndarray/ndarray.h>
+#include <green/symmetry/integral_pair_map.h>
 
 #include <Eigen/Dense>
+#include <cstdio>
 
 #include "custom_kernels.h"
 
@@ -153,6 +154,7 @@ namespace green::mbpt {
   };
 
   inline void define_parameters(params::params& p) {
+    symmetry::define_integral_parameters(p);
     p.define<std::string>("dfintegral_hf_file", "Path to Hartree-Fock integrals", "df_hf_int");
     p.define<std::string>("dfintegral_file", "Path to integrals for high order theories", "df_int");
     p.define<int>("verbose", "Print verbose output.", 0);

@@ -43,12 +43,12 @@ namespace green::mbpt::kernels {
                   const bz_utils_t& bz_utils, const ztensor<4>& S_k, bool X2C = false) :
         _beta(p["BETA"]), _nts(ft.sd().repn_fermi().nts()), _nts_b(ft.sd().repn_bose().nts()), _ni(ft.sd().repn_fermi().ni()),
         _ni_b(ft.sd().repn_bose().ni()), _nw(ft.sd().repn_fermi().nw()), _nw_b(ft.sd().repn_bose().nw()), _nk(bz_utils.nk()),
-        _ink(bz_utils.ink()), _nq(bz_utils.nq()), _inq(bz_utils.inq()), _nao(nao), _nso(nso), _ns(ns), _NQ(NQ), _X2C(X2C), _p_sp(p["P_sp"]), _sigma_sp(p["Sigma_sp"]),
-        _ft(ft), _bz_utils(bz_utils), _path(p["dfintegral_file"]), statistics("GW"),
+        _ink(bz_utils.ink()), _nq(bz_utils.nq()), _inq(bz_utils.inq()), _nao(nao), _nso(nso), _ns(ns), _NQ(NQ), _X2C(X2C),
+        _p_sp(p["P_sp"]), _sigma_sp(p["Sigma_sp"]), _ft(ft), _bz_utils(bz_utils), _path(p["dfintegral_file"]), statistics("GW"),
         _q0_utils(bz_utils.inq(), 0, S_k, _path, p["q0_treatment"]),
         // _P0_tilde(0, 0, 0, 0),
-        _eps_inv_wq(ft.wsample_bose().size(), bz_utils.inq()),
-        _coul_int1(nullptr) {
+        _eps_inv_wq(ft.wsample_bose().size(), bz_utils.inq()), _coul_int1(nullptr),
+        _integral_options(symmetry::integral_reader_options::from_parameters(p, "correlation")) {
       _q0_utils.resize(_NQ);
     }
 
@@ -100,6 +100,7 @@ namespace green::mbpt::kernels {
     // Pre-computed fitted densities
     // This object reads 3-index tensors into Vij_Q
     df_integral_t*              _coul_int1;
+    symmetry::integral_reader_options _integral_options;
 
   private:
     /**
@@ -182,8 +183,9 @@ namespace green::mbpt::kernels {
 
     hf_kernel(const params::params& p, size_t nao, size_t nso, size_t ns, size_t NQ, double madelung, const bz_utils_t& bz_utils,
               const ztensor<4>& S_k) :
-        _nao(nao), _nso(nso), _nk(bz_utils.nk()), _ink(bz_utils.ink()), _nq(bz_utils.nq()), _inq(bz_utils.inq()), _ns(ns), _NQ(NQ), _madelung(madelung),
-        _bz_utils(bz_utils), _S_k(S_k), _hf_path(p["dfintegral_hf_file"]), statistics("Hartree Fock"){};
+        _nao(nao), _nso(nso), _nk(bz_utils.nk()), _ink(bz_utils.ink()), _nq(bz_utils.nq()), _inq(bz_utils.inq()), _ns(ns),
+        _NQ(NQ), _madelung(madelung), _bz_utils(bz_utils), _S_k(S_k), _hf_path(p["dfintegral_hf_file"]),
+        statistics("Hartree Fock"), _integral_options(symmetry::integral_reader_options::from_parameters(p, "hf")) {};
     virtual ~hf_kernel() = default;
 
   protected:
@@ -209,6 +211,7 @@ namespace green::mbpt::kernels {
     const ztensor<4>& _S_k;
     const std::string _hf_path;
     utils::timing     statistics;
+    symmetry::integral_reader_options _integral_options;
   };
 
   class hf_scalar_cpu_kernel final : public hf_kernel {
