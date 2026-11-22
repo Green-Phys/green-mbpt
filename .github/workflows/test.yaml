@@ -17,6 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
 
+      - name: Validate agent documentation
+        run: python3 scripts/check-agent-docs.py
+
       - name: Build
         run: |
           # manually source /etc/profile such that lmod is set up:
