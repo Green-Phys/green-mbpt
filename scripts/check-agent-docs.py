@@ -15,6 +15,7 @@ REFERENCES = (
     "build-and-releases.md",
     "data-contracts.md",
     "pitfalls.md",
+    "citations.md",
 )
 REQUIRED_URLS = (
     "https://green-phys.org/llms.txt",
@@ -23,6 +24,9 @@ REQUIRED_URLS = (
     "https://green-phys.org/docs/components/data-formats/input-file/",
     "https://green-phys.org/docs/components/data-formats/output-files/",
     "https://green-phys.org/docs/installation/from_sources/",
+    "https://green-phys.org/docs/publications/",
+    "https://green-phys.org/docs/acknowledgment/",
+    "https://green-phys.org/data/iskakov2025.bib",
 )
 
 

@@ -21,6 +21,10 @@ Use this skill for downstream workflows, not for changing `green-mbpt` itself.
    run through the site's documented workflow.
 5. Treat completion, convergence, restart safety, and scientific validity as
    separate questions. Locate outputs using the documented HDF5 contract.
+6. Before results are reported or published, identify the GREEN software,
+   version, and method publications that apply. Use the canonical citation
+   guidance rather than guessing from method names, and surface unresolved
+   citation choices for the researcher.
 
 ## Read only what the task needs
 
@@ -30,6 +34,7 @@ Use this skill for downstream workflows, not for changing `green-mbpt` itself.
 | Releases, dependencies, CPU/GPU build | [build and releases](references/build-and-releases.md) |
 | Input/output structure and compatibility | [data contracts](references/data-contracts.md) |
 | Common wrong turns and human decisions | [pitfalls](references/pitfalls.md) |
+| Software, version, and method acknowledgment | [citations](references/citations.md) |
 
 The machine-oriented documentation index is
 <https://green-phys.org/llms.txt>. When this skill and the current executable or
