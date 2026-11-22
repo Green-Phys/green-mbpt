@@ -40,9 +40,10 @@ authority for supported Linux and macOS environments. Keep C++17 compatibility.
   output formats, or supported workflows must update the relevant page on
   `green-phys.org` and the bundled `green-mbpt-run` skill.
 - New or substantially changed scientific methods, algorithms, and
-  representations must review the user-facing citation guidance. Preserve
-  attribution when simplifying documentation, and add or update the canonical
-  method references in the same change when necessary.
+  representations must review the canonical citation policy in
+  `Green-Phys/green-citations`. Preserve attribution when simplifying
+  documentation, and propose policy changes there rather than duplicating
+  bibliographic metadata in this repository.
 - User-facing examples that produce research results should route readers to
   the software citation and the original literature for the methods they use.
 - Do not silently select a scientific method, convergence criterion, basis,
@@ -54,8 +55,9 @@ authority for supported Linux and macOS environments. Keep C++17 compatibility.
 
 - `.agents/skills/green-mbpt-run/` guides downstream use of GREEN.
 - `scripts/check-agent-docs.py` checks the skill layout and its required links.
-- Canonical citation guidance is maintained at
-  <https://green-phys.org/docs/publications/>.
+- Canonical bibliographic metadata and citation policy are maintained at
+  <https://github.com/Green-Phys/green-citations>. The website publication page
+  is a generated presentation of that authority.
 - Repository contribution guidance is at
   <https://green-phys.org/docs/contribution/>.
 

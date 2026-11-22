@@ -24,9 +24,12 @@ REQUIRED_URLS = (
     "https://green-phys.org/docs/components/data-formats/input-file/",
     "https://green-phys.org/docs/components/data-formats/output-files/",
     "https://green-phys.org/docs/installation/from_sources/",
+    "https://github.com/Green-Phys/green-citations",
+    "https://github.com/Green-Phys/green-citations/blob/main/CITATION.md",
+    "https://github.com/Green-Phys/green-citations/blob/main/CITATION.cff",
+    "https://github.com/Green-Phys/green-citations/blob/main/references.bib",
     "https://green-phys.org/docs/publications/",
     "https://green-phys.org/docs/acknowledgment/",
-    "https://green-phys.org/data/iskakov2025.bib",
 )
 
 

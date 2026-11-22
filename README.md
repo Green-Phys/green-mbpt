@@ -26,6 +26,9 @@ and downstream users can start from the machine-oriented index at
 <https://green-phys.org/llms.txt> or load the bundled
 [`green-mbpt-run` skill](.agents/skills/green-mbpt-run/SKILL.md).
 
+Canonical bibliographic metadata and scientific citation policy are maintained
+independently in [`Green-Phys/green-citations`](https://github.com/Green-Phys/green-citations).
+
 ## Installation
 
 ### Dependencies
