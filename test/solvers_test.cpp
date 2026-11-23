@@ -1000,6 +1000,39 @@ TEST_CASE("Native-complex input version gate") {
   std::filesystem::remove(path);
 }
 
+TEST_CASE("WINTER input checks") {
+  const std::string rank    = std::to_string(green::utils::context().global_rank);
+  const std::string with_hs = "winter_input_hs." + rank + ".h5";
+  const std::string results = "winter_results_missing." + rank + ".h5";
+  std::filesystem::remove(results);
+  auto make_params = [&](const std::string& input_file) {
+    auto p = green::params::params("WINTER input test");
+    p.define<std::string>("input_file", "Input file", input_file);
+    p.define<std::string>("results_file", "Results file", results);
+    p.parse("test");
+    return p;
+  };
+
+  SECTION("No /high_symm_path in input") {
+    // The test inputs do not contain a high-symmetry path.
+    auto p = make_params(TEST_PATH + "/HF/input.h5"s);
+    REQUIRE_THROWS_AS(green::mbpt::check_winter_input(p), green::mbpt::mbpt_missing_high_symm_path);
+  }
+
+  SECTION("High-symmetry path present, results file missing") {
+    std::filesystem::copy_file(TEST_PATH + "/HF/input.h5"s, with_hs, std::filesystem::copy_options::overwrite_existing);
+    {
+      hid_t file  = H5Fopen(with_hs.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+      hid_t group = H5Gcreate2(file, "high_symm_path", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+      H5Gclose(group);
+      H5Fclose(file);
+    }
+    auto p = make_params(with_hs);
+    REQUIRE_THROWS_AS(green::mbpt::check_winter_input(p), green::mbpt::mbpt_wrong_results_file);
+    std::filesystem::remove(with_hs);
+  }
+}
+
 int main(int argc, char** argv) {
   MPI_Init(&argc, &argv);
   int result = Catch::Session().run(argc, argv);

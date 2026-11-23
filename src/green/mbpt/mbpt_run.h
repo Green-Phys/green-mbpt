@@ -220,20 +220,40 @@ namespace green::mbpt {
     }
   }
 
-  inline void winter_job(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p, shared_mem_dyson& dyson,
-                         utils::shared_object<ztensor<5>>& g0_tau, utils::shared_object<ztensor<5>>& sigma_tau,
-                         ztensor<4>& sigma1) {
-    h5pp::archive input(p["input_file"]);
-    std::string results_file = p["results_file"].as<std::string>();
+  /**
+   * @brief Check that the inputs required by the WINTER (band-path interpolation) job exist.
+   *
+   * @throws mbpt_missing_high_symm_path if the input file has no /high_symm_path group
+   * @throws mbpt_wrong_results_file if the results file of a previous SC run does not exist
+   */
+  inline void check_winter_input(const params::params& p) {
+    const std::string input_file   = p["input_file"];
+    const std::string results_file = p["results_file"];
+    bool              has_hs_path;
+    {
+      h5pp::archive input(input_file, "r");
+      has_hs_path = input.has_group("high_symm_path");
+      input.close();
+    }
+    if (!has_hs_path) {
+      throw mbpt_missing_high_symm_path("Input file '" + input_file + "' has no /high_symm_path group, which the 'WINTER' job " +
+                                        "needs. Generate it with 'init_data_df.py --job sym_path' before running 'WINTER'.");
+    }
     if (!std::filesystem::exists(results_file)) {
       throw mbpt_wrong_results_file("Results file '" + results_file + "' does not exist. " +
                                     "Please verify the path is correct, or run the 'SC' job before running 'WINTER'.");
     }
-    if (input.has_group("high_symm_path")) {
-      if (!utils::context().global_rank) std::cout << "Running Wannier interpolation" << std::endl;
-      sc::read_results(dyson.mu(), g0_tau, sigma1, sigma_tau, results_file);
-      wannier_interpolation(dyson, sigma1, sigma_tau, input, p["high_symmetry_output_file"]);
-    }
+  }
+
+  inline void winter_job(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p, shared_mem_dyson& dyson,
+                         utils::shared_object<ztensor<5>>& g0_tau, utils::shared_object<ztensor<5>>& sigma_tau,
+                         ztensor<4>& sigma1) {
+    check_winter_input(p);
+    h5pp::archive     input(p["input_file"]);
+    const std::string results_file = p["results_file"];
+    if (!utils::context().global_rank) std::cout << "Running Wannier interpolation" << std::endl;
+    sc::read_results(dyson.mu(), g0_tau, sigma1, sigma_tau, results_file);
+    wannier_interpolation(dyson, sigma1, sigma_tau, input, p["high_symmetry_output_file"]);
     input.close();
   }
 
