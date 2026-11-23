@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Generate token
         id: generate-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GREEN_TAG_APP_ID }}
           private-key: ${{ secrets.GREEN_TAG_APP_PRIVATE_KEY }}
@@ -59,7 +59,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
 
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v7
         with:
           ref: main  # important: checkout main, not the tag
           token: ${{ steps.generate-token.outputs.token }}
