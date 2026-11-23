@@ -15,7 +15,7 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v7
 
       - name: Build
         run: |
@@ -60,3 +60,49 @@ jobs:
           flags: unittests
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  build-eigen5:
+    # Build and test against Eigen 5.x (installed from source) to check
+    # compatibility with Eigen releases newer than 3.4.
+    runs-on: ubuntu-latest
+
+    env:
+      EIGEN_VERSION: "5.0.1"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openmpi-bin libopenmpi-dev libhdf5-dev libopenblas-dev
+          # make sure no system Eigen can be picked up instead
+          sudo apt-get remove -y libeigen3-dev || true
+
+      - name: Install Eigen ${{ env.EIGEN_VERSION }}
+        run: |
+          curl -sSL -o eigen.tar.bz2 \
+            "https://gitlab.com/libeigen/eigen/-/archive/${EIGEN_VERSION}/eigen-${EIGEN_VERSION}.tar.bz2"
+          tar xjf eigen.tar.bz2
+          cmake -S eigen-${EIGEN_VERSION} -B eigen-build \
+            -DCMAKE_INSTALL_PREFIX=$HOME/eigen -DBUILD_TESTING=OFF -DEIGEN_BUILD_DOC=OFF
+          cmake --build eigen-build -t install
+          rm -rf eigen-build eigen-${EIGEN_VERSION} eigen.tar.bz2
+
+      - name: Build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH=$HOME/eigen -DGREEN_RELEASE="origin/main"
+          # fail if CMake found any Eigen other than the one installed above
+          grep -E "^Eigen3_DIR" build/CMakeCache.txt
+          grep -qE "^Eigen3_DIR:PATH=$HOME/eigen/" build/CMakeCache.txt
+          cmake --build build -j 4
+
+      - name: Test
+        env:
+          HDF5_USE_FILE_LOCKING: 'FALSE'
+          OMP_NUM_THREADS: 1
+        run: |
+          cd build
+          ctest -j 1 --output-on-failure
+
