@@ -12,17 +12,17 @@ jobs:
     strategy:
       fail-fast: false
 
-    runs-on: self-hosted
-
+    runs-on: [ self-hosted, ift-vm ]
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openmpi-bin libopenmpi-dev libhdf5-dev libeigen3-dev libopenblas-dev lcov
 
       - name: Build
         run: |
-          # manually source /etc/profile such that lmod is set up:
-          . /etc/profile
-
-          module load BuildEnv/gcc-12.2.0.lua;
           mkdir -p build && cd build;
           cmake -DCMAKE_CXX_FLAGS=" --coverage -fno-inline -fno-inline-small-functions -fno-default-inline -fprofile-arcs -ftest-coverage " \
             -DGREEN_RELEASE="origin/main" ..;
@@ -33,25 +33,17 @@ jobs:
           HDF5_USE_FILE_LOCKING: 'FALSE'
           OMP_NUM_THREADS: 1
         run: |
-            # manually source /etc/profile such that lmod is set up:
-            . /etc/profile
-
-            module load BuildEnv/gcc-12.2.0.lua;
             cd build;
             ctest -j 1
 
       - name: Run coverage
         run: |
-          # manually source /etc/profile such that lmod is set up:
-          . /etc/profile
-
-          module load BuildEnv/gcc-12.2.0.lua;
           cd build;
-          lcov --capture --directory . --output-file coverage.info;
-          lcov --remove coverage.info '/usr/*' --output-file coverage.info
-          lcov --remove coverage.info '/opt/ohpc/pub/compiler/*' --output-file coverage.info
-          lcov --remove coverage.info '*_deps*' --output-file coverage.info
-          lcov --remove coverage.info '*libs*' --output-file coverage.info
+          lcov --ignore-errors source,source --capture --directory . --output-file coverage.info;
+          lcov --ignore-errors unused --remove coverage.info '/usr/*' --output-file coverage.info
+          lcov --ignore-errors unused --remove coverage.info '/opt/ohpc/pub/compiler/*' --output-file coverage.info
+          lcov --ignore-errors unused --remove coverage.info '*_deps*' --output-file coverage.info
+          lcov --ignore-errors unused --remove coverage.info '*libs*' --output-file coverage.info
           lcov --list coverage.info
 
       - name: Upload coverage reports to Codecov
