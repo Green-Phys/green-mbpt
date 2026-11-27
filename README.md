@@ -18,6 +18,17 @@
 
 `Green/WeakCoupling` is a weak-coupling perturbation expansion solver for real materials expressed in Gaussian Bloch orbitals
 
+## Documentation
+
+The current installation, workflow, file-format, troubleshooting, and release
+documentation is maintained at <https://green-phys.org/docs/>. Coding agents
+and downstream users can start from the machine-oriented index at
+<https://green-phys.org/llms.txt> or load the bundled
+[`green-mbpt-run` skill](.agents/skills/green-mbpt-run/SKILL.md).
+
+Canonical bibliographic metadata and scientific citation policy are maintained
+independently in [`Green-Phys/green-citations`](https://github.com/Green-Phys/green-citations).
+
 ## Installation
 
 ### Dependencies
@@ -36,28 +47,30 @@ To build `Green/WeakCoupling` CMake version 3.18 or above is required
 
 ### Build and Install
 
-The following example will build, test and install `Green/WeakCoupling` to `/path/to/weakcoupling/install/dir` directory.
+For current release selection, prerequisites, GPU configuration, and supported
+HPC environments, follow the
+[source installation guide](https://green-phys.org/docs/installation/from_sources/).
+The following example builds, tests, and installs `Green/WeakCoupling` v1.0.0 to
+`/path/to/weakcoupling/install/dir`.
 
 ```ShellSession
-$ git clone https://github.com/Green-Phys/green-mbpt
+$ git clone --branch v1.0.0 --depth 1 https://github.com/Green-Phys/green-mbpt
 $ cd green-mbpt
-$ mkdir build && cd build
-$ cmake -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/path/to/weakcoupling/install/dir ..
-$ make
-$ make test
-$ make install
+$ cmake -S . -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/path/to/weakcoupling/install/dir
+$ cmake --build build -j 4
+$ (cd build && ctest --output-on-failure)
+$ cmake --install build
 ```
 
 ## Basic usage
 
 ### Generate input data
-`Green/WeakCoupling` provides `PySCF` interface to generate input data and initial starting point through the `green-mbtools` Python package.
-
-To generate initial mean-field solution and one- and two-body integrals run:
-```ShellSession
-python python/init_data_df.py --a <a.dat> --atom <atom.dat> --nk <nk> --basis <basis specification>
-```
+`Green/WeakCoupling` uses the `green-mbtools` package to generate input data and
+the initial mean-field solution. Follow the current
+[input preparation guide](https://green-phys.org/docs/getting-started/preparing_input/);
+input formats and supported commands are release dependent.
 
 To perform weak-coupling simulations, one have to call `mbpt.exe` executable located at the installation path in the `bin` subdirectory.
 Minimal parameters that are needed to run weak-coupling simulations are following:
@@ -71,7 +84,9 @@ Minimal parameters that are needed to run weak-coupling simulations are followin
 
 Currently, we provide IR (`ir` subdirectory) and Chebyshev grids (`cheb` subdirectory) for nonuniform imaginary time representation.
 
-After succesful completetion results will be written to a file located at `--results_file` (by default set to `sim.h5`)
+After successful completion, results are written to `--results_file` (by
+default `sim.h5`). The versioned layout and restart caveats are documented in
+the [output-file contract](https://green-phys.org/docs/components/data-formats/output-files/).
 To get information about other parameters and their default values call `mbpt.exe --help`.
 
 ## Acknowledgements

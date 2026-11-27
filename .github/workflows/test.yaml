@@ -21,6 +21,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y openmpi-bin libopenmpi-dev libhdf5-dev libeigen3-dev libopenblas-dev lcov
 
+      - name: Validate agent documentation
+        run: python3 scripts/check-agent-docs.py
+
       - name: Build
         run: |
           mkdir -p build && cd build;
