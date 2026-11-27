@@ -22,7 +22,7 @@ Use an out-of-source build:
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j 4
-ctest --test-dir build --output-on-failure
+(cd build && ctest --output-on-failure)
 ```
 
 The first configure may fetch Green component libraries and Catch2. CI is the

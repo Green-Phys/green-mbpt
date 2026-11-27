@@ -50,17 +50,17 @@ To build `Green/WeakCoupling` CMake version 3.18 or above is required
 For current release selection, prerequisites, GPU configuration, and supported
 HPC environments, follow the
 [source installation guide](https://green-phys.org/docs/installation/from_sources/).
-The following example builds, tests, and installs `Green/WeakCoupling` to
+The following example builds, tests, and installs `Green/WeakCoupling` v1.0.0 to
 `/path/to/weakcoupling/install/dir`.
 
 ```ShellSession
-$ git clone https://github.com/Green-Phys/green-mbpt
+$ git clone --branch v1.0.0 --depth 1 https://github.com/Green-Phys/green-mbpt
 $ cd green-mbpt
 $ cmake -S . -B build \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/path/to/weakcoupling/install/dir
 $ cmake --build build -j 4
-$ ctest --test-dir build --output-on-failure
+$ (cd build && ctest --output-on-failure)
 $ cmake --install build
 ```
 

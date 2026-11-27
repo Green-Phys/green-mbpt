@@ -16,7 +16,7 @@ cmake -S green-mbpt -B green-mbpt-build \
   -DCMAKE_INSTALL_PREFIX=/path/to/install \
   -DCMAKE_BUILD_TYPE=Release
 cmake --build green-mbpt-build -j 4
-ctest --test-dir green-mbpt-build --output-on-failure
+(cd green-mbpt-build && ctest --output-on-failure)
 cmake --install green-mbpt-build
 ```
 

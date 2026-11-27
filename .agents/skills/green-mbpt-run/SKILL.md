@@ -17,8 +17,9 @@ Use this skill for downstream workflows, not for changing `green-mbpt` itself.
    code.
 3. Generate inputs through the documented `green-mbtools` interface. Do not
    fabricate or manually translate HDF5 symmetry or version metadata.
-4. Build `green-mbpt`, inspect `mbpt.exe --help` for the selected version, and
-   run through the site's documented workflow.
+4. Build `green-mbpt` and inspect `mbpt.exe --help` for HF, GF2, or GW.
+   For SEET, follow the [impurity-solver installation guide](https://green-phys.org/docs/installation/seet_solver/)
+   and inspect `embedding.exe --help` for the selected release.
 5. Treat completion, convergence, restart safety, and scientific validity as
    separate questions. Locate outputs using the documented HDF5 contract.
 6. Before results are reported or published, identify the GREEN software,

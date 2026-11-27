@@ -24,6 +24,7 @@ REQUIRED_URLS = (
     "https://green-phys.org/docs/components/data-formats/input-file/",
     "https://green-phys.org/docs/components/data-formats/output-files/",
     "https://green-phys.org/docs/installation/from_sources/",
+    "https://green-phys.org/docs/installation/seet_solver/",
     "https://github.com/Green-Phys/green-citations",
     "https://github.com/Green-Phys/green-citations/blob/main/CITATION.md",
     "https://github.com/Green-Phys/green-citations/blob/main/CITATION.cff",
