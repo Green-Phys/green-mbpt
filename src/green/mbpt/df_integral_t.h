@@ -6,17 +6,18 @@
 #ifndef GREEN_DFINTEGRAL_H
 #define GREEN_DFINTEGRAL_H
 
+#include <green/mbpt/except.h>
+#include <green/symmetry/integral_pair_map.h>
 #include <green/symmetry/symmetry.h>
 #include <green/utils/mpi_shared.h>
 #include <green/utils/mpi_utils.h>
 
-#include <green/mbpt/except.h>
-#include "common_defs.h"
-#include "except.h"
-
 #include <Eigen/Core>
 #include <Eigen/Sparse>
 #include <vector>
+
+#include "common_defs.h"
+#include "except.h"
 
 namespace green::mbpt {
   enum integral_symmetry_type_e { direct, conjugated, transposed };
@@ -37,8 +38,19 @@ namespace green::mbpt {
     using MatrixXcd = Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
     using MatrixXcf = Eigen::Matrix<std::complex<float>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
     using MatrixXd  = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
-    df_integral_t(const std::string& path, int nao, int NQ, const bz_utils_t& bz_utils, const utils::mpi_context & cntx = utils::mpi_context::context()) :
+    df_integral_t(const std::string& path, int nao, int NQ, const bz_utils_t& bz_utils,
+                  const utils::mpi_context&                cntx    = utils::mpi_context::context(),
+                  const symmetry::integral_reader_options& options = {}) :
         _base_path(path), _k0(-1), _current_chunk(-1), _chunk_size(0), _NQ(NQ), _bz_utils(bz_utils) {
+      _pair_map = symmetry::integral_pair_map::open(path, options);
+      if (_pair_map) {
+        if (_pair_map->nao() != size_t(nao) || _pair_map->naux() != size_t(NQ) || _pair_map->nk() != bz_utils.nk())
+          throw std::runtime_error("SG integral reader dimensions differ from solver");
+        _chunk_size = _pair_map->chunk_size();
+        _vij_Q =
+            std::make_shared<int_data>(std::array<size_t, 4>{size_t(_chunk_size), size_t(NQ), size_t(nao), size_t(nao)}, cntx);
+        return;
+      }
       h5pp::archive ar(path + "/meta.h5");
       if(ar.has_attribute("__green_version__")) {
         std::string int_version = ar.get_attribute<std::string>("__green_version__");
@@ -63,6 +75,17 @@ namespace green::mbpt {
      * @param type
      */
     void read_integrals(size_t k1, size_t k2) {
+      if (_pair_map) {
+        const auto chunk = _pair_map->representative(k1, k2) / _chunk_size;
+        if (long(chunk) == _current_chunk) return;
+        // All ranks in this reader's node communicator request the same chunk.
+        // Transformations consume the shared source but never change it.
+        _vij_Q->fence();
+        if (!_vij_Q->cntx().node_rank) read_a_chunk(chunk * _chunk_size, _vij_Q->object());
+        _vij_Q->fence();
+        _current_chunk = chunk;
+        return;
+      }
       assert(k1 >= 0);
       assert(k2 >= 0);
       // Find corresponding index for k-pair (k1,k2). Only k-pair with k1 > k2 will be stored.
@@ -85,6 +108,10 @@ namespace green::mbpt {
     }
 
     void read_a_chunk(size_t c_id, ztensor<4>& V_buffer) {
+      if (_pair_map) {
+        _pair_map->read_chunk(c_id, V_buffer.data(), V_buffer.shape()[0]);
+        return;
+      }
       V_buffer.set_zero();
       std::string   fname = _base_path + "/" + _chunk_basename + "_" + std::to_string(c_id) + ".h5";
       h5pp::archive ar(fname);
@@ -139,6 +166,7 @@ namespace green::mbpt {
      * @return A pair of sign and type of applied symmetry
      */
     std::pair<int, integral_symmetry_type_e> v_type(size_t k1, size_t k2) {
+      if (_pair_map) throw std::logic_error("legacy symmetry flags cannot describe SG integral maps");
       size_t idx  = (k1 >= k2) ? k1 * (k1 + 1) / 2 + k2 : k2 * (k2 + 1) / 2 + k1;  // k-pair = (k1, k2) or (k2, k1)
       // determine sign
       int    sign = (k1 >= k2) ? 1 : -1;
@@ -162,6 +190,19 @@ namespace green::mbpt {
      */
     template <typename prec>
     void symmetrize(tensor<prec, 3>& vij_Q_k1k2, size_t k1, size_t k2, size_t NQ_offset = 0, size_t NQ_local = 0) {
+      if (_pair_map) {
+        const size_t count = NQ_local ? NQ_local : size_t(_NQ);
+        const auto   rep   = _pair_map->representative(k1, k2);
+        if (long(rep / _chunk_size) != _current_chunk) throw std::logic_error("SG source chunk is not loaded");
+        const size_t nao = _pair_map->nao();
+        if (vij_Q_k1k2.shape() != std::array<size_t, 3>{count, nao, nao})
+          throw std::logic_error("SG target buffer shape mismatch");
+        std::vector<std::complex<double>> owned(count * nao * nao);
+        const auto*                       source = _vij_Q->object().data() + (rep % _chunk_size) * _NQ * nao * nao;
+        _pair_map->reconstruct(k1, k2, source, owned.data(), NQ_offset, count);
+        Complex_DoubleToType(owned.data(), vij_Q_k1k2.data(), owned.size());
+        return;
+      }
       int                                      k1k2_wrap = wrap(k1, k2);
       std::pair<int, integral_symmetry_type_e> vtype     = v_type(k1, k2);
       int                                      NQ        = _NQ;
@@ -187,11 +228,28 @@ namespace green::mbpt {
       }
     }
 
-    const ztensor<4>& vij_Q() const { return _vij_Q->object(); }
+    bool       is_space_group() const { return bool(_pair_map); }
+    // Historical finite-size code consumes raw legacy rows. Preserve that
+    // convention for old files, but supply owned logical-pair rows for SG.
+    ztensor<3> correction_pair(size_t k1, size_t k2) {
+      const auto shape = _vij_Q->object().shape();
+      ztensor<3> result(shape[1], shape[2], shape[3]);
+      if (_pair_map)
+        symmetrize(result, k1, k2);
+      else
+        memcpy(result.data(), _vij_Q->object().data() + wrap(k1, k2) * result.size(),
+               result.size() * sizeof(std::complex<double>));
+      return result;
+    }
+    const ztensor<4>& vij_Q() const {
+      if (_pair_map) throw std::logic_error("SG representative buffer is not a requested-pair view");
+      return _vij_Q->object();
+    }
     const ztensor<3>& v0ij_Q() const { return _v0ij_Q; }
     const ztensor<3>& v_bar_ij_Q() const { return _v_bar_ij_Q; }
 
     int               wrap(int k1, int k2) {
+      if (_pair_map) return _pair_map->representative(k1, k2) % _chunk_size;
       size_t idx = (k1 >= k2) ? k1 * (k1 + 1) / 2 + k2 : k2 * (k2 + 1) / 2 + k1;  // k-pair = (k1, k2) or (k2, k1)
       // determine type
       if (_bz_utils.k_symmetry().conj_kpair_list()[idx] != idx) {
@@ -209,6 +267,7 @@ namespace green::mbpt {
     }
 
   private:
+    std::unique_ptr<symmetry::integral_pair_map> _pair_map;
     // Coulomb integrals stored in density fitting format
     std::shared_ptr<int_data> _vij_Q;
     // G=0 correction to coulomb integral stored in density fitting format for second-order e3xchange diagram

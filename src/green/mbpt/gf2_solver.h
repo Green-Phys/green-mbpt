@@ -41,8 +41,8 @@ namespace green::mbpt {
      */
     gf2_solver(const params::params& p, const grids::transformer_t& tr, const bz_utils_t& bz) :
         _nts(tr.sd().repn_fermi().nts()), _nk(bz.nk()), _ink(bz.ink()), _path(p["dfintegral_file"]),
-        _ewald(std::filesystem::exists(_path + "/df_ewald.h5")), _bz_utils(bz),
-        statistics("GF2") {
+        _ewald(std::filesystem::exists(_path + "/df_ewald.h5")), _bz_utils(bz), statistics("GF2"),
+        _integral_options(symmetry::integral_reader_options::from_parameters(p, "correlation")) {
       h5pp::archive ar(p["input_file"]);
       ar["params/nao"] >> _nao;
       ar["params/nso"] >> _nso;
@@ -75,6 +75,7 @@ namespace green::mbpt {
 
     // Path to H5 file
     const std::string _path;
+    symmetry::integral_reader_options _integral_options;
 
     // references to arrays
     ztensor<5>        Sigma_local;

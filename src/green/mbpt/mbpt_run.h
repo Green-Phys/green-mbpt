@@ -251,6 +251,26 @@ namespace green::mbpt {
                                   "Run: python python/migrate.py --input <file> --output <new-file>");
     }
     ar.close();
+    // This function is also used as a version-only library check without a
+    // solver selection. Preserve that use; executable runs set scf_type.
+    if (!p.is_set("scf_type")) return;
+    const auto jobs = p["jobs"].as<std::vector<job_type>>();
+    if (std::find(jobs.begin(), jobs.end(), SC) == jobs.end()) return;
+    // Validate format, opt-in, input identity and set kind before allocating
+    // solver or device working arrays. Legacy fallback remains supported.
+    auto       hf_options = symmetry::integral_reader_options::from_parameters(p, "hf");
+    const auto hf         = symmetry::integral_pair_map::open(p["dfintegral_hf_file"], hf_options);
+    const auto type       = p["scf_type"].as<scf_type>();
+    if (type != HF) {
+      auto       options     = symmetry::integral_reader_options::from_parameters(p, "correlation");
+      const auto correlation = symmetry::integral_pair_map::open(p["dfintegral_file"], options);
+      if (correlation && type == GW && p["q0_treatment"].as<sigma_q0_treatment_e>() == extrapolate)
+        throw std::runtime_error("SG GW extrapolation requires a separately validated finite-size profile");
+      if (!correlation && options.mode == "space_group" && !utils::context().global_rank)
+        std::cout << "Correlation integrals: legacy fallback" << std::endl;
+    }
+    if (!hf && hf_options.mode == "space_group" && !utils::context().global_rank)
+      std::cout << "HF integrals: legacy fallback" << std::endl;
   }
 
   inline void run(sc::sc_loop<shared_mem_dyson>& sc, const params::params& p) {

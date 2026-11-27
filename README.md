@@ -89,6 +89,10 @@ default `sim.h5`). The versioned layout and restart caveats are documented in
 the [output-file contract](https://green-phys.org/docs/components/data-formats/output-files/).
 To get information about other parameters and their default values call `mbpt.exe --help`.
 
+The feature branch's opt-in space-group integral reader is documented in
+[docs/symmetry-integrals.md](docs/symmetry-integrals.md), including coordinated
+dependencies, resource bounds, supported kernels and validation probe usage.
+
 ## Acknowledgements
 
 This work is supported by the National Science Foundation under the award OAC-2310582

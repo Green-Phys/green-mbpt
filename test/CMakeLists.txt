@@ -1,5 +1,12 @@
 project(_test)
 
+add_executable(frozen_integral_probe frozen_integral_probe.cpp)
+target_link_libraries(frozen_integral_probe PRIVATE GREEN::MBPT GREEN::SC)
+add_test(NAME CustomKernelSourceOverride COMMAND "${CMAKE_COMMAND}"
+    "-DKERNEL_HELPER=${CMAKE_CURRENT_SOURCE_DIR}/../cmake/AddGreenKernel.cmake"
+    "-DTEST_BINARY_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/custom_kernel_source_override.cmake")
+
 Include(FetchContent)
 
 FetchContent_Declare(

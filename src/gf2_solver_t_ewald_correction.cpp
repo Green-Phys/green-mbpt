@@ -200,8 +200,6 @@ namespace green::mbpt {
   }
 
   void gf2_solver::read_next_correction_0_1(size_t k1, size_t k2) {
-    size_t kx3 = _coul_int_x_3->wrap(k2, k1);
-    size_t kx4 = _coul_int_x_4->wrap(k1, k2);
     _coul_int_c_1->read_correction(k1);
     _coul_int_c_2->read_correction(k2);
     _coul_int_x_3->read_integrals(k2, k1);
@@ -212,8 +210,10 @@ namespace green::mbpt {
     CMMatrixXcd vc_bar_1(_coul_int_c_1->v_bar_ij_Q().data(), _NQ, _nao * _nao);
     CMMatrixXcd vc_bar_2(_coul_int_c_2->v_bar_ij_Q().data(), _NQ, _nao * _nao);
     // exchange
-    CMMatrixXcd vx_3(_coul_int_x_3->vij_Q().data() + kx3 * _nao * _nao * _NQ, _NQ, _nao * _nao);
-    CMMatrixXcd vx_4(_coul_int_x_4->vij_Q().data() + kx4 * _nao * _nao * _NQ, _NQ, _nao * _nao);
+    const auto  owned_x3 = _coul_int_x_3->correction_pair(k2, k1);
+    const auto  owned_x4 = _coul_int_x_4->correction_pair(k1, k2);
+    CMMatrixXcd vx_3(owned_x3.data(), _NQ, _nao * _nao);
+    CMMatrixXcd vx_4(owned_x4.data(), _NQ, _nao * _nao);
     MMatrixXcd  v(vijkl.data(), _nao * _nao, _nao * _nao);
     MMatrixXcd  vx2(vijkl.data(), _nao * _nao, _nao * _nao);
     vijkl.set_zero();
@@ -234,15 +234,15 @@ namespace green::mbpt {
   }
 
   void gf2_solver::read_next_correction_1_0(size_t k1, size_t k2) {
-    size_t k1_w = _coul_int_c_1->wrap(k1, k2);
-    size_t k2_w = _coul_int_c_2->wrap(k2, k1);
     _coul_int_c_1->read_integrals(k1, k2);
     _coul_int_c_2->read_integrals(k2, k1);
     _coul_int_x_3->read_correction(k1);
     _coul_int_x_4->read_correction(k2);
     // direct
-    CMMatrixXcd vc_1(_coul_int_c_1->vij_Q().data() + k1_w * _nao * _nao * _NQ, _NQ, _nao * _nao);
-    CMMatrixXcd vc_2(_coul_int_c_2->vij_Q().data() + k2_w * _nao * _nao * _NQ, _NQ, _nao * _nao);
+    const auto  owned_c1 = _coul_int_c_1->correction_pair(k1, k2);
+    const auto  owned_c2 = _coul_int_c_2->correction_pair(k2, k1);
+    CMMatrixXcd vc_1(owned_c1.data(), _NQ, _nao * _nao);
+    CMMatrixXcd vc_2(owned_c2.data(), _NQ, _nao * _nao);
     // exchange
     CMMatrixXcd vx_3(_coul_int_x_3->v0ij_Q().data(), _NQ, _nao * _nao);
     CMMatrixXcd vx_4(_coul_int_x_4->v0ij_Q().data(), _NQ, _nao * _nao);
