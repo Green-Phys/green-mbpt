@@ -166,6 +166,18 @@ namespace green::mbpt {
     p.define<sigma_q0_treatment_e>("q0_treatment", "GW q=0 divergence treatment", ignore_G0);
     p.define<std::vector<job_type>>("jobs", "Jobs to run.", std::vector{SC});
     p.define<kernel_type>("kernel", "Type of the computing kernel.", CPU);
+    p.define<bool>("frozen_core", "Exclude core orbitals from the correlated GW (CPU only for now) self-energy.", false);
+    p.define<int>("ncore", "Number of frozen-core orbitals (with frozen_core). -1: read params/ncore from the input file.", -1);
+    p.define<std::vector<int>>("orb_reordering",
+                               "Orbital permutation (with frozen_core or nv_del > 0): the first ncore entries are frozen core orbitals, the last "
+                               "nv_del entries are deleted virtuals. [-1]: read params/orb_reordering from the input file.",
+                               std::vector<int>{-1});
+    p.define<size_t>("nv_del",
+                     "Number of virtual orbitals (last entries of the orbital ordering, e.g.) excluded from the GW (CPU only for now) self-energy.",
+                     0);
+    p.define<size_t>("NQ_del",
+                     "Number of auxiliary functions excluded from the GW (CPU only for now) self-energy.",
+                     0);
 #ifdef GREEN_CUSTOM_KERNEL_HEADER_0
     GREEN_CUSTOM_KERNEL_NS_0::custom_kernel_parameters(p);
 #endif
